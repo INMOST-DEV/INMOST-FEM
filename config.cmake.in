@@ -1,0 +1,53 @@
+# - Config file for the AniFem++ package
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+if (@WITH_MPI@)
+    find_dependency(MPI)
+endif()
+
+if (@WITH_INMOST@)
+    if (NOT @DOWNLOAD_inmost@)
+        find_dependency(INMOST HINTS "@INMOST_DIR@")
+    else()
+        find_dependency(INMOST HINTS "@PACKAGE_DOWNLOADED_LIBS_ROOT@")
+    endif() 
+    target_compile_definitions(inmost INTERFACE ${INMOST_DEFINITIONS})
+    target_link_directories(inmost INTERFACE ${INMOST_LIBRARY_DIRS})
+    target_link_libraries(inmost INTERFACE ${INMOST_LIBRARIES})
+    target_include_directories(inmost INTERFACE ${INMOST_INCLUDE_DIRS})
+endif()
+
+if (@WITH_EIGEN@)
+    if (NOT @DOWNLOAD_eigen3@)
+        find_dependency(Eigen3 HINTS "@Eigen3_DIR@")
+    else()
+        find_dependency(Eigen3 HINTS "@PACKAGE_DOWNLOADED_LIBS_ROOT@")
+    endif()
+endif()
+
+if (@WITH_KINSOL@)
+    set(_sundials_components kinsol)
+    if (NOT @DOWNLOAD_sundials@)
+        find_dependency(SUNDIALS COMPONENTS ${_sundials_components} HINTS "@SUNDIALS_DIR@")
+    else()
+        find_dependency(SUNDIALS COMPONENTS ${_sundials_components} HINTS "@PACKAGE_DOWNLOADED_LIBS_ROOT@")
+    endif()    
+    unset(_sundials_components)
+endif()
+
+if (@WITH_CASADI@)
+    if (NOT @DOWNLOAD_casadi@)
+        find_dependency(casadi HINTS "@casadi_DIR@")
+    else()
+        find_dependency(casadi HINTS "@PACKAGE_DOWNLOADED_LIBS_ROOT@")
+    endif()
+endif()
+
+include ( "${CMAKE_CURRENT_LIST_DIR}/@package_NAME@-targets.cmake" )
+
+check_required_components(@package_NAME@)
+
+
