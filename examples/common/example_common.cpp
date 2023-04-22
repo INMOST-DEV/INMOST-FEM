@@ -1,5 +1,7 @@
 #include "example_common.h"
 #include "anifem++/fem/spaces/spaces.h"
+#include "anifem++/inmost_interface/fem.h"
+
 using namespace INMOST;
 
 void InmostInit(int* argc, char** argv[], const std::string& solver_db, int& pRank, int& pCount){
@@ -95,4 +97,29 @@ void print_linear_solver_status(INMOST::Solver& s, const std::string& prob_name,
                       << "preconding = " << s.PreconditionerTime() << "s, solving = " << s.IterationsTime() << "s" << std::endl;
         }
     }
+}
+
+Tag createFemVarTag(Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::string& tag_name, bool use_fixed_size){
+    auto mask = Ani::AniGeomMaskToInmostElementType(dofmap.GetGeomMask()); 
+    auto ndofs = Ani::DofTNumDofsToGeomNumDofs(dofmap.NumDofs());
+    INMOST_DATA_ENUM_TYPE sz;
+    if (!use_fixed_size){
+        sz = ndofs[0];
+        for (unsigned i = 1; i < ndofs.size(); ++i)
+            if (ndofs[i] != 0){
+                if (sz == 0) sz = ndofs[i];
+                else if (sz != ndofs[i]) {
+                    sz = ENUMUNDEF;
+                    break;
+                }
+            }
+    } else {
+        sz = *std::max_element(ndofs.begin(), ndofs.end()); 
+    }    
+    Tag u = m->CreateTag(tag_name, DATA_REAL, mask, NONE, sz);
+    if (sz == ENUMUNDEF){
+        for (auto it = m->BeginElement(mask); it != m->EndElement(); ++it)
+            it->RealArrayDV(u).resize(ndofs[it->GetElementNum()], 0.0);
+    }
+    return u;  
 }

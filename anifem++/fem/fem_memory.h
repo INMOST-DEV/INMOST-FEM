@@ -13,6 +13,7 @@
 #include <array>
 #include <sstream>
 #include <utility>
+#include <cassert>
 #include <cmath>
 
 namespace Ani{
@@ -40,7 +41,7 @@ namespace Ani{
 
     ///Store dense matrix
     template<typename ScalarType = double>
-    struct DenseMatrix {
+    struct DenseMatrix{
         using Scalar = ScalarType;
         Scalar *data = nullptr; ///< contiguous array storing matrix in col-major format
         std::size_t nRow = 0, nCol = 0; ///< number of rows and columns of the matrix
@@ -53,6 +54,20 @@ namespace Ani{
         Scalar operator()(std::size_t i, std::size_t j) const { return data[i + nRow * j]; }
         Scalar& operator[](std::size_t i){ return data[i]; }
         Scalar operator[](std::size_t i) const { return data[i]; }
+        template<typename RT>
+        DenseMatrix<ScalarType>& operator+=(const DenseMatrix<RT>& other){ 
+            assert(nRow == other.nRow && nCol == other.nCol && "Sizes incompatible");
+            for (std::size_t i = 0; i < nRow*nCol; ++i)
+                data[i] += other.data[i];
+            return *this;    
+        }
+        template<typename RT>
+        DenseMatrix<ScalarType>& operator-=(const DenseMatrix<RT>& other){ 
+            assert(nRow == other.nRow && nCol == other.nCol && "Sizes incompatible");
+            for (std::size_t i = 0; i < nRow*nCol; ++i)
+                data[i] -= other.data[i];
+            return *this;    
+        }
         void SetZero(){ std::fill(data, data + nRow*nCol, 0); }
         std::string to_string(const std::string& val_sep = " ", const std::string& row_sep = "\n") const;
 

@@ -15,7 +15,7 @@ struct InputArgs{
     std::string lin_sol_db = "";
     std::string save_dir = "", save_prefix = "problem_out";
     std::string lin_sol_nm = "inner_mptiluc", lin_sol_prefix = "";
-    std::string USpace = "P2";
+    std::string USpace = "P1";
 
     static void printArgsHelpMessage(std::ostream& out = std::cout, const std::string& prefix = "");
     void print(std::ostream& out = std::cout, const std::string& prefix = "") const;

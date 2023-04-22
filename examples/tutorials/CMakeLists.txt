@@ -9,3 +9,9 @@ target_link_libraries(ex3 AniFem++ example_com)
 
 add_executable(ex4 ex4.cpp cmd_ex4.cpp cmd_ex4.h)
 target_link_libraries(ex4 AniFem++ example_com)
+
+add_executable(react_diff1 react_diff1.cpp cmd_ex1_3.cpp cmd_ex1_3.h)
+target_link_libraries(react_diff1 AniFem++ example_com)
+
+add_executable(react_diff2 react_diff2.cpp cmd_ex4.cpp cmd_ex4.h)
+target_link_libraries(react_diff2 AniFem++ example_com)

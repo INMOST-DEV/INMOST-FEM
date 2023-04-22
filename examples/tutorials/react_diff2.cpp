@@ -1,24 +1,24 @@
-//
-// Created by Liogky Alexey on 05.04.2022.
-//
-
 /**
- * Here we show how to code FEM problem for runtime finite element spaces
- * 
- * This program generates and solves a finite element system for the stationary diffusion problem
+ * This program generates and solves a finite element system for the stationary reaction-diffusion problem
  * \f[
  * \begin{aligned}
- *  -\mathrm{div}\ \mathbf{D}\ &\mathrm{grad}\ u\ &= \mathbf{F}\ in\  \Omega          \\
- *                             &               u\ &= U_0\        on\  \partial \Omega \\
+ *  -\mathrm{div}\ \mathbf{K}\ &\mathrm{grad}\ u\ + &\mathbf{A} u &= \mathbf{F}\ in\  \Omega  \\
+ *                             &                    &           u &= U_0\        on\  \Gamma_D\\
+ *            &\mathbf{K} \frac{du}{d\mathbf{n}}    &             &= G_0\        on\  \Gamma_N\\
+ *            &\mathbf{K} \frac{du}{d\mathbf{n}}\ + &\mathbf{S} u &= G_1\        on\  \Gamma_R\\
  * \end{aligned}
  * \f]
- * where Ω = [0,1]^3
+ * where Ω = [0,1]^3, Γ_D = {0}x[0,1]^2, Γ_R = {1}x[0,1]^2, Γ_N = ∂Ω \ (Γ_D ⋃ Γ_R)
  * The user-defined coefficients are
- *    D(x)   = (1 + x^2)*I - positive definite tensor
- *    F(x)   = 1           - right-hand side
- *    U_0(x) = 0           - essential (Dirichlet) boundary condition
+ *    K(x)   - positive definite tensor
+ *    A(x)   - non-negative reaction
+ *    F(x)   - right-hand side
+ *    U_0(x) - essential (Dirichlet) boundary condition
+ *    G_0(x) - Neumann boundary condition
+ *    G_1(x) - Robin boundary condition
+ *    S(x)   - Robin boundary coefficient
  *
- * @see src/Tutorials/PackageFEM/main_simple.f in [Ani3d library](https://sourceforge.net/projects/ani3d/)
+ * @see src/Tutorials/PackageFEM/main_bc.f in [Ani3d library](https://sourceforge.net/projects/ani3d/)
  */
 
 #include "cmd_ex4.h"
@@ -27,7 +27,7 @@ using namespace INMOST;
 
 int main(int argc, char* argv[]){
     InputArgs p;
-    std::string prob_name = "ex4";
+    std::string prob_name = "react_diff2";
     p.save_prefix = prob_name + "_out"; 
     p.parseArgs_mpi(&argc, &argv);
     unsigned quad_order = 2;
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]){
     FemSpace UFem = choose_space_from_name(p.USpace);
     uint unf = UFem.dofMap().NumDofOnTet();
     auto& dofmap = UFem.dofMap();
-    auto mask = AniGeomMaskToInmostElementType(dofmap.GetGeomMask()); 
+    auto mask = AniGeomMaskToInmostElementType(dofmap.GetGeomMask()) | FACE; 
     // Set boundary labels
     Tag BndLabel = m->CreateTag("bnd_label", DATA_INTEGER, mask, NONE, 1);
     for (auto it = m->BeginElement(mask); it != m->EndElement(); ++it){
@@ -62,20 +62,44 @@ int main(int argc, char* argv[]){
     }
 
     // Define tensors from the problem
-    auto D_tensor = [](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet) {
-        (void) dims; (void) user_data; (void) iTet;
-        D[0] = 1 + X[0]*X[0];  
-        return Ani::TENSOR_SCALAR;
+    auto K_tensor = [](const Coord<> &X, double *Kdat, TensorDims dims, void *user_data, int iTet) {
+        (void) X; (void) user_data; (void) iTet;    
+        Ani::DenseMatrix<> K(Kdat, dims.first, dims.second);
+        K.SetZero();
+        K(0, 0) = K(1, 1) = K(2, 2) = 1;
+        K(0, 1) = K(1, 0) = -1;
+        return Ani::TENSOR_SYMMETRIC;
     };
     auto F_tensor = [](const Coord<> &X, double *F, TensorDims dims, void *user_data, int iTet) {
         (void) X; (void) dims; (void) user_data; (void) iTet;
         F[0] = 1;
         return Ani::TENSOR_SCALAR;
     };
-    auto U_0 = [](const Coord<> &X, double* res, ulong dim, void* user_data)->int{ (void) X; (void) dim; (void) user_data; res[0] = 0.0; return 0;}; 
-
-    // Define tag to store result
-    Tag u = createFemVarTag(m, *dofmap.target<>(), "u");
+    auto A_tensor = [](const Coord<> &X, double *A, TensorDims dims, void *user_data, int iTet) {
+        (void) X; (void) dims; (void) user_data; (void) iTet;
+        A[0] = 1;
+        return Ani::TENSOR_SCALAR;
+    };
+    auto S_tensor = [](const Coord<> &X, double *S, TensorDims dims, void *user_data, int iTet) {
+        (void) X; (void) dims; (void) user_data; (void) iTet;
+        S[0] = 1;
+        return Ani::TENSOR_SCALAR;
+    };
+    auto U_0 = [](const Coord<> &X, double* res, ulong dim, void* user_data)->int{ 
+        (void) dim; (void) user_data; 
+        res[0] = X[0] + X[1] + X[2]; 
+        return 0;
+    }; 
+    auto G_0 = [](const Coord<> &X, double *g0, TensorDims dims, void *user_data, int iTet) {
+        (void) dims; (void) user_data; (void) iTet;
+        g0[0] = X[0] - X[1];
+        return Ani::TENSOR_SCALAR;
+    };
+    auto G_1 = [](const Coord<> &X, double *g1, TensorDims dims, void *user_data, int iTet) {
+        (void) dims; (void) user_data; (void) iTet;
+        g1[0] = X[0] + X[2];
+        return Ani::TENSOR_SCALAR;
+    };
 
     // Define user structure to store input data used in local assembler
     struct ProbLocData{
@@ -88,41 +112,59 @@ int main(int argc, char* argv[]){
     // Define memory requirements for elemental assembler
     PlainMemoryX<> mem_req;
     {
-        mem_req = fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SCALAR, false>>(UFem.getOP(GRAD), UFem.getOP(GRAD), quad_order);
-        mem_req.extend_size(fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SCALAR, false>>(P0Space().getOP(IDEN), UFem.getOP(IDEN), quad_order));
+        auto grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN);
+        ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;
+        mem_req = fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SYMMETRIC, true>>(grad_u, grad_u, quad_order);
+        mem_req.extend_size(fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SCALAR>>(iden_u, iden_u, quad_order+1));
+        mem_req.extend_size(fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SCALAR>>(iden_p0, iden_u, quad_order));
         mem_req.extend_size(UFem.interpolateByDOFs_mem_req(quad_order));
     }
     PlainMemory<> shrt_req = mem_req.enoughPlainMemory();
     // define elemental assembler of local matrix and rhs
     std::function<void(const double**, double*, double*, double*, int*, void*)> local_assembler =
-            [&D_tensor, &F_tensor, &U_0, order = quad_order, mem_req, shrt_req, unf, &UFem](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, int* iw, void* user_data) -> void{
+            [&K_tensor, &F_tensor, &A_tensor, &S_tensor, &U_0, &G_0, &G_1, order = quad_order, mem_req, shrt_req, unf, &UFem](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, int* iw, void* user_data) -> void{
         PlainMemory<> _mem = shrt_req;
         _mem.ddata = w, _mem.idata = iw;
         PlainMemoryX<> mem = mem_req;
         mem.allocateFromPlainMemory(_mem);
-        DenseMatrix<> A(Adat, unf, unf), F(Fdat, unf, 1);
-        A.SetZero(); F.SetZero();
+        DenseMatrix<> A(Adat, unf, unf), F(Fdat, unf, 1), B(w + shrt_req.dSize, unf, unf), G(w + shrt_req.dSize, unf, 1);
+        A.SetZero(); F.SetZero(); B.SetZero();
 
         Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
-        //here we set DfuncTraits<TENSOR_SCALAR, false> because we know that D_tensor is TENSOR_SCALAR on all elements
-        // and also we know that it's not constant
-        // elemental stiffness matrix <grad(P1), D grad(P1)>
+
         auto grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN);
         ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;
-        fem3Dtet<DfuncTraits<TENSOR_SCALAR, false>>(XYZ, grad_u, grad_u, D_tensor, A, mem, order );
+        // elemental stiffness matrix <K grad(P1), grad(P1)>
+        fem3Dtet<DfuncTraits<TENSOR_SYMMETRIC, true>>(XYZ, grad_u, grad_u, K_tensor, A, mem, order);
+        // elemental mass matrix <A P1, P1>
+        fem3Dtet<DfuncTraits<TENSOR_SCALAR, true>>(XYZ, iden_u, iden_u, A_tensor, B, mem, order);
+        A += B;
 
         // elemental right hand side vector <F, P1>
         fem3Dtet<DfuncTraits<TENSOR_SCALAR, true>>( XYZ, iden_p0, iden_u, F_tensor, F, mem, order );
 
-        // read node labels from user_data
+        // read user_data
         auto& dat = *static_cast<ProbLocData*>(user_data);
+        // apply Neumann and Robin BC
+        for (int k = 0; k < 4; ++k){
+            if (dat.flbl[k] > 2){ //Neumann BC
+                fem3Dface<DfuncTraits<TENSOR_SCALAR>>( XYZ, k, iden_p0, iden_u, G_0, G, mem, order );
+                F += G;
+            } else if (dat.flbl[k] == 2) { //Robin BC
+                fem3Dface<DfuncTraits<TENSOR_SCALAR>> ( XYZ, k, iden_p0, iden_u, G_1, G, mem, order );
+                F += G;
+                fem3Dface<DfuncTraits<TENSOR_SCALAR>>( XYZ, k, iden_u, iden_u, S_tensor, B, mem, order + 1 );
+                A += B;
+            }
+        }
+
         // choose boundary parts of the tetrahedron 
         DofT::TetGeomSparsity sp;
-        for (int i = 0; i < 4; ++i) if (dat.nlbl[i] > 0)
+        for (int i = 0; i < 4; ++i) if (dat.nlbl[i] & 1)
             sp.setNode(i);
-        for (int i = 0; i < 6; ++i) if (dat.elbl[i] > 0)
+        for (int i = 0; i < 6; ++i) if (dat.elbl[i] & 1)
             sp.setEdge(i);  
-        for (int i = 0; i < 4; ++i) if (dat.flbl[i] > 0)
+        for (int i = 0; i < 4; ++i) if (dat.flbl[i] & 1)
             sp.setFace(i);
         
         //set dirichlet condition
@@ -137,9 +179,6 @@ int main(int argc, char* argv[]){
         double *nn_p = p.get_nodes();
         const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
         ProbLocData data;
-        std::fill(data.nlbl.begin(), data.nlbl.end(), 0);
-        std::fill(data.elbl.begin(), data.elbl.end(), 0);
-        std::fill(data.flbl.begin(), data.flbl.end(), 0);
         if (geom_mask & DofT::NODE){
             for (unsigned i = 0; i < data.nlbl.size(); ++i) 
                 data.nlbl[i] = (*p.nodes)[i].Integer(BndLabel);
@@ -148,7 +187,7 @@ int main(int argc, char* argv[]){
             for (unsigned i = 0; i < data.elbl.size(); ++i) 
                 data.elbl[i] = (*p.edges)[p.local_edge_index[i]].Integer(BndLabel);
         }
-        if (geom_mask & DofT::FACE){
+        {//required for Neumann and Robin BC
             for (unsigned i = 0; i < data.flbl.size(); ++i) 
                 data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(BndLabel);
         }
@@ -158,7 +197,7 @@ int main(int argc, char* argv[]){
 
     //define assembler
     Assembler discr(m);
-    discr.SetMatRHSFunc(GenerateElemMatRhs(local_assembler, unf, unf, shrt_req.dSize+unf, shrt_req.iSize));
+    discr.SetMatRHSFunc(GenerateElemMatRhs(local_assembler, unf, unf, shrt_req.dSize+unf*unf, shrt_req.iSize));
     {
         //create global degree of freedom enumenator
         auto Var0Helper = GenerateHelper(*UFem.base());
@@ -169,6 +208,10 @@ int main(int argc, char* argv[]){
     }
     discr.SetDataGatherer(local_data_gatherer);
     discr.PrepareProblem();
+
+    // Define tag to store result
+    Tag u = createFemVarTag(m, *dofmap.target<>(), "u");
+
     Sparse::Matrix A("A");
     Sparse::Vector x("x"), b("b");
     //assemble matrix and right-hand side
@@ -201,4 +244,3 @@ int main(int argc, char* argv[]){
     mptr.reset();
     InmostFinalize();
 }
-

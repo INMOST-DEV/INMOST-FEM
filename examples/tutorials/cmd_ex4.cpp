@@ -5,7 +5,7 @@ using namespace INMOST;
 void InputArgs::printArgsHelpMessage(std::ostream& out, const std::string& prefix){
     out << prefix << "Help message: " << "\n"
         << prefix << " Command line options: " << "\n"
-        << prefix << "  -sp, --fem_space STR     <Set fem space for U variable (displacement), supported \"P0\", \"P1\", \"P2\", \"P3\", \"MINI1\" (=P1+B4), \"MINI2\"(=P2+B4), \"MINI3\"(=P3+B4), default=\"P2\">\n"
+        << prefix << "  -sp, --fem_space STR     <Set fem space for U variable (displacement), supported \"P0\", \"P1\", \"P2\", \"P3\", \"MINI1\" (=P1+B4), \"MINI2\"(=P2+B4), \"MINI3\"(=P3+B4), default=\"P1\">\n"
         << prefix << "  -sz, --sizes     IVAL[3] <Sets the number of segments of the cube [0; 1]^3 partition along the coordinate axes Ox, Oy, Oz, default=8 8 8>" << "\n"
         << prefix << "  -t , --target    PATH    <Directory to save results, default=\"\">" << "\n"
         << prefix << "  -nm, --name      STR     <Prefix for saved results, default=\"problem_out\">" << "\n"

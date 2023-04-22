@@ -20,3 +20,4 @@ Ani::FemSpace choose_space_from_name(const std::string& name);
 
 void print_mesh_sizes(INMOST::Mesh* m);
 void print_linear_solver_status(INMOST::Solver& s, const std::string& prob_name = "problem", bool exit_on_fail = false);
+INMOST::Tag createFemVarTag(INMOST::Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::string& tag_name = "var", bool use_fixed_size = true);

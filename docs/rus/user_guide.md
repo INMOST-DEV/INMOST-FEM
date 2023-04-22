@@ -16,6 +16,9 @@
     - [Немного теории](#немного-теории)
     - [Простейшая реализация](#простейшая-реализация)
     - [Общая реализация](#общая-реализация)
+    - [Работа с памятью](#работа-с-памятью)
+    - [КЭ пространства времени исполнения](#кэ-пространства-времени-исполнения)
+  - [Стационарное уравнение реакции-диффузии](#стационарное-уравнение-реакции-диффузии)
 
 # Описание AniFem++
 Основными элементами библиотеки AniFem++ являются: 
@@ -574,6 +577,97 @@ m->Save("out.pvtu");
 ### Общая реализация
 Теперь продемонстрируем, как изменить предыдущий пример, чтобы он оставался валидным для любых скалярных КЭ пространств, см. пример [ex2.cpp](../../examples/tutorials/ex2.cpp)
 
-TODO: привести список изменений
+1. Необходимо сделать метки не только на граничных узлах, но также рёбрах и гранях - строки 51-62 [ex2.cpp](../../examples/tutorials/ex2.cpp)
+
+В общем случае степени свободы могут лежать не толька на узлах, а значит и условия типа Дирихле тоже могут накладываться не только на узловые степени свободы
+
+2. Также усложняется процедура для создания тега для хранения степеней свободы - строки 78-95 [ex2.cpp](../../examples/tutorials/ex2.cpp)
+
+Приходится создавать тэг для данных перменной длины, т.к. INMOST не поддерживает создание тэга, имеющего разные фиксированные длины на разных геометрических элементах.
+
+3. В пользовательскую структуру данных теперь надо добавить метки рёбер и граней - строки 97-103 [ex2.cpp](../../examples/tutorials/ex2.cpp)
+```C++
+struct ProbLocData{
+    std::array<int, 4> nlbl = {0};
+    std::array<int, 6> elbl = {0};
+    std::array<int, 4> flbl = {0};
+};
+```
+4. В функции ассемблирования элементных матриц для накладывания условия Дирихле теперь следует использовать интерефейс, который не зависит от структуры степеней свободы отдельного КЭ пространства - строки 121-136 [ex2.cpp](../../examples/tutorials/ex2.cpp)
+```C++
+auto& dat = *static_cast<ProbLocData*>(user_data);
+// choose boundary parts of the tetrahedron 
+DofT::TetGeomSparsity sp;
+for (int i = 0; i < 4; ++i) if (dat.nlbl[i] > 0)
+    sp.setNode(i);
+for (int i = 0; i < 6; ++i) if (dat.elbl[i] > 0)
+    sp.setEdge(i);  
+for (int i = 0; i < 4; ++i) if (dat.flbl[i] > 0)
+    sp.setFace(i);
+
+//set dirichlet condition
+if (!sp.empty()){
+    std::array<double, UNF> dof_values;
+    interpolateByDOFs<UFem>(XYZ, U_0, ArrayView<>(dof_values.data(), UNF), sp);
+    applyDirByDofs(Dof<UFem>::Map(), A, F, sp, ArrayView<const double>(dof_values.data(), UNF));
+}
+```
+5. И произвести соответствующие дополнения в функции сбора элементных данных - строки 138-161 [ex2.cpp](../../examples/tutorials/ex2.cpp)
+```C++
+auto local_data_gatherer = [&BndLabel](ElementalAssembler& p) -> void{
+  double *nn_p = p.get_nodes();
+  const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
+  ProbLocData data;
+  auto geom_mask = Dof<UFem>::Map().GetGeomMask();
+  // set labels if required
+  if (geom_mask & DofT::NODE)
+    for (unsigned i = 0; i < data.nlbl.size(); ++i) 
+      data.nlbl[i] = (*p.nodes)[i].Integer(BndLabel);
+  
+  if (geom_mask & DofT::EDGE)
+    for (unsigned i = 0; i < data.elbl.size(); ++i) 
+      data.elbl[i] = (*p.edges)[p.local_edge_index[i]].Integer(BndLabel);
+  
+  if (geom_mask & DofT::FACE)
+    for (unsigned i = 0; i < data.flbl.size(); ++i) 
+      data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(BndLabel);
+  
+  p.compute(args, &data);
+};
+```
+
+Наконец, всё готово! 
+
+**Теперь вы можете поменять `using UFem = FemFix<FEM_P1>` на `using UFem = FemFix<FEM_P2>` или `using UFem = FemFix<FEM_P3>`, запустить перекомпиляцию программы и она будет корректно работать с новым пространством.**
+
+### Работа с памятью 
+При работе с КЭ пространствами, задаваемыми через шаблоны (т.е. известными на этапе времени компиляции), вообще говоря можно на этапе компиляции оценить количество памяти, необходимое для работы функций сборки элементных матриц. Однако иногда требуемое количество памяти может не поместиться в стек, т.е произойдёт его переполнение, и программа скорее всего упадёт. Поэтому мы ограничили выделяемую статическую память так, чтобы её хватало для работы с КЭ пространствами имеющими не более 30 степеней свободы (достаточно для $(P_2)^3$) и использующими квадратурные формулы с не более чем 24 точками (формулы 6-го порядка). Если в ваших приложениях могут использоваться более сложные квадратурные формули и более богатые КЭ пространства, то рекомендуется использовать варианты функций сборки матриц, которые работают на внешней памяти. 
+
+Для примера использования шаблонного интерфейса с внешней памятью смотрите [ex3.cpp](../../examples/tutorials/ex3.cpp).
+
+### КЭ пространства времени исполнения
+Может случится так, что вы не знаете априори с каким КЭ пространством решение вашей задачи будет наиболее эффективно. В этом случае можно использовать интерфейс КЭ пространств, основанный на наследовании, который позволяет определять тип КЭ пространств на этапе исполнения. 
+
+Для примера использования динамического интерфейса в приложении к рассматриваемой задаче смотрите [ex4.cpp](../../examples/tutorials/ex4.cpp).
+
+## Стационарное уравнение реакции-диффузии
+
+$$
+ \begin{aligned}
+   -\mathrm{div}\ \mathbb{K}\ \mathrm{grad}\ u\ + A u &= F  \ \ in\  \Omega  \\
+                                                    u &= u_0\   on\  \Gamma_D\\
+    \mathbb{K} \frac{du}{d\mathbf{n}}                 &= g_0\   on\  \Gamma_N\\
+    \mathbb{K} \frac{du}{d\mathbf{n}}\ + S u &= g_1\   on\  \Gamma_R\\
+ \end{aligned}
+$$
+где $\Omega = [0,1]^3$, $\Gamma_D = \{0\}\times[0,1]^2$, $\Gamma_R = \{1\}\times[0,1]^2$, $\Gamma_N = \partial \Omega \backslash (\Gamma_D \cup \Gamma_R)$,
+
+$\mathbb{K} = \begin{pmatrix} 1 & -1 & 0 \\ -1 & 1 & 0 \\ 0 & 0 & 1  \end{pmatrix}$, $F = 1$, $A=1$, $S = 1$, $u_0(\mathbf{x}) = x + y + z$, $g_0(\mathbf{x}) = x - y$, $g_1 = x + z$.
+
+Слабая поставновка имеет вид:
+$$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mathbf{x} + \int_{\Omega} (A\ u) \cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_R} (S\ u)\cdot \phi\ d^2\mathbf{x} = \int_{\Omega} f(\mathbf{x})\cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_N} g_0 \cdot \phi\ d^2\mathbf{x} + \int_{\Gamma_R} g_1 \cdot \phi\ d^2\mathbf{x}$$
+
+В файле [react_diff1.cpp](../../examples/tutorials/react_diff1.cpp) представлено решение этой задачи с использованием шаблонного интерфейса, а в [react_diff2.cpp](../../examples/tutorials/react_diff2.cpp) - с использованием runtime интрефейса.
+
 
 
