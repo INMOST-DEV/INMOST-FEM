@@ -4,7 +4,7 @@
   - [Квадратурные формулы](#квадратурные-формулы)
   - [Конечные элементы](#конечные-элементы)
   - [Элементная матрица](#элементная-матрица)
-    - [Формы тензора $\mathbf{D}$](#формы-тензора)
+    - [Формы тензора D](#формы-тензора-d)
     - [Интерфейсы `fem3d[tet|face|edge|node]`](#интерфейсы-fem3dtetfaceedgenode)
   - [Вычисление КЭ функций в точке](#вычисление-кэ-функций-в-точке)
   - [Наложение условий Дирихле](#наложение-условий-дирихле)
@@ -105,7 +105,7 @@ $$\int_{S_d} (\mathbf{D}\ Op_A(u^h)) \cdot Op_B(v^h) dx,$$
 
 Для осмысленности выражения выше произведения матриц должны иметь смысл. Например, если $Op_A(u^h) = GRAD((P_1)^3)$, т.е. имеет размерность $9 \times 12$, то $\mathbf{D}$ должно иметь $9$ строк. В общем случае если $Op_A(u^h)$ имеет физическую размерность $d_A$ и включает $nf_A$  элементных степеней свободы, т.е. имеет полную размерность  $d_A \times nf_A$, а $Op_B(v^h)$ имеет полную размерность $d_B \times nf_B$, то $\mathbf{D}$ должно иметь размерность $d_B \times d_A$, а элементная матрица будет иметь размерность $nf_B \times nf_A$.
 
-### Формы тензора $\mathbf{D}$
+### Формы тензора D
 
 В качестве тензора $\mathbf{D}$ может выступать функтор (функция или любая структура для которой переопределён `operator()(...)` соотвествующей сигнатуры)
 с одной из двух вариантов сигнатуры:
@@ -249,6 +249,7 @@ PlainMemoryX<> fem3Dtet_memory_requirements(
 
 Для вычисления элементных матриц для **линейных форм правых частей** можно использовать следующую хитрость:
 $$f(v^h) = \int_{S_d} (\mathbf{D}_{rhs}\ \mathrm{IDEN}(\mathrm{FEM\_P0})) \cdot \mathrm{IDEN}(v^h) dx,$$
+
 где $\mathbf{D}_{rhs}$ представляет функцию правой части $f$, что выражается в коде как
 ```C++
 //template variant
@@ -450,21 +451,26 @@ TODO: дореализовать интерфейс для их накладыв
 ## Первое знакомство
 
 Начнём знакомство с AniFem++ с рассмотрения классического уравнения диффузии в кубической области $\Omega = [0, 1]^3$:
-$$
+```math
 \begin{aligned} 
 -\mathrm{div}\ (\mathbb{D}(\mathbf{x})\ \mathrm{grad}\ u) &= f(\mathbf{x})\ &in\ \ &\Omega,\\
 u &= u_0(\mathbf{x})\ &on\ \ &\partial\Omega,
 \end{aligned}
-$$
+```
 где $\mathbb{D}(\mathbf{x}) = (1 + x^2) \mathbb{I}$, $f(\mathbf{x}) = 1$, $u_0(\mathbf{x}) = 0$
 
 ### Немного теории
-Слабая постановка имеет вид: *найти функцию $u \in \mathring H^1_u = \{s \in H^1(\Omega): s|_{\partial \Omega} = 0 \}$, которая при любых соответствующих пространству тестовых функциях $\phi$ удовлетворяют следующим уравнениям:*
+Слабая постановка имеет вид: *найти функцию* $u \in \mathring H^1_u = \{s \in H^1(\Omega): s|_{\partial \Omega} = 0 \}$ *, которая при любых соответствующих пространству тестовых функциях* $\phi$ *удовлетворяют следующим уравнениям:*
+
 $$\int_{\Omega}(\mathbb{D}(\mathbf{x})\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d\mathbf{x} = \int_{\Omega} f(\mathbf{x})\cdot \phi\ d\mathbf{x}.$$
 
+
 После дискретизации области $\Omega^h$ и выбора соответствующих дискретных КЭ пространств $u^h = \sum_{j} u_j \phi_j$ имеем систему уравнений: 
+
 $$\sum_{j} \sum_{T \in \Omega^h} \sum_{\mathbf{x}_q \in T} w_q [(\mathbb{D}\ \mathrm{grad}\ \phi_j) \cdot \mathrm{grad}\ \phi_i]_{\mathbf{x}_q} u_j = \sum_{T \in \Omega^h} \sum_{\mathbf{x}_q \in T} w_q [f \phi_i]_{\mathbf{x}_q},$$
+
 где $\sum_{T \in \Omega^h}$ - сумма по всем элементам $T$ области $\Omega^h$, $\sum_{\mathbf{x}_q \in T} w_q$ - сумма по точкам квадратурных формул с соответствующими весами. После переобозначений последнее выражение принимает вид:
+
 $$\mathcal{A}_{D} \cdot U^h = F^h$$
 
 ### Простейшая реализация
@@ -652,17 +658,17 @@ auto local_data_gatherer = [&BndLabel](ElementalAssembler& p) -> void{
 
 ## Стационарное уравнение реакции-диффузии
 
-$$
+```math
  \begin{aligned}
    -\mathrm{div}\ \mathbb{K}\ \mathrm{grad}\ u\ + A u &= F  \ \ in\  \Omega  \\
                                                     u &= u_0\   on\  \Gamma_D\\
     \mathbb{K} \frac{du}{d\mathbf{n}}                 &= g_0\   on\  \Gamma_N\\
     \mathbb{K} \frac{du}{d\mathbf{n}}\ + S u &= g_1\   on\  \Gamma_R\\
  \end{aligned}
-$$
+```
 где $\Omega = [0,1]^3$, $\Gamma_D = \{0\}\times[0,1]^2$, $\Gamma_R = \{1\}\times[0,1]^2$, $\Gamma_N = \partial \Omega \backslash (\Gamma_D \cup \Gamma_R)$,
 
-$\mathbb{K} = \begin{pmatrix} 1 & -1 & 0 \\ -1 & 1 & 0 \\ 0 & 0 & 1  \end{pmatrix}$, $F = 1$, $A=1$, $S = 1$, $u_0(\mathbf{x}) = x + y + z$, $g_0(\mathbf{x}) = x - y$, $g_1 = x + z$.
+$$\mathbb{K} = \begin{pmatrix} 1 & -1 & 0 \\ -1 & 1 & 0 \\ 0 & 0 & 1  \end{pmatrix},\ F = 1,\ A = 1,\ S = 1,\ u_0(\mathbf{x}) = x + y + z,\ g_0(\mathbf{x}) = x - y,\ g_1 = x + z$$
 
 Слабая поставновка имеет вид:
 $$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mathbf{x} + \int_{\Omega} (A\ u) \cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_R} (S\ u)\cdot \phi\ d^2\mathbf{x} = \int_{\Omega} f(\mathbf{x})\cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_N} g_0 \cdot \phi\ d^2\mathbf{x} + \int_{\Gamma_R} g_1 \cdot \phi\ d^2\mathbf{x}$$
