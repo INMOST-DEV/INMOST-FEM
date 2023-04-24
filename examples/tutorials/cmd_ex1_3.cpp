@@ -10,22 +10,30 @@ void InputArgs::printArgsHelpMessage(std::ostream& out, const std::string& prefi
         << prefix << "  -nm, --name      STR     <Prefix for saved results, default=\"problem_out\">" << "\n"
         << prefix << "  -db, --lnslvdb   FILE    <Specify linear solver data base, default=\"\">\n"
         << prefix << "  -ls, --lnslv     STR[2]  <Set linear solver name and prefix, default=\"inner_mptiluc\" \"\">\n"
+        << prefix << "  -q , --qorder    DVAL    <Set maximal quadrature formulas order, default=2>\n"
         << prefix << "  -h , --help              <Print this message and exit>" << "\n";
 }
 void InputArgs::print(std::ostream& out, const std::string& prefix) const {
     out << prefix << "mesh axis partition = " << axis_sizes[0] << " x " << axis_sizes[1] << " x " << axis_sizes[2] << "\n"
         << prefix << "save_dir  = \"" << save_dir << "\" save_prefix = \"" << save_prefix << "\"\n"
-        << prefix << "linsol = \"" << lin_sol_nm << "\" prefix = \"" << lin_sol_prefix  << "\" database = \"" << lin_sol_db << "\"" << "\n";     
+        << prefix << "linsol = \"" << lin_sol_nm << "\" prefix = \"" << lin_sol_prefix  << "\" database = \"" << lin_sol_db << "\"" << "\n"
+        << prefix << "maximal quadrature order = " << max_quad_order << "\n";    
 }
 void InputArgs::parseArgs(int argc, char* argv[], bool print_messages){
     #define GETARG(X)   if (i+1 < argc) { X }\
                     else { if (print_messages) std::cerr << "ERROR: Not found argument" << std::endl; exit(-1); }
-    auto is_double = [](const std::string& s) -> std::pair<bool, double>{
+    // auto is_double = [](const std::string& s) -> std::pair<bool, double>{
+    //     std::istringstream iss(s);
+    //     double f = NAN;
+    //     iss >> f; 
+    //     return {iss.eof() && !iss.fail(), f};    
+    // };  
+    auto is_int = [](const std::string& s) -> std::pair<bool, int>{
         std::istringstream iss(s);
-        double f = NAN;
+        int f = -1;
         iss >> f; 
         return {iss.eof() && !iss.fail(), f};    
-    };       
+    };     
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             if (print_messages) printArgsHelpMessage();
@@ -37,8 +45,8 @@ void InputArgs::parseArgs(int argc, char* argv[], bool print_messages){
             exit(0);
         } else if (strcmp(argv[i], "-sz") == 0 || strcmp(argv[i], "--sizes") == 0) {
             unsigned j = 0;
-            for (; j < axis_sizes.size() && i+1 < argc && is_double(argv[i+1]).first; ++j)
-                axis_sizes[j] = is_double(argv[++i]).second;
+            for (; j < axis_sizes.size() && i+1 < argc && is_int(argv[i+1]).first; ++j)
+                axis_sizes[j] = is_int(argv[++i]).second;
             if (j != axis_sizes.size()) throw std::runtime_error("Waited " + std::to_string(axis_sizes.size()) + " arguments for command \"" + std::string(argv[i-j]) + "\" but found only " + std::to_string(j));    
             continue;
         } else if (strcmp(argv[i], "-nm") == 0 || strcmp(argv[i], "--name") == 0) {
@@ -56,6 +64,9 @@ void InputArgs::parseArgs(int argc, char* argv[], bool print_messages){
             unsigned j = 0;
             for (; j < plp.size() && i+1 < argc; ++j)
                 *(plp[j]) = argv[++i];    
+            continue;
+        } else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--qorder") == 0) {
+            GETARG(max_quad_order = is_int(argv[++i]).second;)
             continue;
         } else {
             if (print_messages) {

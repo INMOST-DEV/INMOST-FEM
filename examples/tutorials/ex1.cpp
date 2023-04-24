@@ -81,7 +81,7 @@ int main(int argc, char* argv[]){
 
     // define elemental assembler of local matrix and rhs
     std::function<void(const double**, double*, double*, void*)> local_assembler =
-            [&D_tensor, &F_tensor, &U_0](const double** XY/*[4]*/, double* Adat, double* Fdat, void* user_data) -> void{
+            [&D_tensor, &F_tensor, &U_0, order = p.max_quad_order](const double** XY/*[4]*/, double* Adat, double* Fdat, void* user_data) -> void{
         DenseMatrix<> A(Adat, UNF, UNF), F(Fdat, UNF, 1);
         A.SetZero(); F.SetZero();
 
@@ -89,10 +89,10 @@ int main(int argc, char* argv[]){
         //here we set DfuncTraits<TENSOR_SCALAR, false> because we know that D_tensor is TENSOR_SCALAR on all elements
         // and also we know that it's not constant
         // elemental stiffness matrix <grad(P1), D grad(P1)>
-        fem3Dtet<Operator<GRAD, UFem>, Operator<GRAD, UFem>, DfuncTraits<TENSOR_SCALAR, false>>(XYZ, D_tensor, A, 2);
+        fem3Dtet<Operator<GRAD, UFem>, Operator<GRAD, UFem>, DfuncTraits<TENSOR_SCALAR, false>>(XYZ, D_tensor, A, order);
 
         // elemental right hand side vector <F, P1>
-        fem3Dtet<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR, true>>(XYZ, F_tensor, F, 2);
+        fem3Dtet<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR, true>>(XYZ, F_tensor, F, order);
 
         // read node labels from user_data
         auto& dat = *static_cast<ProbLocData*>(user_data);

@@ -31,7 +31,7 @@ int main(int argc, char* argv[]){
     std::string prob_name = "ex3";
     p.save_prefix = prob_name + "_out"; 
     p.parseArgs_mpi(&argc, &argv);
-    unsigned quad_order = 2;
+    unsigned quad_order = p.max_quad_order;
 
     int pRank = 0, pCount = 1;
     InmostInit(&argc, &argv, p.lin_sol_db, pRank, pCount);
