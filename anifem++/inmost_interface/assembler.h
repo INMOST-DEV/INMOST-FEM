@@ -346,9 +346,9 @@ public:
         ElementalAssembler::GatherDataOnElement(from, m_helper, cell, fcs, eds, nds, fcs_ord, eds_ord, nds_ord, out, component, ncomp);
     }
     template<class RandomIt>
-    void GatherDataOnElement(const INMOST::Tag& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components) const { GatherDataOnElement<INMOST::Tag, RandomIt>(from, cell, out, components.begin(), components.size()); }
+    void GatherDataOnElement(const INMOST::Tag& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement<INMOST::Tag, RandomIt>(from, cell, out, components.begin(), components.size()); }
     template<class RandomIt>
-    void GatherDataOnElement(const std::vector<INMOST::Tag>& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components) const { GatherDataOnElement<std::vector<INMOST::Tag>, RandomIt>(from, cell, out, components.begin(), components.size()); }
+    void GatherDataOnElement(const std::vector<INMOST::Tag>& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement<std::vector<INMOST::Tag>, RandomIt>(from, cell, out, components.begin(), components.size()); }
 
     /// Create initial_value_setter that sets all initial values of all variables
     static std::function<void(ElementalAssembler& p)> makeInitValueSetter(double val = 0.0);

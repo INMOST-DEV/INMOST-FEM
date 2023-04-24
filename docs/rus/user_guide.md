@@ -660,15 +660,27 @@ auto local_data_gatherer = [&BndLabel](ElementalAssembler& p) -> void{
 
 ```math
  \begin{aligned}
-   -\mathrm{div}\ \mathbb{K}\ \mathrm{grad}\ u\ + A u &= F  \ \ in\  \Omega  \\
-                                                    u &= u_0\   on\  \Gamma_D\\
-    \mathbb{K} \frac{du}{d\mathbf{n}}                 &= g_0\   on\  \Gamma_N\\
-    \mathbb{K} \frac{du}{d\mathbf{n}}\ + S u &= g_1\   on\  \Gamma_R\\
- \end{aligned}
+   -\mathrm{div}\ \mathbb{K}\ \mathrm{grad}\ u\ + A u      &= F  \ \ in\  \Omega  \\
+                                                    u      &= u_0\   on\  \Gamma_D\\
+    (\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathbf{n}        &= g_0\   on\  \Gamma_N\\
+    (\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathbf{n}        &= 0\ \   on\  \Gamma_{N_0}\\
+    (\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathbf{n}\ + S u &= g_1\   on\  \Gamma_R\\
+ \end{aligned},
 ```
-где $\Omega = [0,1]^3$, $\Gamma_D = \{0\}\times[0,1]^2$, $\Gamma_R = \{1\}\times[0,1]^2$, $\Gamma_N = \partial \Omega \backslash (\Gamma_D \cup \Gamma_R)$,
+где $\Omega = [0,1]^3$, $\Gamma_D = (\{0\} \cup \{1\}) \times [0,1]^2$, $\Gamma_N = [0,1]^2 \times \{0\}$, $\Gamma_R = [0,1]^2 \times \{1\}$, $\Gamma_{N_0} = \partial \Omega \backslash (\Gamma_D \cup \Gamma_R \cup \Gamma_N)$,
 
-$$\mathbb{K} = \begin{pmatrix} 1 & -1 & 0 \\ -1 & 1 & 0 \\ 0 & 0 & 1  \end{pmatrix},\ F = 1,\ A = 1,\ S = 1,\ u_0(\mathbf{x}) = x + y + z,\ g_0(\mathbf{x}) = x - y,\ g_1 = x + z$$
+```math
+\mathbb{K} = \begin{pmatrix} 1 & -1 & 0 \\ -1 & 1 & 0 \\ 0 & 0 & 1  \end{pmatrix},
+```
+
+- $A = 1$ 
+- $ S = 1$ 
+- $F = (x+y+z)^2 - 2$ 
+- $u_0(\mathbf{x}) = (x + y + z)^2$
+- $g_0(\mathbf{x}) = -2(x+y+z)$ 
+- $g_1 = (x + y + z)(x+y+z+2)$
+
+с аналитическим решением $u_{a} = (x+y+z)^2$.
 
 Слабая поставновка имеет вид:
 $$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mathbf{x} + \int_{\Omega} (A\ u) \cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_R} (S\ u)\cdot \phi\ d^2\mathbf{x} = \int_{\Omega} f(\mathbf{x})\cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_N} g_0 \cdot \phi\ d^2\mathbf{x} + \int_{\Gamma_R} g_1 \cdot \phi\ d^2\mathbf{x}$$

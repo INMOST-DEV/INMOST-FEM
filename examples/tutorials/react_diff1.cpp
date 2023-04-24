@@ -71,7 +71,8 @@ int main(int argc, char* argv[]){
     };
     auto F_tensor = [](const Coord<> &X, double *F, TensorDims dims, void *user_data, int iTet) {
         (void) X; (void) dims; (void) user_data; (void) iTet;
-        F[0] = 1;
+        double f = X[0] + X[1] + X[2];
+        F[0] = f*f - 2;
         return Ani::TENSOR_SCALAR;
     };
     auto A_tensor = [](const Coord<> &X, double *A, TensorDims dims, void *user_data, int iTet) {
@@ -86,17 +87,20 @@ int main(int argc, char* argv[]){
     };
     auto U_0 = [](const Coord<> &X, double* res, ulong dim, void* user_data)->int{ 
         (void) dim; (void) user_data; 
-        res[0] = X[0] + X[1] + X[2]; 
+        double f = X[0] + X[1] + X[2];
+        res[0] = f * f; 
         return 0;
     }; 
     auto G_0 = [](const Coord<> &X, double *g0, TensorDims dims, void *user_data, int iTet) {
         (void) dims; (void) user_data; (void) iTet;
-        g0[0] = X[0] - X[1];
+        double f = X[0] + X[1] + X[2];
+        g0[0] = -2*f;
         return Ani::TENSOR_SCALAR;
     };
     auto G_1 = [](const Coord<> &X, double *g1, TensorDims dims, void *user_data, int iTet) {
         (void) dims; (void) user_data; (void) iTet;
-        g1[0] = X[0] + X[2];
+        double f = X[0] + X[1] + X[2];
+        g1[0] = f*(f+2);
         return Ani::TENSOR_SCALAR;
     };
 
@@ -110,7 +114,7 @@ int main(int argc, char* argv[]){
 
     // define elemental assembler of local matrix and rhs
     std::function<void(const double**, double*, double*, void*)> local_assembler =
-            [&K_tensor, &F_tensor, &A_tensor, &S_tensor, &U_0, &G_0, &G_1](const double** XY/*[4]*/, double* Adat, double* Fdat, void* user_data) -> void{
+            [&K_tensor, &F_tensor, &A_tensor, &S_tensor, &U_0, &G_0, &G_1, order = p.max_quad_order](const double** XY/*[4]*/, double* Adat, double* Fdat, void* user_data) -> void{
         double Bdat[UNF * UNF] = {0};
         DenseMatrix<> A(Adat, UNF, UNF), F(Fdat, UNF, 1), B(Bdat, UNF, UNF), G(Bdat, UNF, 1);
         A.SetZero(); F.SetZero(); B.SetZero();
@@ -118,36 +122,36 @@ int main(int argc, char* argv[]){
         Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
         
         // elemental stiffness matrix <K grad(P1), grad(P1)>
-        fem3Dtet<Operator<GRAD, UFem>, Operator<GRAD, UFem>, DfuncTraits<TENSOR_SYMMETRIC, true>>( XYZ, K_tensor, A, 2 );
+        fem3Dtet<Operator<GRAD, UFem>, Operator<GRAD, UFem>, DfuncTraits<TENSOR_SYMMETRIC, true>>( XYZ, K_tensor, A, order );
         // elemental mass matrix <A P1, P1>
-        fem3Dtet<Operator<IDEN, UFem>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR, true>>( XYZ, A_tensor, B, 2 );
+        fem3Dtet<Operator<IDEN, UFem>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR, true>>( XYZ, A_tensor, B, order );
         A += B;
 
         // elemental right hand side vector <F, P1>
-        fem3Dtet<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR, true>>(XYZ, F_tensor, F, 2);
+        fem3Dtet<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR>>(XYZ, F_tensor, F, order);
 
         // read user_data
         auto& dat = *static_cast<ProbLocData*>(user_data);
         // apply Neumann and Robin BC
         for (int k = 0; k < 4; ++k){
-            if (dat.flbl[k] > 2){ //Neumann BC
-                fem3Dface<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR>> ( XYZ, k, G_0, G, 2 );
+            if (dat.flbl[k] == (1 << 4)){ //Neumann BC
+                fem3Dface<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR>> ( XYZ, k, G_0, G, order );
                 F += G;
-            } else if (dat.flbl[k] == 2) { //Robin BC
-                fem3Dface<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR>> ( XYZ, k, G_1, G, 2 );
+            } else if (dat.flbl[k] == (1 << 5)) { //Robin BC
+                fem3Dface<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR>> ( XYZ, k, G_1, G, order );
                 F += G;
-                fem3Dface<Operator<IDEN, UFem>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR>>( XYZ, k, S_tensor, B, 3 );
+                fem3Dface<Operator<IDEN, UFem>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_SCALAR>>( XYZ, k, S_tensor, B, order );
                 A += B;
             }
         }
 
         // choose boundary parts of the tetrahedron 
         DofT::TetGeomSparsity sp;
-        for (int i = 0; i < 4; ++i) if (dat.nlbl[i] & 1)
+        for (int i = 0; i < 4; ++i) if (dat.nlbl[i] & (1|2))
             sp.setNode(i);
-        for (int i = 0; i < 6; ++i) if (dat.elbl[i] & 1)
+        for (int i = 0; i < 6; ++i) if (dat.elbl[i] & (1|2))
             sp.setEdge(i);  
-        for (int i = 0; i < 4; ++i) if (dat.flbl[i] & 1)
+        for (int i = 0; i < 4; ++i) if (dat.flbl[i] & (1|2))
             sp.setFace(i);
         
         //set dirichlet condition
@@ -222,6 +226,33 @@ int main(int argc, char* argv[]){
     
     //copy result to the tag and save solution
     discr.SaveVar(x, 0, u);
+
+    //Compare result with analytical solution
+    auto U_analytic = [](const Coord<> &X)->double{ return (X[0] + X[1] + X[2])*(X[0] + X[1] + X[2]); };
+    auto U_eval = [&discr, &u](const Cell& c, const Coord<> &X)->double{
+        std::array<double, UNF> dofs;
+        discr.GatherDataOnElement(u, c, dofs.data());
+        auto nds = c.getNodes();
+        reorderNodesOnTetrahedron(nds);
+        double XY[4][3] = {0};
+        for (int ni = 0; ni < 4; ++ni)
+            for (int k = 0; k < 3; ++k)
+                XY[ni][k] = nds[ni].Coords()[k];
+        Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);        
+        
+        double val = 0;
+        fem3DapplyX<Operator<IDEN, UFem>>( XYZ, ArrayView<const double>(X.data(), 3), ArrayView<>(dofs.data(), UNF), ArrayView<>(&val,1) );
+        return val;
+    };
+    auto err = [&U_analytic, &U_eval](const Cell& c, const Coord<> &X)->double{
+        double Ua = U_analytic(X), Ue = U_eval(c, X);
+        return (Ua - Ue)*(Ua - Ue);
+    };
+    double L2nrm = sqrt(integrate_scalar_func(m, err, 4));
+    if (pRank == 0)
+        std::cout << "||U_eval - U_exct||_L2 / ||U_exct||_L2 = " << L2nrm / sqrt(8.6) << "\n";
+
+
     m->Save(p.save_dir + p.save_prefix + ".pvtu");
 
     discr.Clear();
