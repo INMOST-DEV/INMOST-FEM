@@ -28,13 +28,13 @@ namespace Ani{
                   const Tetra<TetraScalarTp>& XYZ,
                   const ArrayView<const ScalarType> X,
                   const ArrayView<ScalarType>& dofs, 
-                  ArrayView<ScalarType>& opU); 
+                  ArrayView<ScalarType> opU); 
     template<typename Op, typename ScalarType = double, typename IndexType = int, typename TetraScalarTp>
     void fem3DapplyX(
                   const Tetra<TetraScalarTp>& XYZ,
                   const ArrayView<const ScalarType> X,
                   const ArrayView<ScalarType>& dofs, 
-                  ArrayView<ScalarType>& opU,
+                  ArrayView<ScalarType> opU,
                   PlainMemory<ScalarType, IndexType> plainMemory);                                         
 
     /**
@@ -115,7 +115,7 @@ namespace Ani{
                   const ScalarType* XY2, const ScalarType*  XY3,
                   const ArrayView<const ScalarType> X,
                   const ArrayView<ScalarType>& dofs, 
-                  ArrayView<ScalarType>& opU){
+                  ArrayView<ScalarType> opU){
         fem3DapplyX<Op, MAXPNTNUM, ScalarType, IndexType>(Tetra<const ScalarType>(XY0, XY1, XY2, XY3), X, dofs, opU);
     }
 
@@ -129,7 +129,7 @@ namespace Ani{
                   const ScalarType* XY2, const ScalarType*  XY3,
                   const ArrayView<const ScalarType> X,
                   const ArrayView<ScalarType>& dofs, 
-                  ArrayView<ScalarType>& opU,
+                  ArrayView<ScalarType> opU,
                   PlainMemory<ScalarType, IndexType> plainMemory){
         fem3DapplyX<Op, ScalarType, IndexType>(Tetra<const ScalarType>(XY0, XY1, XY2, XY3), X, dofs, opU, plainMemory);
     }            
@@ -152,7 +152,7 @@ namespace Ani{
                   const ScalarType* XY0, const ScalarType* XY1,
                   const ScalarType* XY2, const ScalarType* XY3,
                   const ScalarType* X,
-                  const ArrayView<ScalarType>& dofs, 
+                  const ArrayView<ScalarType> dofs, 
                   ArrayView<ScalarType>& opU){
         fem3DapplyX<Op, 1, ScalarType, IndexType>(XY0, XY1, XY2, XY3, ArrayView<const ScalarType>(X, 3), dofs, opU);            
     }

@@ -103,7 +103,7 @@ namespace Ani{
                   const Tetra<TetraScalarTp>& XYZ,
                   const ArrayView<const ScalarType> X,
                   const ArrayView<ScalarType>& _dofs, 
-                  ArrayView<ScalarType>& _opU){
+                  ArrayView<ScalarType> _opU){
         DenseMatrix<ScalarType> dofs(_dofs.data, _dofs.size, 1), opU(_opU.data, _opU.size, 1);
         ScalarType XYLp[4*MAXPNTNUM];
         ArrayView<ScalarType> XYL(XYLp, 4*X.size/3);
@@ -128,7 +128,7 @@ namespace Ani{
                   const Tetra<TetraScalarTp>& XYZ,
                   const ArrayView<const ScalarType> X,
                   const ArrayView<ScalarType>& _dofs, 
-                  ArrayView<ScalarType>& _opU,
+                  ArrayView<ScalarType> _opU,
                   PlainMemory<ScalarType, IndexType> plainMemory){
         DenseMatrix<ScalarType> dofs(_dofs.data, _dofs.size, 1), opU(_opU.data, _opU.size, 1);
         ScalarType* XYLp = plainMemory.ddata;
