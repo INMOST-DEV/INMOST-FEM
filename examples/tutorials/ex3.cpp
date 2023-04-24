@@ -22,7 +22,7 @@
  * @see src/Tutorials/PackageFEM/main_simple.f in [Ani3d library](https://sourceforge.net/projects/ani3d/)
  */
 
-#include "cmd_ex1_3.h"
+#include "prob_args.h"
 
 using namespace INMOST;
 
@@ -36,7 +36,7 @@ int main(int argc, char* argv[]){
     int pRank = 0, pCount = 1;
     InmostInit(&argc, &argv, p.lin_sol_db, pRank, pCount);
 
-    std::unique_ptr<Mesh> mptr = GenerateCube(INMOST_MPI_COMM_WORLD, p.axis_sizes[0], p.axis_sizes[1], p.axis_sizes[2]);
+    std::unique_ptr<Mesh> mptr = GenerateCube(INMOST_MPI_COMM_WORLD, p.axis_sizes, p.axis_sizes, p.axis_sizes);
     Mesh* m = mptr.get();
     // Constructing of Ghost cells in 1 layers connected via nodes is required for FEM Assemble method
     m->ExchangeGhost(1,NODE);
