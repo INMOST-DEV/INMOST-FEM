@@ -37,6 +37,13 @@ namespace Ani{
         Scalar* end(){ return !empty() ? data + size : nullptr; }
         const Scalar* begin() const { return size > 0 ? data : nullptr; }
         const Scalar* end() const { return !empty() ? data + size : nullptr; }
+        ArrayView(const ArrayView<Scalar>& s) = default;
+        ArrayView(ArrayView<Scalar>&& s) = default;
+        ArrayView& operator=(const ArrayView<Scalar>& s) = default;
+        ArrayView& operator=(ArrayView<Scalar>&& s) = default;
+        
+        template<typename OtherScalar, typename = typename std::enable_if<std::is_const<Scalar>::value && std::is_same<typename std::remove_const<Scalar>::type, OtherScalar>::value>::type>
+        ArrayView(ArrayView<OtherScalar> s): data{const_cast<Scalar*>(s.data)}, size{s.size} {}
     };
 
     ///Store dense matrix

@@ -120,6 +120,8 @@ namespace Ani{
             /// @param ielem is number of geomentric element over geomentric elements with same dimension
             /// @param with_closure should we also turn on all less dimension elements belonging to the chosen geomentric part
             TetGeomSparsity& set(uchar elem_dim, int ielem, bool with_closure = false);
+            TetGeomSparsity& set(TetGeomSparsity sp) { for (uchar d = 0; d < 4; ++d) elems[d] |= sp.elems[d]; return *this; }
+            TetGeomSparsity& unset(TetGeomSparsity sp) { for (uchar d = 0; d < 4; ++d) elems[d] &= ~(sp.elems[d]); return *this; }
             /// Same as set, but turn off parts of tetrahedron @see set
             TetGeomSparsity& unset(uchar elem_dim, int ielem, bool with_closure = false);
             TetGeomSparsity& unset(uchar elem_dim) { return elems[elem_dim] = 0, *this; }
@@ -138,6 +140,11 @@ namespace Ani{
             Pos beginPos(uchar elem_dim) const;
             Pos nextPos(Pos p) const;
             Pos nextPosOnDim(Pos p) const;
+
+            friend inline TetGeomSparsity operator&(TetGeomSparsity a, TetGeomSparsity b);
+            friend inline TetGeomSparsity operator|(TetGeomSparsity a, TetGeomSparsity b);
+            friend inline TetGeomSparsity operator^(TetGeomSparsity a, TetGeomSparsity b);
+            friend inline TetGeomSparsity operator~(TetGeomSparsity a);
         };
 
         struct DofIterator;

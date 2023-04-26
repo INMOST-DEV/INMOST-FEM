@@ -4,6 +4,31 @@
 
 namespace Ani{
 namespace DofT{
+inline TetGeomSparsity operator&(TetGeomSparsity a, TetGeomSparsity b){ 
+    TetGeomSparsity res; 
+    for (uchar d = 0; d < 4; ++d) 
+        res.elems[d] = a.elems[d] & b.elems[d];
+    return res;
+}
+inline TetGeomSparsity operator|(TetGeomSparsity a, TetGeomSparsity b){ 
+    TetGeomSparsity res; 
+    for (uchar d = 0; d < 4; ++d) 
+        res.elems[d] = a.elems[d] | b.elems[d];
+    return res;
+}
+inline TetGeomSparsity operator^(TetGeomSparsity a, TetGeomSparsity b){ 
+    TetGeomSparsity res; 
+    for (uchar d = 0; d < 4; ++d) 
+        res.elems[d] = a.elems[d] ^ b.elems[d];
+    return res;
+}
+inline TetGeomSparsity operator~(TetGeomSparsity a){ 
+    TetGeomSparsity res; 
+    for (uchar d = 0; d < 4; ++d) 
+        res.elems[d] = ~a.elems[d];
+    return res;
+}
+
 namespace FemComDetails{
     template<bool isDofMapTDerivedFromBaseDofMap, typename DofMapT>
     struct VectorDofMapCImpl{};
