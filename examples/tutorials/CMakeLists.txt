@@ -15,3 +15,6 @@ target_link_libraries(react_diff1 AniFem++ example_com)
 
 add_executable(react_diff2 react_diff2.cpp prob_args.h prob_args.cpp)
 target_link_libraries(react_diff2 AniFem++ example_com)
+
+add_executable(stokes stokes.cpp prob_args.h prob_args.cpp)
+target_link_libraries(stokes AniFem++ example_com)

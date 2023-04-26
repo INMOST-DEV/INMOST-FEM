@@ -674,7 +674,7 @@ auto local_data_gatherer = [&BndLabel](ElementalAssembler& p) -> void{
 ```
 
 - $A = 1$ 
-- $ S = 1$ 
+- $S = 1$ 
 - $F = (x+y+z)^2 - 2$ 
 - $u_0(\mathbf{x}) = (x + y + z)^2$
 - $g_0(\mathbf{x}) = -2(x+y+z)$ 
@@ -687,5 +687,35 @@ $$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mat
 
 В файле [react_diff1.cpp](../../examples/tutorials/react_diff1.cpp) представлено решение этой задачи с использованием шаблонного интерфейса, а в [react_diff2.cpp](../../examples/tutorials/react_diff2.cpp) - с использованием runtime интрефейса.
 
+## Стационарное уравнение Стокса
+Данный пример демонстрирует работу с векторными КЭ пространствами и подход к КЭ дискретизации задач, содержащих несколько физических переменных.
+```math
+ \begin{aligned}
+  -(\mathrm{div}\ \nu\ \mathrm{grad})\ &\mathbf{u}\ + &\mathrm{grad}\ p &= 0\   in\  \Omega  \\
+    \mathrm{div}\               &\mathbf{u}    &                 &= 0\   in\  \Omega\\
+                                &\mathbf{u}    &                 &= \mathbf{u}_0\ on\  \Gamma_1\\
+                                &\mathbf{u}    &                 &= 0\   on\  \Gamma_2\\
+            -(\mathbf{n}, \nu \nabla)\ & \mathbf{u}\ + &               p\ \mathbf{n} &= 0\   on\  \Gamma_3\\
+  \end{aligned},
+```
+где $\Omega = [0,1]^3 \setminus ([0, 0.5]^2\times[0,1])$, $\Gamma_1 = \{0\}\times [0.5, 1]\times [0, 1]$, $\Gamma_3 = \{1\}\times [0,1]^2$, $\Gamma_2 = \partial \Omega \setminus (\Gamma_1 \cup \Gamma_3)$, $\nu = 1$, $\mathbf{u}_0 = (64(y-0.5)(1-y)z(1-z), 0, 0)$
+
+Слабая постановка имеет вид ($\mathbf{u} \leftrightarrow \mathbf{\phi}$, $p \leftrightarrow q$):
+$$J((\mathbf{u}, p), (\mathbf{\phi}, q)) = \int_{\Omega} (\nu \nabla_i u_j, \nabla_i \phi_j) - (p, \nabla_j \phi_j) - (\nabla_i u_i, q)\ d^3\mathbf{x} = 0$$
+$$J((\mathbf{u}, p), (\mathbf{\phi}, q)) = \int_{\Omega} (\mathrm{grad}\ \mathbf{u})^T :  \mathrm{grad}\ \mathbf{\phi} - p\ \mathrm{div} \mathbf{\phi} - \mathrm{div}\ \mathbf{u}\ q\ d^3\mathbf{x} = 0$$
 
 
+После дискретизации $\mathbf{u}^h = \sum_{k = 1}^{K} u_k \mathbf{\phi}_k$, $p = \sum_{l = 1}^{L} p_l q_l$, соответственно выражение конечно-элементной невязки принимает вид:
+$$J^h_{k} = \int_{\Omega} \sum_m u_m [(\nu\ \mathrm{grad}\ \mathbf{\phi}_m)^T : \mathrm{grad}\ \mathbf{\phi}_k] - \sum_n p_n [q_n\ \mathrm{div}\ \mathbf{\phi}_k]$$
+$$J^h_{K+l} = - \sum_m u_m [\mathrm{div}\ \mathbf{\phi}_m\ q_l]$$
+
+Будем, для определённости, дискретизировать скорость $\mathbf{u}$ элементами типа $(P_2)^3$, а давление $p$ - элементами типа $P_1$. Тогда учитывая, что КЭ матрица (якобиан) определяется как $H = \frac{\partial \mathbf{J}^h}{\partial (u_1, \dots, u_K, p_1, \dots, p_L)}$, мы готовы записать вид элементной КЭ матрицы:
+```math
+\begin{aligned}
+H &= \begin{pmatrix} A_{\nu} & -B\\ -B^T & 0\end{pmatrix}\\
+A_{\nu} &= \int_{S^3} \nu\ GRAD((P_2)^3) \cdot GRAD((P_2)^3)\ d^3 \mathbf{x}\\ 
+B &= \int_{S^3} IDEN(P_1) \cdot DIV((P_2)^3)\ d^3 \mathbf{x}
+\end{aligned}
+```
+
+В файле [stokes.cpp](../../examples/tutorials/stokes.cpp) представлено решение этой задачи с использованием runtime интерфейса.

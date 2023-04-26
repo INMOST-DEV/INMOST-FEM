@@ -172,13 +172,13 @@ void RepartMesh(Mesh* m){
     if(pCount >1) {
         if (pRank == 0)    std::cout<<"bef part"<<std::endl;
         Partitioner *p = new Partitioner(m);
-#ifdef USE_PARTITIONER_PARMETIS
-        p->SetMethod(Partitioner::Parmetis, Partitioner::Partition);
-#elif USE_PARTITIONER_ZOLTAN
-        p->SetMethod(Partitioner::Zoltan, Partitioner::Partition);
-#else
+// #ifdef USE_PARTITIONER_PARMETIS
+//         p->SetMethod(Partitioner::Parmetis, Partitioner::Partition);
+// #elif USE_PARTITIONER_ZOLTAN
+//         p->SetMethod(Partitioner::Zoltan, Partitioner::Partition);
+// #else
         p->SetMethod(Partitioner::INNER_KMEANS, Partitioner::Partition);      
-#endif
+// #endif
         if (pRank  == 0)    std::cout<<"eval"<<std::endl;
         p->Evaluate();
         delete p;
@@ -211,7 +211,7 @@ void RepartMesh(Mesh* m){
         BARRIER;
     }
     if (pCount == 1){
-        std::cout<< "Mesh info:"
+        std::cout<< pRank << ": Mesh info:"
                       << " #N " << m->NumberOfNodes()
                       << " #E " << m->NumberOfEdges()
                       << " #F " << m->NumberOfFaces()
