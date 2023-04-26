@@ -121,7 +121,7 @@ int main(int argc, char* argv[]){
         mem_req = fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SYMMETRIC, true>>(grad_u, grad_u, quad_order);
         mem_req.extend_size(fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SCALAR>>(iden_u, iden_u, quad_order));
         mem_req.extend_size(fem3Dtet_memory_requirements<DfuncTraits<TENSOR_SCALAR>>(iden_p0, iden_u, quad_order));
-        mem_req.extend_size(UFem.interpolateByDOFs_mem_req(quad_order));
+        mem_req.extend_size(UFem.interpolateByDOFs_mem_req());
     }
     PlainMemory<> shrt_req = mem_req.enoughPlainMemory();
     // define elemental assembler of local matrix and rhs
@@ -278,4 +278,6 @@ int main(int argc, char* argv[]){
     discr.Clear();
     mptr.reset();
     InmostFinalize();
+
+    return 0;
 }

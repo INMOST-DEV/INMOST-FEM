@@ -213,5 +213,7 @@ int main(int argc, char* argv[]){
     discr.Clear();
     mptr.reset();
     InmostFinalize();
+
+    return 0;
 }
 
