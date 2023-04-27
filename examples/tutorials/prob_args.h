@@ -39,7 +39,7 @@ struct InputArgs1Var: public InputArgs{
     void print(std::ostream& out = std::cout, const std::string& prefix = "") const override;
 
 protected:
-    virtual void printArgsDescr(std::ostream& out = std::cout, const std::string& prefix = "") override;
+    void printArgsDescr(std::ostream& out = std::cout, const std::string& prefix = "") override;
 };
 
 struct InputArgs2Var: public InputArgs{
@@ -49,5 +49,5 @@ struct InputArgs2Var: public InputArgs{
     void print(std::ostream& out = std::cout, const std::string& prefix = "") const override;
 
 protected:
-    virtual void printArgsDescr(std::ostream& out = std::cout, const std::string& prefix = "") override;
+    void printArgsDescr(std::ostream& out = std::cout, const std::string& prefix = "") override;
 };

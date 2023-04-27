@@ -19,6 +19,8 @@
     - [Работа с памятью](#работа-с-памятью)
     - [КЭ пространства времени исполнения](#кэ-пространства-времени-исполнения)
   - [Стационарное уравнение реакции-диффузии](#стационарное-уравнение-реакции-диффузии)
+  - [Стационарное уравнение Стокса](#стационарное-уравнение-стокса)
+  - [Нестационарное уравнение конвекции-диффузии](#нестационарное-уравнение-конвекции-диффузии)
 
 # Описание AniFem++
 Основными элементами библиотеки AniFem++ являются: 
@@ -719,3 +721,57 @@ B &= \int_{S^3} IDEN(P_1) \cdot DIV((P_2)^3)\ d^3 \mathbf{x}
 ```
 
 В файле [stokes.cpp](../../examples/tutorials/stokes.cpp) представлено решение этой задачи с использованием runtime интерфейса.
+
+## Нестационарное уравнение конвекции-диффузии
+
+Данный пример демонстрирует как отделить ассемблирование правой части и матрицы.
+
+```math
+\begin{aligned}
+\frac{\partial u}{\partial t} -\mathrm{div}\ \mathbb{D}\ \mathrm{grad}\ u + \mathbf{v} \cdot \mathrm{grad}\ u &= f,\ in\ \Omega\\
+u &= g,\ on\ \Gamma_1\\
+u &= 0,\ on\ \Gamma_2\\
+u|_{t = 0} &= 0,\ in\ \Omega
+\end{aligned},
+```
+где 
+- $\Omega = [0,1]^3$, $\Gamma_1 = \{0\}\times [0.25,0.75]^2$, $\Gamma_2 = \partial \Omega \setminus \Gamma_1$, $\Theta = [0, T]$, $T = 0.5$
+- $\mathbb{D} = \mathrm{diag}(10^{-4}, 10^{-4}, 10^{-4})$
+- $\mathbf{v} = (1, 0, 0)$
+- $g = 1$, $f = 0$
+
+Слабая постановка имеет вид:
+$$\int_\Omega \left(\frac{\partial u}{\partial t}\ \phi + (\mathbb{D}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi + (\mathbf{v} \cdot \mathrm{grad}\ u) \phi \right)\ d^3\mathbf{x} = \int_\Omega f \phi\ d^3\mathbf{x}$$
+
+
+Далее будем использовать обозначение $(f, g) = \int_{\Omega} f g\ d^3\mathbf{x}$. Для дискретизации будем использовать $P_1$ конечные элементы, тогда после дискретизации имеем $u^h = \sum_{k = 1} u_k \phi$.
+
+Для повышения устойчивости расчётов будем использовать SUPG (streamline upwind Petrov-Galerkin) стабилизирующий член. Он заключается в поэлементном добавлении в уравнение скалярного произведения невязки исходного уравнения и $\mathbf{v} \cdot \mathrm{grad}\ \phi_k$ c коэффициентами $\delta_c$, определяемыми для каждой ячейки $с$
+
+```math
+\begin{equation*}
+\begin{split}
+\left(\frac{\partial u^h}{\partial t},\ \phi_k\right)& + (\mathbb{D}\ \mathrm{grad}\ u^h,\ \mathrm{grad}\ \phi_k) + (\mathbf{v} \cdot \mathrm{grad}\ u^h,\ \phi_k) + \\
+&+\sum_{c \in \Omega^h}\delta_c\left(\frac{\partial u^h}{\partial t} -\mathrm{div}\ \mathbb{D}\ \mathrm{grad}\ u^h + \mathbf{v} \cdot \mathrm{grad}\ u^h - f,\ \mathbf{v} \cdot \mathrm{grad}\ \phi_k\right)_c = (f, \phi_k)
+\end{split}
+\end{equation*}
+```
+
+где $\delta_c = \begin{cases}0.01, Pe_c \ge 1\\ 0,\ \textit{otherwise}\end{cases}$, $Pe_c = \frac{\mathrm{diam}(c) ||\mathbf{v}||}{\mathcal{D}_v}$ - сеточное число Пекле, $\mathcal{D}_v = \frac{(\mathbb{D} \mathbf{v}, \mathbf{v})}{(\mathbf{v}, \mathbf{v})}$
+
+Заметим, что для $P_1$ дискретизации выражение $\mathrm{div}\ \mathbb{D}\ \mathrm{grad}\ u^h$ внутри стабилизирующей поправки обращается в ноль, поэтому далее это слагаемое не учитывается.
+
+Для аппроксимации уравнения по времени воспользуемся схемой [BDF2](https://en.wikipedia.org/wiki/Backward_differentiation_formula):
+$$\frac{\partial y}{\partial t} = f(t) \Rightarrow \frac{1.5 y^{n+1} - 2y^n + 0.5y^{n-1}}{\Delta t} = f^{n+1}$$
+
+Вводём обозначения для некоторых элементных матриц и правых частей:
+- $\mathcal{M}_{ij} = (\phi_j, \phi_i) + \sum_c \delta_c (\phi_j, v_k \nabla_k \phi_i)$
+- $\mathcal{A}_{ij} = (D_{lk} \nabla_k \phi_j, \nabla_l \phi_i) + (v_k \nabla_k \phi_j, \phi_i) + \sum_c \delta_c (v_k \nabla_k \phi_j, v_l \nabla_l \phi_i)$
+- $\mathcal{F}_i = (f, \phi_i) + \sum_c \delta_c (f, v_k \nabla_k \phi_i)$
+- $U^{n}$ - вектор степеней свободы задачи
+
+Тогда дискретная система уравнений принимает вид:
+$$\left(\mathcal{M} + \frac{2}{3}\Delta t \mathcal{A}\right)\ U^{n+1} = \mathcal{M} \left(\frac{4}{3} U^{n} - \frac{1}{3}U^{n-1}\right) + \frac{2}{3}\Delta t \mathcal{F}$$
+
+В файле [unsteady_conv_dif.cpp](../../examples/tutorials/unsteady_conv_dif.cpp) представлено решение этой задачи с использованием шаблонного интерфейса для $P_1$ элементов.
+

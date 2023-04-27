@@ -18,3 +18,6 @@ target_link_libraries(react_diff2 AniFem++ example_com)
 
 add_executable(stokes stokes.cpp prob_args.h prob_args.cpp)
 target_link_libraries(stokes AniFem++ example_com)
+
+add_executable(unsteady_conv_dif unsteady_conv_dif.cpp prob_args.h prob_args.cpp)
+target_link_libraries(unsteady_conv_dif AniFem++ example_com)
