@@ -75,6 +75,17 @@ namespace Ani{
                 data[i] -= other.data[i];
             return *this;    
         }
+        template<typename RT>
+        DenseMatrix<ScalarType>& operator*=(RT val){
+            for (std::size_t i = 0; i < nRow*nCol; ++i)
+                data[i] *= val;
+            return *this;    
+        }
+        template<typename RT>
+        DenseMatrix<ScalarType>& operator/=(RT val){
+            ScalarType inv_val = ScalarType(1) / val;
+            return (*this *= inv_val);
+        }
         void SetZero(){ std::fill(data, data + nRow*nCol, 0); }
         std::string to_string(const std::string& val_sep = " ", const std::string& row_sep = "\n") const;
 

@@ -141,6 +141,25 @@ namespace Ani{
             BaseT(XY0, XY1, XY2, XY3, 1) {}
         Tetra(ScalarType* XY0, ScalarType* XY1, ScalarType* XY2, ScalarType* XY3): 
             BaseT(XY0, XY1, XY2, XY3, 1) {} 
+
+        using NCScalar = typename std::remove_const<ScalarType>::type;   
+        std::array<NCScalar, 3> centroid() const {
+            std::array<NCScalar, 3> res;
+            for (int k = 0; k < 3; ++k)
+                res[k] = (BaseT::XY0[k] + BaseT::XY1[k] + BaseT::XY2[k] + BaseT::XY3[k]) / 4;
+            return res;    
+        }
+        NCScalar diameter() const {
+            auto len2 = [](const MatType& X0, const MatType& X1){
+                NCScalar res = 0;
+                for (int k = 0; k < 3; ++k)
+                    res += (X1[k] - X0[k])*(X1[k] - X0[k]);
+                return res;    
+            };
+            using B = BaseT;
+            return sqrt(std::max({len2(B::XY0, B::XY1), len2(B::XY0, B::XY2), len2(B::XY0, B::XY3), 
+                                  len2(B::XY1, B::XY2), len2(B::XY1, B::XY3), len2(B::XY2, B::XY3)}));
+        }     
     };
 
 
