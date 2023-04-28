@@ -752,94 +752,6 @@ void Assembler::CopyVar(int v, const INMOST::Tag& from, INMOST::Tag& to) const {
     }
 }
 
-bool Assembler::find_local_edge_index(const ElementArray<Node>& nodes, const ElementArray<Edge>& edges, int local_edge_index[6]){
-    std::array<std::array<INMOST::Storage::integer, 3>, 6> nds_map, edgs_map;
-    std::array<INMOST::Storage::integer, 4> inds_loc = {nodes[0].DataLocalID(), nodes[1].DataLocalID(), nodes[2].DataLocalID(), nodes[3].DataLocalID()};
-    for (int i = 0, cnt = 0; i < 3; i++)
-        for (int j = i + 1; j < 4; j++) {
-            auto id1 = inds_loc[i], id2 = inds_loc[j];
-            if (id2 < id1) std::swap(id1, id2);
-            nds_map[cnt] = std::array<INMOST::Storage::integer, 3>{id1, id2, cnt};
-            ++cnt;
-        }
-    for (int k = 0; k < 6; ++k){
-        auto nds = edges[k].getNodes();
-        auto id1 = nds[0].DataLocalID(), id2 = nds[1].DataLocalID();
-        if (id2 < id1) std::swap(id1, id2);
-        edgs_map[k] = std::array<INMOST::Storage::integer, 3>{id1, id2, k};
-    }
-    static auto comp = [](const std::array<INMOST::Storage::integer, 3>& a, const std::array<INMOST::Storage::integer, 3>& b){
-        return std::lexicographical_compare(a.data(), a.data() + 2, b.data(), b.data() + 2);
-    };
-    std::sort(nds_map.begin(), nds_map.end(), comp);
-    std::sort(edgs_map.begin(), edgs_map.end(), comp);
-    for (int k = 0; k < 6; ++k){
-        auto &dat1 = nds_map[k], &dat2 = edgs_map[k];
-        bool same = (dat1[0] == dat2[0]) && (dat1[1] == dat2[1]);
-        if (!same) return false;
-        local_edge_index[dat1[2]] = dat2[2];
-    }
-
-    return true;
-}
-
-bool Assembler::find_local_face_index(const ElementArray<Node>& nodes, const ElementArray<Face>& faces, int local_face_index[4]){
-    std::array<std::array<INMOST::Storage::integer, 4>, 4> nds_map, fcs_map;
-    std::array<INMOST::Storage::integer, 4> inds_loc = {nodes[0].DataLocalID(), nodes[1].DataLocalID(), nodes[2].DataLocalID(), nodes[3].DataLocalID()};
-    static auto three_sort = [](INMOST::Storage::integer& i1, INMOST::Storage::integer& i2, INMOST::Storage::integer& i3){
-        if (i1 > i2) {
-            if (i2 > i3) {
-                std::swap(i1, i3);
-            } else {
-                if (i1 > i3) {
-                    auto tmp = i1;
-                    i1 = i2;
-                    i2 = i3;
-                    i3 = tmp;
-                } else {
-                    std::swap(i1, i2);
-                }
-            }
-        } else {
-            if (i2 < i3) return ;
-            if (i1 > i3){
-                auto tmp = i1;
-                i1 = i3;
-                i3 = i2;
-                i2 = tmp;
-            } else {
-                std::swap(i2, i3);
-            }
-        }
-    };
-    for (int i = 0; i < 4; i++) {
-        auto id1 = inds_loc[i], id2 = inds_loc[(i+1)%4], id3 = inds_loc[(i+2)%4];
-        three_sort(id1, id2, id3);
-        assert(id1 <= id2 && id2 <= id3 && "sort error");
-        nds_map[i] = std::array<INMOST::Storage::integer, 4>{id1, id2, id3, i};
-    }
-    for (int i = 0; i < 4; ++i){
-        auto nds = faces[i].getNodes();
-        auto id1 = nds[0].DataLocalID(), id2 = nds[1].DataLocalID(), id3 = nds[2].DataLocalID();
-        three_sort(id1, id2, id3);
-        assert(id1 <= id2 && id2 <= id3 && "sort error");
-        fcs_map[i] = std::array<INMOST::Storage::integer, 4>{id1, id2, id3, i};
-    }
-    static auto comp = [](const std::array<INMOST::Storage::integer, 4>& a, const std::array<INMOST::Storage::integer, 4>& b){
-        return std::lexicographical_compare(a.data(), a.data() + 3, b.data(), b.data() + 3);
-    };
-    std::sort(nds_map.begin(), nds_map.end(), comp);
-    std::sort(fcs_map.begin(), fcs_map.end(), comp);
-    for (int k = 0; k < 4; ++k){
-        auto &dat1 = nds_map[k], &dat2 = fcs_map[k];
-        bool same = (dat1[0] == dat2[0]) && (dat1[1] == dat2[1]) && (dat1[2] == dat2[2]);
-        if (!same) return false;
-        local_face_index[dat1[3]] = dat2[3];
-    }
-
-    return true;
-}
-
 void Assembler::extend_memory_for_fem_func(ElemMatEval *func) {
     if (!func) return;
     size_t sz_iw, sz_w, sz_args, sz_res;
@@ -1180,6 +1092,105 @@ static inline void print_matrix_nan(std::ostream& out, std::vector<double>& A, M
     out << std::endl;
 }
 
+bool Assembler::collect_connectivity_info(const INMOST::Cell& cell, 
+  ElementArray<Node>& nodes, ElementArray<Edge>& edges, ElementArray<Face>& faces,
+  int* loc_edge_ids/*[6]*/, int* loc_face_ids/*[4]*/, bool reorder_nodes, bool prepare_edges_and_faces){
+    Mesh * m = cell.GetMeshLink();
+    auto h = cell.GetHandle();
+    auto const& hc = m->HighConn(h);//< nodes of the cell
+    auto const& lc = m->LowConn(h); //< faces of the cell
+
+    std::copy(hc.data(), hc.data() + 4, nodes.data());
+    if (reorder_nodes) {//reorder nodes
+        double m[3][3];
+        auto    crd0 = nodes[0].Coords(), crd1 = nodes[1].Coords(), 
+                crd2 =  nodes[2].Coords(), crd3 =  nodes[3].Coords();
+        for (int j = 0; j < 3; ++j){
+            m[0][j] = crd0[j] - crd3[j];
+            m[1][j] = crd1[j] - crd3[j];
+            m[2][j] = crd2[j] - crd3[j];
+        }  
+        double det = 0;
+        det += m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1]);
+        det += m[0][1]*(m[1][2]*m[2][0] - m[1][0]*m[2][2]);
+        det += m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]);
+        if (det < 0) 
+            std::swap(nodes.data()[2], nodes.data()[3]);
+    }
+
+    if (prepare_edges_and_faces){
+        //load remote data to low level cache
+        std::array<HandleType, 4> nds_h{nodes.data()[0], nodes.data()[1], nodes.data()[2], nodes.data()[3]};
+        std::array<HandleType, 4> fh{lc[0], lc[1], lc[2], lc[3]};
+        auto const& flc0 = m->LowConn(fh[0]), &flc1 = m->LowConn(fh[1]), &flc2 = m->LowConn(fh[2]);
+        std::array<std::array<HandleType, 3>, 3> eh{
+            std::array<HandleType, 3>{flc0[0], flc0[1], flc0[2]}, {flc1[0], flc1[1], flc1[2]}, {flc2[0], flc2[1], flc2[2]}
+        };
+        auto const  &nlc0 = m->LowConn(eh[0][0]), &nlc1 = m->LowConn(eh[0][1]), 
+                    &nlc2 = m->LowConn(eh[1][0]), &nlc3 = m->LowConn(eh[1][1]), 
+                    &nlc4 = m->LowConn(eh[2][0]), &nlc5 = m->LowConn(eh[2][1]); 
+        std::array<std::array<HandleType, 4>, 3> nh{
+            std::array<HandleType, 4>{nlc0[0], nlc0[1], nlc1[0], nlc1[1]}, 
+            std::array<HandleType, 4>{nlc2[0], nlc2[1], nlc3[0], nlc3[1]},
+            std::array<HandleType, 4>{nlc4[0], nlc4[1], nlc5[0], nlc5[1]}
+        };
+
+        //restore tetrahedron connectivity
+        unsigned char fsum = 0;
+        for (unsigned char fi = 0; fi < 3; ++fi){
+            auto* flc = eh[fi].data(); //< edges of the face
+            unsigned char sum = 0;
+            {
+                auto* elc0 = nh[fi].data() + 0; //< nodes of the first edge
+                char k = -1, l = -1;
+                for (int ni = 0; ni < 4; ++ni){
+                    if (elc0[0] == nds_h[ni]) k = ni;
+                    if (elc0[1] == nds_h[ni]) l = ni;
+                }
+                assert(k >= 0 && l >= 0 && "Can't find nodes of the edge");
+                unsigned char id1[2] {static_cast<unsigned char>(k), static_cast<unsigned char>(l)};
+                if (k > l) std::swap(k, l);
+                edges.data()[l - 1 + (k > 0 ? k + 1 : 0)] = flc[0];
+                sum += (k + l);
+                
+                auto* elc1 = nh[fi].data() + 2; //< nodes of the second edge
+                char p = -1, q = -1;
+                unsigned char comp = (elc1[0] == elc0[0] ? 1 : 0) + (elc1[0] == elc0[1] ? 2 : 0);
+                if (comp){
+                    k = id1[comp-1];
+                    for (int ni = 0; ni < 4; ++ni)
+                        if (elc1[1] == nds_h[ni]) l = ni;
+                    p = id1[comp%2], q = l;    
+                } else {
+                    comp = (elc1[1] == elc0[0] ? 1 : 0) + (elc1[1] == elc0[1] ? 2 : 0);
+                    l = id1[comp-1];
+                    for (int ni = 0; ni < 4; ++ni)
+                        if (elc1[0] == nds_h[ni]) k = ni;
+                    p = id1[comp%2], q = k;    
+                }
+                if (k > l) std::swap(k, l);
+                edges.data()[l - 1 + (k > 0 ? k + 1 : 0)] = flc[1];
+                sum += (k + l);
+
+                k = p, l = q;
+                if (k > l) std::swap(k, l);
+                edges.data()[l - 1 + (k > 0 ? k + 1 : 0)] = flc[2];
+                sum += (k + l);
+            }
+            unsigned char f_id = (7 - sum/2)%4;
+            faces.data()[f_id] = fh[fi];
+            fsum += f_id;
+        }
+        faces.data()[6 - fsum] = fh[3];
+        for (unsigned char k = 0; k < 6; ++k)
+            loc_edge_ids[k] = k;
+        for (unsigned char k = 0; k < 4; ++k)
+            loc_face_ids[k] = k;
+    } 
+
+    return true;       
+}
+
 ///This function assembles matrix and rhs of FE problem previously setted by PrepareProblemGen(...) function
 ///input:
 /// @param Label_Tag - tag for setting BC.
@@ -1230,24 +1241,17 @@ int Assembler::Assemble (Sparse::Matrix &matrix, Sparse::Vector &rhs, void* user
         if (matrix[i].get_safe(i) == 0.0)
             matrix[i][i] = 0.0;
     }
-    ElementArray<Node> nodes; ElementArray<Edge> edges; ElementArray<Face> faces;
+    ElementArray<Node> nodes(m_mesh, 4); ElementArray<Edge> edges(m_mesh, 6); ElementArray<Face> faces(m_mesh, 4);
     dat.nodes = &nodes, dat.edges = &edges, dat.faces = &faces;
-    bool flag_control_edge = true, flag_control_face = true;
+    const bool reord_nds = m_assm_traits.reorder_nodes, prep_ef = m_assm_traits.prepare_edges | m_assm_traits.prepare_faces;
 #ifndef NO_ASSEMBLER_TIMERS
     m_time_init_assemble_dat += m_timer.elapsed_and_reset();
 #endif
 
     for (Mesh::iteratorCell it = m_mesh->BeginCell(); it != m_mesh->EndCell(); ++it) {
-        nodes = it->getNodes();
-        reorderNodesOnTetrahedron(nodes);
-        edges = it->getEdges();
-        faces = it->getFaces();
         dat.cell = it;
-        flag_control_edge = find_local_edge_index(nodes, edges, local_edge_index);
-        assert(flag_control_edge && "didnt find edge ");
-        flag_control_face = find_local_face_index(nodes, faces, local_face_index);
-        assert(flag_control_face && "didnt find face ");
-        if (!flag_control_edge || !flag_control_face) return -2;
+        if (!collect_connectivity_info(it->getAsCell(), nodes, edges, faces, local_edge_index, local_face_index, reord_nds, prep_ef)) 
+            return -2;
 #ifndef NO_ASSEMBLER_TIMERS
         m_time_init_assemble_dat += m_timer.elapsed_and_reset();
 #endif
@@ -1344,24 +1348,17 @@ int Assembler::AssembleMatrix (Sparse::Matrix &matrix, void* user_data, double d
         if (matrix[i].get_safe(i) == 0.0)
             matrix[i][i] = 0.0;
     }
-    ElementArray<Node> nodes; ElementArray<Edge> edges; ElementArray<Face> faces;
+    ElementArray<Node> nodes(m_mesh, 4); ElementArray<Edge> edges(m_mesh, 6); ElementArray<Face> faces(m_mesh, 4);
     dat.nodes = &nodes, dat.edges = &edges, dat.faces = &faces;
-    bool flag_control_edge = true, flag_control_face = true;
+    const bool reord_nds = m_assm_traits.reorder_nodes, prep_ef = m_assm_traits.prepare_edges | m_assm_traits.prepare_faces;
 #ifndef NO_ASSEMBLER_TIMERS
     m_time_init_assemble_dat += m_timer.elapsed_and_reset();
 #endif
 
     for (Mesh::iteratorCell it = m_mesh->BeginCell(); it != m_mesh->EndCell(); ++it) {
-        nodes = it->getNodes();
-        reorderNodesOnTetrahedron(nodes);
-        edges = it->getEdges();
-        faces = it->getFaces();
         dat.cell = it;
-        flag_control_edge = find_local_edge_index(nodes, edges, local_edge_index);
-        assert(flag_control_edge && "didnt find edge ");
-        flag_control_face = find_local_face_index(nodes, faces, local_face_index);
-        assert(flag_control_face && "didnt find face ");
-        if (!flag_control_edge || !flag_control_face) return -2;
+        if (!collect_connectivity_info(it->getAsCell(), nodes, edges, faces, local_edge_index, local_face_index, reord_nds, prep_ef)) 
+            return -2;
 #ifndef NO_ASSEMBLER_TIMERS
         m_time_init_assemble_dat += m_timer.elapsed_and_reset();
 #endif
@@ -1453,24 +1450,17 @@ int Assembler::AssembleRHS (Sparse::Vector &rhs, void* user_data, double drp_val
     );
 
     rhs.SetInterval(getBegInd(), getEndInd());
-    ElementArray<Node> nodes; ElementArray<Edge> edges; ElementArray<Face> faces;
+    ElementArray<Node> nodes(m_mesh, 4); ElementArray<Edge> edges(m_mesh, 6); ElementArray<Face> faces(m_mesh, 4);
     dat.nodes = &nodes, dat.edges = &edges, dat.faces = &faces;
-    bool flag_control_edge = true, flag_control_face = true;
+    const bool reord_nds = m_assm_traits.reorder_nodes, prep_ef = m_assm_traits.prepare_edges | m_assm_traits.prepare_faces;
 #ifndef NO_ASSEMBLER_TIMERS
     m_time_init_assemble_dat += m_timer.elapsed_and_reset();
 #endif
 
     for (Mesh::iteratorCell it = m_mesh->BeginCell(); it != m_mesh->EndCell(); ++it) {
-        nodes = it->getNodes();
-        reorderNodesOnTetrahedron(nodes);
-        edges = it->getEdges();
-        faces = it->getFaces();
         dat.cell = it;
-        flag_control_edge = find_local_edge_index(nodes, edges, local_edge_index);
-        assert(flag_control_edge && "didnt find edge ");
-        flag_control_face = find_local_face_index(nodes, faces, local_face_index);
-        assert(flag_control_face && "didnt find face ");
-        if (!flag_control_edge || !flag_control_face) return -2;
+        if (!collect_connectivity_info(it->getAsCell(), nodes, edges, faces, local_edge_index, local_face_index, reord_nds, prep_ef)) 
+            return -2;
 #ifndef NO_ASSEMBLER_TIMERS
         m_time_init_assemble_dat += m_timer.elapsed_and_reset();
 #endif

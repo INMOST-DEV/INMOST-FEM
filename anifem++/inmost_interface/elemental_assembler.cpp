@@ -49,17 +49,19 @@ std::ostream &ElemMatEval::print_signature(std::ostream &out) const {
 void reorderNodesOnTetrahedron(INMOST::ElementArray<INMOST::Node> &nodes) {
     assert(nodes.size() >= 4);
     double m[3][3];
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            m[i][j] = nodes[i].Coords()[j] - nodes[3].Coords()[j];
+    auto    crd0 = nodes[0].Coords(), crd1 = nodes[1].Coords(), 
+            crd2 =  nodes[2].Coords(), crd3 =  nodes[3].Coords();
+    for (int j = 0; j < 3; ++j){
+        m[0][j] = crd0[j] - crd3[j];
+        m[1][j] = crd1[j] - crd3[j];
+        m[2][j] = crd2[j] - crd3[j];
+    }  
     double det = 0;
-    for (int i = 0; i < 3; ++i)
-        det += m[(0)%3][(0+i)%3]*m[(1)%3][(1+i)%3]*m[(2)%3][(2+i)%3] - m[(0)%3][(2+i)%3]*m[(1)%3][(1+i)%3]*m[(2)%3][(0+i)%3];
-    if (det < 0) {
-        INMOST::Node tmp(std::move(nodes[3]));
-        nodes[3] = std::move(nodes[2]);
-        nodes[2] = std::move(tmp);
-    }
+    det += m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1]);
+    det += m[0][1]*(m[1][2]*m[2][0] - m[1][0]*m[2][2]);
+    det += m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]);
+    if (det < 0) 
+        std::swap(nodes.data()[2], nodes.data()[3]);
 }
 
 bool operator==(const FemExprDescr::DiscrSpaceHelper &a, const FemExprDescr::DiscrSpaceHelper &b) {

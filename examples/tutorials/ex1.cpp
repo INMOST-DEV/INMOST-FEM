@@ -78,7 +78,7 @@ int main(int argc, char* argv[]){
         //save labels used for apply boundary conditions
         std::array<int, 4> nlbl = {0};
     };
-
+ 
     // define elemental assembler of local matrix and rhs
     std::function<void(const double**, double*, double*, void*)> local_assembler =
             [&D_tensor, &F_tensor, &U_0, order = p.max_quad_order](const double** XY/*[4]*/, double* Adat, double* Fdat, void* user_data) -> void{
@@ -102,7 +102,7 @@ int main(int argc, char* argv[]){
                 double bc = 0;
                 U_0(std::array<double, 3>{XY[i][0], XY[i][1], XY[i][2]}, &bc, 1, nullptr);
                 applyDir(A, F, i, bc); // set Dirichlet BC
-            }
+            }    
     };
     //define function for gathering data from every tetrahedron to send them to elemental assembler
     auto local_data_gatherer = [&BndLabel](ElementalAssembler& p) -> void{
@@ -111,7 +111,7 @@ int main(int argc, char* argv[]){
         ProbLocData data;
         std::fill(data.nlbl.begin(), data.nlbl.end(), 0);
         for (unsigned i = 0; i < data.nlbl.size(); ++i) 
-            data.nlbl[i] = (*p.nodes)[i].Integer(BndLabel);
+            data.nlbl[i] = (*p.nodes)[i].Integer(BndLabel);    
 
         p.compute(args, &data);
     };
@@ -134,12 +134,17 @@ int main(int argc, char* argv[]){
     //initialization of assembled matrix and rhs is optional
     A.SetInterval(discr.getBegInd(), discr.getEndInd()); //initialized as free matrix
     b.SetInterval(discr.getBegInd(), discr.getEndInd()); //initialized by zeros
+    //we do not require face or edge information, so we can disable its collection
+    discr.m_assm_traits.prepare_faces = discr.m_assm_traits.prepare_edges = false;
     //assemble matrix and right-hand side
+    TimerWrap m_timer_total; m_timer_total.reset();
     discr.Assemble(A, b);
+    double total_assm_time = m_timer_total.elapsed();
     // Print Assembler timers
     if (pRank == 0) {
         std::cout << "#dofs = " << discr.m_enum->MatrSize << std::endl; 
         std::cout << "Assembler timers:"
+        #ifndef NO_ASSEMBLER_TIMERS
                   << "\n\tInit assembler: " << discr.GetTimeInitAssembleData() << "s"
                   << "\n\tInit guess    : " << discr.GetTimeInitValSet() << "s"
                   << "\n\tInit handler  : " << discr.GetTimeInitUserHandler() << "s"
@@ -147,7 +152,9 @@ int main(int argc, char* argv[]){
                   << "\n\tLocal postproc: " << discr.GetTimePostProcUserHandler() << "s"
                   << "\n\tComp glob inds: " << discr.GetTimeFillMapTemplate() << "s"
                   << "\n\tGlobal remap  : " << discr.GetTimeFillGlobalStructs() << "s"
-                  << "\n\tTotal         : " << discr.GetTimeTotal() << "s" << std::endl;
+        #endif          
+                  << "\n\tTotal         : " << total_assm_time << "s" 
+                  << std::endl;
     }
 
     //setup linear solver and solve assembled system

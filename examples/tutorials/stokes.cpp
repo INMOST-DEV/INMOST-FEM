@@ -228,11 +228,14 @@ int main(int argc, char* argv[]){
     Sparse::Matrix A("A");
     Sparse::Vector x("x"), b("b");
     //assemble matrix and right-hand side
+    TimerWrap m_timer_total; m_timer_total.reset();
     discr.Assemble(A, b);
+    double total_assm_time = m_timer_total.elapsed();
     // Print Assembler timers
     if (pRank == 0) {
         std::cout << "#dofs = " << discr.m_enum->MatrSize << std::endl; 
         std::cout << "Assembler timers:"
+        #ifndef NO_ASSEMBLER_TIMERS
                   << "\n\tInit assembler: " << discr.GetTimeInitAssembleData() << "s"
                   << "\n\tInit guess    : " << discr.GetTimeInitValSet() << "s"
                   << "\n\tInit handler  : " << discr.GetTimeInitUserHandler() << "s"
@@ -240,7 +243,9 @@ int main(int argc, char* argv[]){
                   << "\n\tLocal postproc: " << discr.GetTimePostProcUserHandler() << "s"
                   << "\n\tComp glob inds: " << discr.GetTimeFillMapTemplate() << "s"
                   << "\n\tGlobal remap  : " << discr.GetTimeFillGlobalStructs() << "s"
-                  << "\n\tTotal         : " << discr.GetTimeTotal() << "s" << std::endl;
+        #endif          
+                  << "\n\tTotal         : " << total_assm_time << "s" 
+                  << std::endl;
     }
 
     //setup linear solver and solve assembled system

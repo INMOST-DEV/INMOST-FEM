@@ -13,6 +13,9 @@ target_include_directories(Fem_inmost
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
+if (NOT WITH_ASSEMBLER_TIMERS)
+        target_compile_definitions(Fem_inmost PUBLIC -DNO_ASSEMBLER_TIMERS)
+endif()
 
 install(FILES
             fem.h assembler.h elemental_assembler.h elemental_assembler.inl for_assembler.h for_assembler.inl

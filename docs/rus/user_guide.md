@@ -707,8 +707,10 @@ $$J((\mathbf{u}, p), (\mathbf{\phi}, q)) = \int_{\Omega} (\nu \nabla_i u_j, \nab
 $$J((\mathbf{u}, p), (\mathbf{\phi}, q)) = \int_{\Omega} (\mathrm{grad}\ \mathbf{u})^T :  \mathrm{grad}\ \mathbf{\phi} - p\ \mathrm{div} \mathbf{\phi} - \mathrm{div}\ \mathbf{u}\ q\ d^3\mathbf{x} = 0$$
 
 
-После дискретизации $\mathbf{u}^h = \sum_{k = 1}^{K} u_k \mathbf{\phi}_k$, $p = \sum_{l = 1}^{L} p_l q_l$, соответственно выражение конечно-элементной невязки принимает вид:
+После дискретизации $\mathbf{u}^h = \sum\limits_{k = 1}^{K} u_k \mathbf{\phi}_k$, $p = \sum\limits_{l = 1}^{L} p_l q_l$, соответственно выражение конечно-элементной невязки принимает вид:
+
 $$J^h_{k} = \int_{\Omega} \sum_m u_m [(\nu\ \mathrm{grad}\ \mathbf{\phi}_m)^T : \mathrm{grad}\ \mathbf{\phi}_k] - \sum_n p_n [q_n\ \mathrm{div}\ \mathbf{\phi}_k]$$
+
 $$J^h_{K+l} = - \sum_m u_m [\mathrm{div}\ \mathbf{\phi}_m\ q_l]$$
 
 Будем, для определённости, дискретизировать скорость $\mathbf{u}$ элементами типа $(P_2)^3$, а давление $p$ - элементами типа $P_1$. Тогда учитывая, что КЭ матрица (якобиан) определяется как $H = \frac{\partial \mathbf{J}^h}{\partial (u_1, \dots, u_K, p_1, \dots, p_L)}$, мы готовы записать вид элементной КЭ матрицы:
@@ -762,11 +764,12 @@ $$\int_\Omega \left(\frac{\partial u}{\partial t}\ \phi + (\mathbb{D}\ \mathrm{g
 Заметим, что для $P_1$ дискретизации выражение $\mathrm{div}\ \mathbb{D}\ \mathrm{grad}\ u^h$ внутри стабилизирующей поправки обращается в ноль, поэтому далее это слагаемое не учитывается.
 
 Для аппроксимации уравнения по времени воспользуемся схемой [BDF2](https://en.wikipedia.org/wiki/Backward_differentiation_formula):
+
 $$\frac{\partial y}{\partial t} = f(t) \Rightarrow \frac{1.5 y^{n+1} - 2y^n + 0.5y^{n-1}}{\Delta t} = f^{n+1}$$
 
 Вводём обозначения для некоторых элементных матриц и правых частей:
 - $\mathcal{M}_{ij} = (\phi_j, \phi_i) + \sum_c \delta_c (\phi_j, v_k \nabla_k \phi_i)$
-- $\mathcal{A}_{ij} = (D_{lk} \nabla_k \phi_j, \nabla_l \phi_i) + (v_k \nabla_k \phi_j, \phi_i) + \sum_c \delta_c (v_k \nabla_k \phi_j, v_l \nabla_l \phi_i)$
+- $\mathcal{A}_{ij} = ( \mathbb{D}_{lk} \nabla_k \phi_j, \nabla_l \phi_i ) + ( v_k \nabla_k \phi_j, \phi_i ) + \sum_c \delta_c ( v_k \nabla_k \phi_j, v_l \nabla_l \phi_i )$
 - $\mathcal{F}_i = (f, \phi_i) + \sum_c \delta_c (f, v_k \nabla_k \phi_i)$
 - $U^{n}$ - вектор степеней свободы задачи
 

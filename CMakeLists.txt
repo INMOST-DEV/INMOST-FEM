@@ -29,6 +29,8 @@ option(DOWNLOAD_eigen3 "Attempts to download Eigen3 if library not found" OFF)
 option(DOWNLOAD_inmost "Attempts to download INMOST if library not found" OFF)
 set(LIB_DOWNLOAD_PATH "${CMAKE_BINARY_DIR}/external_packages")
 
+option(WITH_ASSEMBLER_TIMERS "Add timers in global FEM assembler structure" OFF)
+
 #set(CMAKE_CXX_FLAGS_RELEASE "-march=native -DNDEBUG -flto -ffast-math -O3 -msse2")
 
 if(WITH_MPI)

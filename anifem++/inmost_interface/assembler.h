@@ -276,12 +276,18 @@ class Assembler {
     std::vector<OrderTempl> orderC;
     std::vector<OrderTempl> orderR;
 public:
+    struct AssembleTraits{
+        bool reorder_nodes = true;
+        bool prepare_edges = true;
+        bool prepare_faces = true;
+    };
+
     ///\warning Next three functions must have same input parameters
     std::shared_ptr<ElemMatEval> mat_func;  ///< evaluates elemental matrix only
     std::shared_ptr<ElemMatEval> rhs_func;  ///< evaluates elemental right hand-side only
     std::shared_ptr<ElemMatEval> mat_rhs_func;///< evaluates elemental matrix and rhs together
 
-
+    AssembleTraits m_assm_traits;
     FemExprDescr m_info;                    ///< fem problem description
     std::function<void(ElementalAssembler& p)> m_prob_handler;  ///< set parameters required by elemental evaluator
     std::function<void(ElementalAssembler& p)> initial_value_setter; ///< set initial value for fem-variables (important for nonlinear problems)
@@ -336,13 +342,13 @@ public:
 
     template<class TagContainer, class RandomIt>
     void GatherDataOnElement(const TagContainer& from, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, int ncomp) const {
-        auto nds = cell.getNodes();
-        reorderNodesOnTetrahedron(nds);
-        auto eds = cell.getEdges();
-        auto fcs = cell.getFaces();
+        auto* m = cell.GetMeshLink();
+        INMOST::ElementArray<INMOST::Node> nds(m, 4); 
+        INMOST::ElementArray<INMOST::Edge> eds(m, 6); 
+        INMOST::ElementArray<INMOST::Face> fcs(m, 4);
         int nds_ord[] = {0, 1, 2, 3}, eds_ord[6], fcs_ord[4];
-        find_local_edge_index(nds, eds, eds_ord);
-        find_local_face_index(nds, fcs, fcs_ord);
+        collect_connectivity_info(cell, nds, eds, fcs, eds_ord, fcs_ord, true, true);
+        
         ElementalAssembler::GatherDataOnElement(from, m_helper, cell, fcs, eds, nds, fcs_ord, eds_ord, nds_ord, out, component, ncomp);
     }
     template<class RandomIt>
@@ -356,8 +362,10 @@ public:
     static std::function<void(ElementalAssembler& p)> makeInitValueSetter(INMOST::Tag* tag_x);
     static std::function<void(ElementalAssembler& p)> makeInitValueSetter(INMOST::Tag tag_x);
     static std::function<void(ElementalAssembler& p)> makeInitValueSetter(std::vector<INMOST::Tag> tag_vec);
-    static bool find_local_edge_index(const INMOST::ElementArray<INMOST::Node>& nodes, const INMOST::ElementArray<INMOST::Edge>& edges, int local_edge_index[6]);
-    static bool find_local_face_index(const INMOST::ElementArray<INMOST::Node>& nodes, const INMOST::ElementArray<INMOST::Face>& faces, int local_face_index[4]);
+    /// Get cell and restore tetrahedron connectivity on the cell
+    /// @warning this function doesn't aalocate memory for arrays nodes, edges, faces
+    static bool collect_connectivity_info(const INMOST::Cell& cell, INMOST::ElementArray<INMOST::Node>& nodes, INMOST::ElementArray<INMOST::Edge>& edges, INMOST::ElementArray<INMOST::Face>& faces, 
+                                            int* loc_edge_ids/*[6]*/, int* loc_face_ids/*[4]*/, bool reorder_nodes = true, bool prepare_edges_and_faces = true);
     double GetTimeInitAssembleData();
     double GetTimeFillMapTemplate();
     double GetTimeInitValSet();
