@@ -130,6 +130,7 @@ namespace Ani{
             BaseT(XY0, XY1, XY2, XY3, fusion) {}
         Tetras(ScalarType* XY0, ScalarType* XY1, ScalarType* XY2, ScalarType* XY3, int count = 1): 
             BaseT(XY0, XY1, XY2, XY3, count) {}  
+        Tetras(): Tetras(nullptr, nullptr, nullptr, nullptr, 0) {}    
     };
 
     template<typename ScalarType = double>
@@ -141,6 +142,7 @@ namespace Ani{
             BaseT(XY0, XY1, XY2, XY3, 1) {}
         Tetra(ScalarType* XY0, ScalarType* XY1, ScalarType* XY2, ScalarType* XY3): 
             BaseT(XY0, XY1, XY2, XY3, 1) {} 
+        Tetra(): Tetra(nullptr, nullptr, nullptr, nullptr) {}   
 
         using NCScalar = typename std::remove_const<ScalarType>::type;   
         std::array<NCScalar, 3> centroid() const {
