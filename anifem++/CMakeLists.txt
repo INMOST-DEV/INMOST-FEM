@@ -10,12 +10,9 @@ add_library(AniFem++ INTERFACE)
 target_link_libraries(AniFem++ INTERFACE Fem)
 if (WITH_INMOST)
     target_link_libraries(AniFem++ INTERFACE Fem_inmost)
-    if (WITH_KINSOL)
-        target_link_libraries(AniFem++ INTERFACE SUNSolver)
-    endif()
 endif()
 
-set(ANIFEM_TARGETS ${ANIFEM_TARGETS} PARENT_SCOPE)
+set(ANIFEM_TARGETS AniFem++ ${ANIFEM_TARGETS} PARENT_SCOPE)
 
 
 

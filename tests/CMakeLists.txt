@@ -17,4 +17,7 @@ add_subdirectory(kinsol_interface)
 
 add_executable( anifem_test ${ANIFEM_TEST} )
 target_link_libraries(anifem_test gtest_main AniFem++)
+if (WITH_KINSOL)
+  target_link_libraries(anifem_test AFSUNSolver)
+endif()
 gtest_discover_tests(anifem_test)

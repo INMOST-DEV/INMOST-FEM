@@ -10,7 +10,7 @@ target_link_libraries(Fem_inmost PUBLIC Fem inmost)
 
 target_include_directories(Fem_inmost
         PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
 if (NOT WITH_ASSEMBLER_TIMERS)

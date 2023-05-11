@@ -6,7 +6,7 @@ if (WITH_EIGEN)
     target_link_libraries(QuadFormulas PUBLIC Eigen3::Eigen)
 endif()
 target_include_directories(QuadFormulas PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> )       
 install(FILES quadrature_formulas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/anifem++/fem)
 
@@ -19,8 +19,9 @@ target_link_libraries(Fem PUBLIC QuadFormulas)
 if (WITH_EIGEN)
     target_link_libraries(Fem INTERFACE Eigen3::Eigen)
 endif()
+
 target_include_directories(Fem INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> )
    
 install(FILES 
