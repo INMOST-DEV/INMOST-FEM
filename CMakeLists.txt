@@ -72,7 +72,7 @@ if (WITH_INMOST)
 endif()
 
 if (WITH_EIGEN)
-	if (NOT TARGET Eigen3)
+	if (NOT TARGET Eigen3::Eigen)
 		if (NOT DOWNLOAD_eigen3)
 			find_package (Eigen3 3.4 REQUIRED )
 		else()

@@ -382,7 +382,8 @@ template<typename MatrTpXY0, typename Scalar, typename IndexType>
         } else {
             for (std::size_t db = 0; db < nparts; ++db)
                 for (std::size_t r = 0; r < mem.f; ++r){
-                    auto VmRow = Vm.stRow[db+1] - Vm.stRow[db], VmCol = (Vm.stCol[db+1] - Vm.stCol[db])/mem.f;
+                    typename decltype(Vm)::Index VmRow = Vm.stRow[db+1] - Vm.stRow[db]; 
+                    typename decltype(Vm)::Index VmCol = (Vm.stCol[db+1] - Vm.stCol[db])/mem.f;
                     Scalar* lVm = Vm.data[db].data + VmRow * VmCol * r;
                     Scalar* ldofs = dofs.data + r*dofs.nRow + Vm.stCol[db];
                     Scalar* lopU = opU.data + r*opU.nRow + Vm.stRow[db];
