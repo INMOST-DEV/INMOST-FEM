@@ -87,7 +87,8 @@ namespace Ani{
                   const DenseMatrix<ScalarType>& dofs, 
                   DenseMatrix<ScalarType>& opU){
         constexpr auto nfa = Op::Nfa::value, dim = Op::Dim::value;
-        auto f = XYZ.fusion, q = XYL.size / 4;
+        auto f = XYZ.fusion;
+        auto q = XYL.size / 4;
         __internal_check_fem3DapplyL_static<FUSION, MAXPNTNUM, ScalarType>(XYZ.XY0, XYZ.XY1, XYZ.XY2, XYZ.XY3, f, q, nfa, dim, dofs, opU);
         opU.nRow = dim * q, opU.nCol = f;
         MemoryLegacy<ScalarType, FUSION, MAXPNTNUM> ml;
@@ -158,7 +159,8 @@ namespace Ani{
                   DenseMatrix<ScalarType>& opU,
                   PlainMemory<ScalarType, IndexType> plainMemory){            
         constexpr auto nfa = Op::Nfa::value, dim = Op::Dim::value;
-        auto f = XYZ.fusion, q = XYL.size / 4;
+        auto f = XYZ.fusion;
+        auto q = XYL.size / 4;
         __internal_check_fem3DapplyL<ScalarType>(XYZ.XY0, XYZ.XY1, XYZ.XY2, XYZ.XY3, f, q, nfa, dim, dofs, opU);
         opU.nRow = dim * q, opU.nCol = f;
         AniMemory<ScalarType, IndexType> mem;
