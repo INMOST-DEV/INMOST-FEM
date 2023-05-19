@@ -23,8 +23,8 @@ namespace Ani{
             std::function<void(const Real** XY, Real* A, Real* F)> m_f;
             size_t nRow = 0, nCol = 0;
             size_t n_out() const override { return 2; }
-            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); return (res_id==0) ? nCol : 1; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); return (res_id==0) ? nCol : 1; }
             bool is_user_data_required() const override{ return false; }
             void operator()(const Real** args, Real** res, Real* w, Int* iw, void* user_data) override{
                 (void)w; (void)iw; (void)user_data;
@@ -44,8 +44,8 @@ namespace Ani{
             std::function<void(const Real** XY/*[4]*/, Real* A, Real* F, void* user_data)> m_f;
             size_t nRow = 0, nCol = 0;
             size_t n_out() const override { return 2; }
-            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); return (res_id==0) ? nCol : 1; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); return (res_id==0) ? nCol : 1; }
             bool is_user_data_required() const override{ return true; }
             void operator()(const Real** args, Real** res, Real* w, Int* iw, void* user_data) override{
                 (void)w; (void)iw;
@@ -118,8 +118,8 @@ namespace Ani{
             std::function<void(const Real** XY/*[4]*/, Real* A)> m_f;
             size_t nRow = 0, nCol = 0;
             size_t n_out() const override { return 1; }
-            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nCol; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); (void) res_id; return nCol; }
             bool is_user_data_required() const override{ return false; }
             void operator()(const Real** args, Real** res, Real* w, Int* iw, void* user_data) override{
                 (void) w; (void) iw; (void) user_data;
@@ -164,8 +164,8 @@ namespace Ani{
             size_t nRow = 0, nCol = 0;
             size_t nw = 0, niw = 0;
             size_t n_out() const override { return 1; }
-            Int out_size1(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return nCol; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nCol; }
             void working_sizes(size_t& sz_args, size_t& sz_res, size_t& sz_w, size_t& sz_iw) const override {
                 sz_args = 4; sz_res = 1; sz_w = nw; sz_iw = niw;
             }
@@ -190,8 +190,8 @@ namespace Ani{
             size_t nRow = 0, nCol = 0;
             size_t nw = 0, niw = 0;
             size_t n_out() const override { return 1; }
-            Int out_size1(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return nCol; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nCol; }
             void working_sizes(size_t& sz_args, size_t& sz_res, size_t& sz_w, size_t& sz_iw) const override {
                 sz_args = 4; sz_res = 1; sz_w = nw; sz_iw = niw;
             }
@@ -215,8 +215,8 @@ namespace Ani{
             std::function<void(const Real** XY/*[4]*/, Real* A)> m_f;
             size_t nRow = 0;
             size_t n_out() const override { return 1; }
-            Int out_size1(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return 1; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<int>(n_out())); (void) res_id; return 1; }
             bool is_user_data_required() const override{ return false; }
             void operator()(const Real** args, Real** res, Real* w, Int* iw, void* user_data) override{
                 (void) w; (void) iw; (void) user_data;
@@ -261,8 +261,8 @@ namespace Ani{
             size_t nRow = 0;
             size_t nw = 0, niw = 0;
             size_t n_out() const override { return 1; }
-            Int out_size1(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return 1; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return 1; }
             void working_sizes(size_t& sz_args, size_t& sz_res, size_t& sz_w, size_t& sz_iw) const override {
                 sz_args = 4; sz_res = 1; sz_w = nw; sz_iw = niw;
             }
@@ -287,8 +287,8 @@ namespace Ani{
             size_t nRow = 0;
             size_t nw = 0, niw = 0;
             size_t n_out() const override { return 1; }
-            Int out_size1(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return nRow; }
-            Int out_size2(Int res_id) const override{ assert(res_id < n_out()); (void) res_id; return 1; }
+            Int out_size1(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return nRow; }
+            Int out_size2(Int res_id) const override{ assert(res_id < static_cast<Int>(n_out())); (void) res_id; return 1; }
             void working_sizes(size_t& sz_args, size_t& sz_res, size_t& sz_w, size_t& sz_iw) const override {
                 sz_args = 4; sz_res = 1; sz_w = nw; sz_iw = niw;
             }

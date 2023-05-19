@@ -380,15 +380,25 @@ template<typename MatrTpXY0, typename Scalar, typename IndexType>
         if (nparts == 1) {
             fusive_A_mul_B(opU.nRow <= 8 || nf <= 16, mem.f, nf, Vm.data[0].data, opU.nRow, dofs.data, 1, opU.data);
         } else {
+            double* tmp_opU = (mem.q <= 1) ? opU.data : mem.extraR.data;
             for (std::size_t db = 0; db < nparts; ++db)
                 for (std::size_t r = 0; r < mem.f; ++r){
-                    typename decltype(Vm)::Index VmRow = Vm.stRow[db+1] - Vm.stRow[db]; 
-                    typename decltype(Vm)::Index VmCol = (Vm.stCol[db+1] - Vm.stCol[db])/mem.f;
-                    Scalar* lVm = Vm.data[db].data + VmRow * VmCol * r;
-                    Scalar* ldofs = dofs.data + r*dofs.nRow + Vm.stCol[db];
-                    Scalar* lopU = opU.data + r*opU.nRow + Vm.stRow[db];
-                    fusive_A_mul_B(VmCol<= 8, mem.f, VmCol, lVm, VmRow, ldofs, 1, lopU);
+                    auto VmRow = Vm.stRow[db+1] - Vm.stRow[db];
+                    auto VmCol = (Vm.stCol[db+1] - Vm.stCol[db])/mem.f;
+                    double* lVm = Vm.data[db].data + mem.q*VmRow * VmCol * r; 
+                    const double* ldofs = dofs.data + r*dofs.nRow + Vm.stCol[db];
+                    double* lopU = tmp_opU + r*dim*mem.q + Vm.stRow[db]*mem.q;
+                    fusive_A_mul_B(VmCol<= 8, mem.f, VmCol, lVm, mem.q*VmRow, const_cast<double*>(ldofs), 1, lopU);  
                 }
+            if (mem.q > 1) {
+                for (std::size_t n = 0; n < mem.q; ++n)
+                for (std::size_t db = 0; db < nparts; ++db){
+                    auto ldim = Vm.stRow[db+1] - Vm.stRow[db];
+                    double* from = tmp_opU + Vm.stRow[db]*mem.q + ldim*n;
+                    double* to = opU.data + dim*n + Vm.stRow[db];
+                    std::copy(from, from + ldim, to);
+                }
+            }    
         }
     }
 
@@ -479,15 +489,25 @@ template<typename MatrTpXY0, typename Scalar, typename IndexType>
         if (nparts == 1) {
             fusive_A_mul_B(dimA * mem.q <= 8 || nfA <= 16, mem.f, nfA, U.data[0].data, dimA * mem.q, const_cast<double*>(dofs.data), 1, opU.data);
         } else {
+            double* tmp_opU = (mem.q <= 1) ? opU.data : mem.extraR.data;
             for (std::size_t db = 0; db < nparts; ++db)
                 for (std::size_t r = 0; r < mem.f; ++r){
                     auto VmRow = U.stRow[db+1] - U.stRow[db];
                     auto VmCol = (U.stCol[db+1] - U.stCol[db])/mem.f;
-                    double* lVm = U.data[db].data + VmRow * VmCol * r; 
+                    double* lVm = U.data[db].data + mem.q*VmRow * VmCol * r; 
                     const double* ldofs = dofs.data + r*dofs.nRow + U.stCol[db];
-                    double* lopU = opU.data + r*dimA*mem.q + U.stRow[db];
-                    fusive_A_mul_B(VmCol<= 8, mem.f, VmCol, lVm, VmRow, const_cast<double*>(ldofs), 1, lopU);  
+                    double* lopU = tmp_opU + r*dimA*mem.q + U.stRow[db]*mem.q;
+                    fusive_A_mul_B(VmCol<= 8, mem.f, VmCol, lVm, mem.q*VmRow, const_cast<double*>(ldofs), 1, lopU);  
                 }
+            if (mem.q > 1) {
+                for (std::size_t n = 0; n < mem.q; ++n)
+                for (std::size_t db = 0; db < nparts; ++db){
+                    auto ldim = U.stRow[db+1] - U.stRow[db];
+                    double* from = tmp_opU + U.stRow[db]*mem.q + ldim*n;
+                    double* to = opU.data + dimA*n + U.stRow[db];
+                    std::copy(from, from + ldim, to);
+                }
+            }     
         }
 #ifdef OPTIMIZER_TIMERS_FEM3DTET
         Inter_end1 = std::chrono::high_resolution_clock::now();
@@ -515,15 +535,25 @@ template<typename MatrTpXY0, typename Scalar, typename IndexType>
         if (nparts == 1) {
             fusive_A_mul_B(dimA * mem.q <= 8 || nfA <= 16, mem.f, nfA, U.data[0].data, dimA * mem.q, const_cast<double*>(dofs.data), 1, mem.V.data);
         } else {
+            double* tmp_opU = (mem.q <= 1) ? mem.V.data : mem.extraR.data;
             for (std::size_t db = 0; db < nparts; ++db)
                 for (std::size_t r = 0; r < mem.f; ++r){
                     auto VmRow = U.stRow[db+1] - U.stRow[db];
                     auto VmCol = (U.stCol[db+1] - U.stCol[db])/mem.f;
-                    double* lVm = U.data[db].data + VmRow * VmCol * r; 
+                    double* lVm = U.data[db].data + mem.q*VmRow * VmCol * r; 
                     const double* ldofs = dofs.data + r*dofs.nRow + U.stCol[db];
-                    double* lopU = mem.V.data + r*dimA*mem.q + U.stRow[db];
-                    fusive_A_mul_B(VmCol<= 8, mem.f, VmCol, lVm, VmRow, const_cast<double*>(ldofs), 1, lopU);  
+                    double* lopU = tmp_opU + r*dimA*mem.q + U.stRow[db]*mem.q;
+                    fusive_A_mul_B(VmCol<= 8, mem.f, VmCol, lVm, mem.q*VmRow, const_cast<double*>(ldofs), 1, lopU);  
                 }
+            if (mem.q > 1) {
+                for (std::size_t n = 0; n < mem.q; ++n)
+                for (std::size_t db = 0; db < nparts; ++db){
+                    auto ldim = U.stRow[db+1] - U.stRow[db];
+                    double* from = tmp_opU + U.stRow[db]*mem.q + ldim*n;
+                    double* to = mem.V.data + dimA*n + U.stRow[db];
+                    std::copy(from, from + ldim, to);
+                }
+            }    
         }
 #ifdef OPTIMIZER_TIMERS_FEM3DTET
         Inter_end1 = std::chrono::high_resolution_clock::now();
@@ -633,7 +663,9 @@ template<typename MatrTpXY0, typename Scalar, typename IndexType>
         auto r = applyOpU.getMemoryRequirements(pnt_per_tetra, fusion);
         IndexType f = fusion, q = pnt_per_tetra;
         r.extraRsz = std::max(static_cast<int>(r.extraRsz), static_cast<int>(applyOpU.Nfa()*1*f));
-        r.Usz += applyOpU.Dim()*q*f;
+        IndexType V = applyOpU.Dim()*q*f;
+        if (r.mtx_parts > 1 && q > 1)
+            r.extraRsz = std::max(r.extraRsz, static_cast<std::size_t>(V));
         //uint nD = dotWithNormal ? 3U : 1U;
         IndexType DU = Ddim1 * q * 1 * f;
         IndexType DIFF = Ddim1 * applyOpU.Dim() * q * f;
@@ -641,7 +673,7 @@ template<typename MatrTpXY0, typename Scalar, typename IndexType>
         IndexType NRM = dotWithNormal ? 3*f : 0;
         IndexType XYL = 4*q, WG = q;
         PlainMemoryX<ScalarType, IndexType> pm;
-        pm.dSize = r.Usz + DU + DIFF + XYG + XYP + PSI + DET + MES + NRM + r.extraRsz + XYL + WG;
+        pm.dSize = r.Usz + V + DU + DIFF + XYG + XYP + PSI + DET + MES + NRM + r.extraRsz + XYL + WG;
         pm.dSize += static_cast<size_t>(DFunc<void*, FuncTraits, double, int, -1>::memReq(TensorDims(Ddim1, applyOpU.Dim())));
         pm.iSize = r.extraIsz + (4 + 2*r.mtx_parts);
         pm.mSize = r.mtx_parts;
@@ -697,6 +729,8 @@ template<typename MatrTpXY0, typename Scalar, typename IndexType>
         IndexType f = fusion, q = pnt_per_tetra;
         if (static_cast<std::size_t>(applyOpU.Nfa()*1*fusion) > r.extraRsz)
             r.extraRsz = applyOpU.Nfa()*1*fusion;
+        if (r.mtx_parts > 1 && q > 1)
+            r.extraRsz = std::max(r.extraRsz, static_cast<std::size_t>(applyOpU.Dim()*q*f));    
         IndexType XYG = 3*q*f, XYP = 3*4*f, PSI = 3*3*f, DET = f, MES = f;
         IndexType XYL = copyQuadVals ? 4*q : 0, WG = 0;
         PlainMemoryX<ScalarType, IndexType> pm;
