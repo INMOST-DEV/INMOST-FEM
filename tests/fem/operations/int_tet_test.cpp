@@ -16,8 +16,8 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
 #endif
     using namespace Ani;
     double XY1d[] = {1, 1, 1, 0, 0, 0};
-    double XY2d[] = {2, 1, 1, 2 ,1, 1};
-    double XY3d[] = {1,2, 1, 1, 2, 1};
+    double XY2d[] = {2, 1, 1, 2, 1, 1};
+    double XY3d[] = {1, 2, 1, 1, 2, 1};
     double XY4d[] = {1, 1, 2, 2, 1, 2};
     DenseMatrix<> XY1(XY1d+3, 3, 1, 3);
     DenseMatrix<> XY2(XY2d+3, 3, 1, 3);
@@ -59,7 +59,8 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
     std::vector<DenseMatrix<>> mdata(rMem.mSize);
     pMem.ddata = ddata.data(); pMem.idata = idata.data();
     rMem.ddata = ddata.data(); rMem.idata = idata.data(); rMem.mdata = mdata.data();
-    const int NEVALS = 50000;
+    DynMem<> wmem;
+    const int NEVALS = 25000;
 
     auto dfunc = [](const std::array<double, 3>& x, double* Dmem, std::pair<ulong, ulong> Ddims, void* user_data, int iTet)->TensorType{
         (void) user_data; (void) iTet;
@@ -106,7 +107,11 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
     set_start_timers();
         for (int l = 0; l < NEVALS; ++l)
             fem3Dtet<FTraits>(XYZ, P1.getOP(IDEN), P1.getOP(IDEN), dfunc, A, rMem, 2);
-    print_state("runtime IDEN(P1)");        
+    print_state("runtime IDEN(P1)");   
+    set_start_timers();
+        for (int l = 0; l < NEVALS; ++l)
+            fem3Dtet<FTraits>(XYZ, P1.getOP(IDEN), P1.getOP(IDEN), dfunc, A, wmem, 2);
+    print_state("runtime IDEN(P1) dyn mem");     
 
     set_start_timers();
     t_start = std::chrono::high_resolution_clock::now();
@@ -118,6 +123,10 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
         for (int l = 0; l < NEVALS; ++l)
             fem3Dtet<FTraits>(XYZ, P1.getOP(GRAD), P1.getOP(GRAD), dfunc, A, rMem, 5);
     print_state("runtime GRAD(P1)"); 
+    set_start_timers();
+        for (int l = 0; l < NEVALS; ++l)
+            fem3Dtet<FTraits>(XYZ, P1.getOP(GRAD), P1.getOP(GRAD), dfunc, A, wmem, 5);
+    print_state("runtime GRAD(P1) dyn mem"); 
 
     set_start_timers();
     for (int l = 0; l < NEVALS; ++l)
@@ -128,6 +137,10 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
         for (int l = 0; l < NEVALS; ++l)
             fem3Dtet<FTraits>(XYZ, P1vec.getOP(GRAD), P1vec.getOP(GRAD), dfunc, A, rMem, 5);
     print_state("runtime GRAD(P1vec)");
+    set_start_timers();
+        for (int l = 0; l < NEVALS; ++l)
+            fem3Dtet<FTraits>(XYZ, P1vec.getOP(GRAD), P1vec.getOP(GRAD), dfunc, A, wmem, 5);
+    print_state("runtime GRAD(P1vec) dyn mem");
 
     set_start_timers();
     for (int l = 0; l < NEVALS; ++l)
@@ -138,6 +151,10 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
         for (int l = 0; l < NEVALS; ++l)
             fem3Dtet<FTraits>(XYZ, P2.getOP(GRAD), P2.getOP(GRAD), dfunc, A, rMem, 5);
     print_state("runtime IDEN(P2)");
+    set_start_timers();
+        for (int l = 0; l < NEVALS; ++l)
+            fem3Dtet<FTraits>(XYZ, P2.getOP(GRAD), P2.getOP(GRAD), dfunc, A, wmem, 5);
+    print_state("runtime IDEN(P2) dyn mem");
 
     set_start_timers();
     for (int l = 0; l < NEVALS; ++l)
@@ -148,6 +165,10 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
         for (int l = 0; l < NEVALS; ++l)
             fem3Dtet<FTraits>(XYZ, P2vec.getOP(GRAD), P2vec.getOP(GRAD), dfunc, A, rMem, 5);
     print_state("runtime GRAD(P2vec)");
+    set_start_timers();
+        for (int l = 0; l < NEVALS; ++l)
+            fem3Dtet<FTraits>(XYZ, P2vec.getOP(GRAD), P2vec.getOP(GRAD), dfunc, A, wmem, 5);
+    print_state("runtime GRAD(P2vec) dyn mem");
 
     set_start_timers();
     for (int l = 0; l < NEVALS; ++l)
@@ -158,6 +179,10 @@ TEST(AniInterface, Operations_IntTet_SpeedTest){
         for (int l = 0; l < NEVALS; ++l)
             fem3Dtet<FTraits>(XYZ, P3.getOP(GRAD), P3.getOP(GRAD), dfunc, A, rMem, 5);
     print_state("runtime IDEN(P3)");
+    set_start_timers();
+        for (int l = 0; l < NEVALS; ++l)
+            fem3Dtet<FTraits>(XYZ, P3.getOP(GRAD), P3.getOP(GRAD), dfunc, A, wmem, 5);
+    print_state("runtime IDEN(P3) dyn mem");
 
     EXPECT_EQ(0, 0);
     return;

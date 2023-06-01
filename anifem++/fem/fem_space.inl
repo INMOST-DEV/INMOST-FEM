@@ -17,19 +17,43 @@ namespace Ani{
         interpolateOnDOF(XYZ, FunctorContainer<EVAL_FUNCTOR>::eval_functor, udofs, idof_on_tet, fusion, mem, &fc, max_quad_order);
     }
     template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, BaseFemSpace::EvalFunc>::value, bool>::type Dummy>
+    inline void BaseFemSpace::interpolateOnDOF(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<>* udofs, int idof_on_tet, int fusion, DynMem<>& wmem, void* user_data, uint max_quad_order) const {
+        auto req = interpolateOnDOF_mem_req(idof_on_tet, fusion, max_quad_order);
+        auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
+        interpolateOnDOF(XYZ, f, udofs, idof_on_tet, fusion, mem.m_mem, user_data, max_quad_order);
+    }
+    template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, BaseFemSpace::EvalFunc>::value, bool>::type Dummy>
     inline void BaseFemSpace::interpolateOnDOF(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, int idof_on_tet, PlainMemoryX<> mem, void* user_data, uint max_quad_order) const {
         interpolateOnDOF(XYZ, f, &udofs, idof_on_tet, 1, mem, user_data, max_quad_order);
+    }
+    template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, BaseFemSpace::EvalFunc>::value, bool>::type Dummy>
+    inline void BaseFemSpace::interpolateOnDOF(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, int idof_on_tet, DynMem<>& wmem, void* user_data, uint max_quad_order) const{
+        auto req = interpolateOnDOF_mem_req(idof_on_tet, 1, max_quad_order);
+        auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
+        interpolateOnDOF(XYZ, f, udofs, idof_on_tet, mem.m_mem, user_data, max_quad_order);
     }
     template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, BaseFemSpace::EvalFunc>::value, bool>::type Dummy>
     inline void BaseFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, PlainMemoryX<> mem, void* user_data, uint max_quad_order) const {
         FunctorContainer<EVAL_FUNCTOR> fc{f, user_data};
         interpolateByDOFs(XYZ, FunctorContainer<EVAL_FUNCTOR>::eval_functor, udofs, sp, mem, &fc, max_quad_order);
     }
+    template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, BaseFemSpace::EvalFunc>::value, bool>::type Dummy>
+    inline void BaseFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, DynMem<>& wmem, void* user_data, uint max_quad_order) const {
+        auto req = interpolateByDOFs_mem_req(max_quad_order);
+        auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
+        interpolateOnDOF(XYZ, f, udofs, sp, mem.m_mem, user_data, max_quad_order);
+    }
     template<typename EVAL_FUNCTOR>
     inline void BaseFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, const DofT::NestedDofMapView& sub_map, PlainMemoryX<> mem, void* user_data, uint max_quad_order) const {
         FunctorContainer<EVAL_FUNCTOR> fc{f, user_data};
         for (auto it = sub_map.beginBySparsity(sp); it != sub_map.endBySparsity(); ++it)
             interpolateOnDOF(XYZ, FunctorContainer<EVAL_FUNCTOR>::eval_functor, udofs, it->gid, mem, &fc, max_quad_order);
+    }
+    template<typename EVAL_FUNCTOR>
+    inline void BaseFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, const DofT::NestedDofMapView& sub_map, DynMem<>& wmem, void* user_data, uint max_quad_order) const {
+        auto req = interpolateByDOFs_mem_req(max_quad_order);
+        auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
+        interpolateByDOFs(XYZ, f, udofs, sp, sub_map, mem.m_mem,user_data, max_quad_order);
     }
     inline void BaseFemSpace::interpolateConstant(double val, ArrayView<> udofs, const TetGeomSparsity& sp) const {
         for (auto it = m_order.beginBySparsity(sp); it != m_order.endBySparsity(); ++it)

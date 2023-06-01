@@ -6,11 +6,7 @@
 #define CARNUM_FEM_ANIINTERFACE_OPERATIONS_H
 
 #include "core.h"
-#include "eval.h"
-#include "int_tet.h"
-#include "int_face.h"
-#include "int_edge.h"
-#include "int_pnt.h"
+#include "dyn_ops.h"
 #include "dc_on_dof.h"
 #include "interpolate.h"
 

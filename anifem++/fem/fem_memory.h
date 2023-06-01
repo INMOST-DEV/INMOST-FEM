@@ -15,6 +15,7 @@
 #include <utility>
 #include <cassert>
 #include <cmath>
+#include <vector>
 
 namespace Ani{
     ///Store view on external memory
@@ -378,6 +379,123 @@ namespace Ani{
         bool ge(const PlainMemoryX& o) const { return dSize >= o.dSize && iSize >= o.iSize && mSize >= o.mSize; }
         void extend_size(const PlainMemoryX& o) { dSize = std::max(o.dSize, dSize), iSize = std::max(o.iSize, iSize), mSize = std::max(o.mSize, mSize); }
         void append_size(const PlainMemoryX& o) { dSize += o.dSize, iSize += o.iSize, mSize += o.mSize; }
+    };
+
+    template<typename ScalarType = double, typename IndexType = int>
+    struct DynMem{
+        using DM = DenseMatrix<ScalarType>;
+        struct Chunk{
+            std::vector<ScalarType> rdata;
+            std::vector<IndexType>  idata;
+            std::vector<DM>         mdata;
+            std::size_t rbusy = 0, ibusy = 0, mbusy = 0;
+            std::size_t nparts = 0; //number of memory parts where pointers from the vectors are used
+        };
+        struct MemPart{
+            PlainMemoryX<ScalarType, IndexType> m_mem;
+            DynMem* m_link = nullptr;
+            std::size_t m_chunk_id = -1, m_part_id = -1;;
+
+            PlainMemory<ScalarType, IndexType>  getPlainMemory(){ return {m_mem.ddata, m_mem.idata, m_mem.dSize, m_mem.iSize}; }
+            PlainMemoryX<ScalarType, IndexType> getPlainMemoryX(){ return m_mem; }
+            MemPart() = default;
+            MemPart(const MemPart& a) = delete;
+            MemPart& operator=(const MemPart& a) = delete;
+            MemPart(MemPart&& a){
+                clear();
+                m_mem = a.m_mem;
+                m_link = a.m_link; m_chunk_id = a.m_chunk_id; m_part_id = a.m_part_id;
+                a.m_link = nullptr; a.m_chunk_id = -1; a.m_part_id = -1;
+                a.m_mem = PlainMemoryX<ScalarType, IndexType>(); 
+            }
+            MemPart& operator=(MemPart&& a){
+                if (&a == this) return this;
+                clear();
+                m_mem = a.m_mem;
+                m_link = a.m_link; m_chunk_id = a.m_chunk_id; m_part_id = a.m_part_id;
+                a.m_link = nullptr; a.m_chunk_id = -1; a.m_part_id = -1;
+                a.m_mem = PlainMemoryX<ScalarType, IndexType>(); 
+                return this;
+            }
+            void clear(){
+                if (!m_link) return;
+                auto& chunk = m_link->m_chunks[m_chunk_id];
+                chunk.nparts--;
+                if (chunk.nparts == m_part_id)
+                    chunk.rbusy -= m_mem.dSize, chunk.ibusy -= m_mem.iSize, chunk.mbusy -= m_mem.mSize;
+                if (chunk.nparts == 0)
+                    chunk.rbusy = chunk.ibusy = chunk.mbusy = 0;
+                m_mem = PlainMemoryX<ScalarType, IndexType>();  
+                m_link = nullptr;  
+            }
+            ~MemPart(){
+                if (!m_link) return;
+                auto& chunk = m_link->m_chunks[m_chunk_id];
+                chunk.nparts--;
+                if (chunk.nparts == m_part_id)
+                    chunk.rbusy -= m_mem.dSize, chunk.ibusy -= m_mem.iSize, chunk.mbusy -= m_mem.mSize;
+                if (chunk.nparts == 0)
+                    chunk.rbusy = chunk.ibusy = chunk.mbusy = 0;
+            }
+        };
+
+        std::vector<Chunk> m_chunks;
+        
+        MemPart alloc(std::size_t dsize, std::size_t isize, std::size_t msize){
+            MemPart res;
+            res.m_link = this;
+            Chunk* chunk = nullptr;
+            if (!m_chunks.empty()) {
+                for (std::size_t i = 0; i < m_chunks.size(); ++i){
+                    auto* lchk =  m_chunks.data() + i;
+                    if   ( (lchk->rbusy == 0 || lchk->rdata.size() >= lchk->rbusy + dsize)
+                        && (lchk->ibusy == 0 || lchk->idata.size() >= lchk->ibusy + isize)
+                        && (lchk->mbusy == 0 || lchk->mdata.size() >= lchk->mbusy + msize)){
+                        chunk = lchk;
+                        break;
+                    }
+                }
+                if (chunk == nullptr){
+                    m_chunks.resize(m_chunks.size() + 1);
+                    chunk = &m_chunks.back();
+                }
+            } else  {
+                m_chunks.resize(1);
+                chunk = m_chunks.data();
+            }
+            res.m_chunk_id = std::distance(m_chunks.data(), chunk);
+            if (dsize > 0){
+                if (chunk->rbusy == 0 && chunk->rdata.size() < dsize) chunk->rdata.resize(dsize);
+                res.m_mem.ddata = chunk->rdata.data() + chunk->rbusy; chunk->rbusy += dsize; res.m_mem.dSize = dsize;
+            }
+            if (isize > 0){
+                if (chunk->ibusy == 0 && chunk->idata.size() < isize) chunk->idata.resize(isize);
+                res.m_mem.idata = chunk->idata.data() + chunk->ibusy; chunk->ibusy += isize; res.m_mem.iSize = isize;
+            }
+            if (msize > 0){
+                if (chunk->mbusy == 0 && chunk->mdata.size() < msize) chunk->mdata.resize(msize);
+                res.m_mem.mdata = chunk->mdata.data() + chunk->mbusy; chunk->mbusy += msize; res.m_mem.mSize = msize;
+            }
+            res.m_part_id = chunk->nparts;
+            chunk->nparts++;
+            return res;
+        }
+        void defragment(){
+            if (m_chunks.size() <= 1) return;
+            std::size_t rsz = 0, isz = 0, msz = 0;
+            for (auto& chunk: m_chunks){
+            rsz += chunk.rdata.size();
+            isz += chunk.idata.size();
+            msz += chunk.mdata.size();
+            if (chunk.nparts != 0)
+                throw std::runtime_error("Defragmentation of busy memory is not allowed");
+            }
+            m_chunks.clear();
+            m_chunks.resize(1);
+            m_chunks[0].rdata.resize(rsz);
+            m_chunks[0].idata.resize(isz);
+            m_chunks[0].mdata.resize(msz);
+        }
     };
 
     struct OpMemoryRequirements{
