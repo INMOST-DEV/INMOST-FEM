@@ -20,6 +20,8 @@ TEST(QuadratureFormulas, TetraFormulas){
                    e / ((q + 1) * (q + 2) * (q + 3));
         };
         auto q = tetrahedron_quadrature_formulas(ord);
+        auto ss = q.GetSymmetryPartition();
+        EXPECT_EQ(ss[0]+4*ss[1]+6*ss[2]+12*ss[3] + 24*ss[4], q.GetNumPoints());
         long double eval_intf = 0;
         for (int i = 0; i < q.GetNumPoints(); ++i) {
             auto p_w = q.GetPointWeight<qReal>(i);
@@ -58,6 +60,8 @@ TEST(QuadratureFormulas, TriangleFormulas){
                    e / ((q + 1) * (q + 2));
         };
         auto q = triangle_quadrature_formulas(ord);
+        auto ss = q.GetSymmetryPartition();
+        EXPECT_EQ(ss[0]+3*ss[1]+6*ss[2], q.GetNumPoints());
         long double eval_intf = 0;
         for (int i = 0; i < q.GetNumPoints(); ++i) {
             auto p_w = q.GetPointWeight<qReal>(i);
@@ -93,6 +97,8 @@ TEST(QuadratureFormulas, SegmentFormulas){
             return a / (b + 1) + c / (d + 1) + e / (q + 1);
         };
         auto q = segment_quadrature_formulas(ord);
+        auto ss = q.GetSymmetryPartition();
+        EXPECT_EQ(ss[0]+2*ss[1], q.GetNumPoints());
         long double eval_intf = 0;
         for (int i = 0; i < q.GetNumPoints(); ++i) {
             auto p_w = q.GetPointWeight<qReal>(i);

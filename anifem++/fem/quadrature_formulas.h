@@ -35,6 +35,10 @@ struct SegmentQuadFormula{
 #endif
     /// Number of quadrature points
     int num_points = 0;
+    /// Number of points of different symmetry types: #s1, #s2
+    /// first #s1 points have s1 symmetry and next #s2 pair of points have s2 symmetry
+    /// if quadrature formula isn't symmetric then have negative values
+    std::array<int, 2> sym = {-1, -1};
     /// Array of barycentric coordinates on segment (p0, p1), supposed p1 = 1 - p0
     ///  p consists data as
     ///  p0_0, p1_0 - barycoords for first quadrature point
@@ -49,10 +53,11 @@ struct SegmentQuadFormula{
     const qReal* w = nullptr;
 
     SegmentQuadFormula() = default;
-    SegmentQuadFormula(int num_points, const qReal* p, const qReal* w): num_points{num_points}, p{p}, w{w} {}
+    SegmentQuadFormula(int num_points, const qReal* p, const qReal* w, std::array<int, 2> symmetry = {-1, -1}): num_points{num_points}, sym{symmetry}, p{p}, w{w} {}
     int GetNumPoints() const{ return num_points; }
     const qReal* GetPointData() const { return p; }
     const qReal* GetWeightData() const { return w; }
+    std::array<int, 2> GetSymmetryPartition() const { return sym; }
     ///@return quadrature barycentric coords and weight of the point
     ///@param ipnt is number of quadrature point
     template<typename Real = qReal>
@@ -89,6 +94,10 @@ struct TriangleQuadFormula{
 #endif
     /// Number of quadrature points
     int num_points = 0;
+    /// Number of points of different symmetry types: #s1, #s3, #s6
+    /// full number of points = 1 * #s1 + 3 * #s3 + 6 * #s6
+    /// if quadrature formula isn't symmetric then have negative values
+    std::array<int, 3> sym = {-1, -1, -1};
     /// Array of barycentric coordinates on triangle (p0, p1, p2), supposed p2 = 1 - (p0 + p1)
     ///  p consists data as
     ///  p0_0, p1_0, p2_0 - barycoords for first quadrature point
@@ -103,10 +112,11 @@ struct TriangleQuadFormula{
     const qReal* w = nullptr;
 
     TriangleQuadFormula() = default;
-    TriangleQuadFormula(int num_points, const qReal* p, const qReal* w): num_points{num_points}, p{p}, w{w} {}
+    TriangleQuadFormula(int num_points, const qReal* p, const qReal* w, std::array<int, 3> symmetry = {-1, -1, -1}): num_points{num_points}, sym{symmetry}, p{p}, w{w} {}
     int GetNumPoints() const{ return num_points; }
     const qReal* GetPointData() const { return p; }
     const qReal* GetWeightData() const { return w; }
+    std::array<int, 3> GetSymmetryPartition() const { return sym; }
     ///@return quadrature barycentric coords and weight of the point
     ///@param ipnt is number of quadrature point
     template<typename Real = qReal>
@@ -145,6 +155,10 @@ struct TetraQuadFormula{
 #endif
     /// Number of quadrature points
     int num_points = 0;
+    /// Number of points of different symmetry types: #s1, #s4, #s6, #s12, #s24
+    /// full number of points = 1 * #s1 + 4 * #s4 + 6 * #s6 + 12 * #s12 + 24 * #s24
+    /// if quadrature formula isn't symmetric then have negative values
+    std::array<int, 5> sym = {-1, -1, -1, -1, -1};
     /// Array of barycentric coordinates on tetrahedron (p0, p1, p2, p3) of points and weights (w), supposed p3 = 1 - (p0 + p1 + p2)
     ///  p consists data as
     ///  p0_0, p1_0, p2_0, p3_0 - barycoords for first quadrature point
@@ -159,10 +173,11 @@ struct TetraQuadFormula{
     const qReal* w = nullptr;
 
     TetraQuadFormula() = default;
-    TetraQuadFormula(int num_points, const qReal* p, const qReal* w): num_points{num_points}, p{p}, w{w} {}
+    TetraQuadFormula(int num_points, const qReal* p, const qReal* w, std::array<int, 5> sym = {-1, -1, -1, -1, -1}): num_points{num_points}, sym{sym}, p{p}, w{w} {}
     int GetNumPoints() const{ return num_points; }
     const qReal* GetPointData() const { return p; }
     const qReal* GetWeightData() const { return w; }
+    std::array<int, 5> GetSymmetryPartition() const { return sym; }
     ///@return quadrature barycentric coords and weight of the point
     ///@param ipnt is number of quadrature point
     template<typename Real = qReal>
