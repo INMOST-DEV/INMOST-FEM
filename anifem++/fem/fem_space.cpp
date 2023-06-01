@@ -5,6 +5,16 @@
 #include <sstream>
 
 namespace Ani{
+    void BaseFemSpace::interpolateOnDOF(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<>* udofs, int idof_on_tet, int fusion, DynMem<>& wmem, void* user_data, uint max_quad_order) const{
+        auto req = interpolateOnDOF_mem_req(idof_on_tet, fusion, max_quad_order);
+        auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
+        interpolateOnDOF(XYZ, f, udofs, idof_on_tet, fusion, mem.m_mem, user_data, max_quad_order);
+    }
+    void BaseFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EvalFunc &f, ArrayView<> udofs, const TetGeomSparsity& sp, DynMem<>& wmem, void* user_data, uint max_quad_order) const{
+        auto req = interpolateByDOFs_mem_req(max_quad_order);
+        auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
+        interpolateByDOFs(XYZ, f, udofs, sp, mem.m_mem, user_data, max_quad_order);
+    }
     BandDenseMatrixX<> BaseFemSpace::applyOP(OperatorType op, AniMemoryX<> &mem, ArrayView<> &U) const {
         switch (op) {
             case IDEN: return applyIDEN(mem, U);

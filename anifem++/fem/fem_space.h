@@ -81,6 +81,8 @@ namespace Ani{
         /// @param max_quad_order is maximal quadrature order will be used (if required)
         void interpolateOnDOF(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<> udofs, int idof_on_tet, PlainMemoryX<> mem, void* user_data = nullptr, uint max_quad_order = 5) const{ interpolateOnDOF(XYZ, f, &udofs, idof_on_tet, 1, mem, user_data, max_quad_order); }
         PlainMemoryX<> interpolateOnDOF_mem_req(int idof_on_tet, uint max_quad_order) const { return interpolateOnDOF_mem_req(idof_on_tet, 1, max_quad_order); }
+        void interpolateOnDOF(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<>* udofs, int idof_on_tet, int fusion, DynMem<>& wmem, void* user_data = nullptr, uint max_quad_order = 5) const;
+        void interpolateOnDOF(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<> udofs, int idof_on_tet, DynMem<>& wmem, void* user_data = nullptr, uint max_quad_order = 5) const{ interpolateOnDOF(XYZ, f, &udofs, idof_on_tet, 1, wmem, user_data, max_quad_order); }
         
         /// For operator A = Identity save matrix U: U[k + DimOp * (n + Npnts * ( i + NumDofOnTet*r ))] = (A phi^i)_k ( x_{nr} ) 
         /// @param[in] mem is memory for all operations
@@ -147,18 +149,27 @@ namespace Ani{
         /// @see interpolateOnDOF for parameters descrition
         virtual void interpolateByDOFs(const Tetra<const double>& XYZ, const EvalFunc &f, ArrayView<> udofs, const TetGeomSparsity& sp, PlainMemoryX<> mem, void* user_data = nullptr, uint max_quad_order = 5) const;
         virtual PlainMemoryX<> interpolateByDOFs_mem_req(uint max_quad_order = 5) const;
+        void interpolateByDOFs(const Tetra<const double>& XYZ, const EvalFunc &f, ArrayView<> udofs, const TetGeomSparsity& sp, DynMem<>& wmem, void* user_data = nullptr, uint max_quad_order = 5) const;
         
         template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, EvalFunc>::value, bool>::type = true>
         inline void interpolateOnDOF(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<>* udofs, int idof_on_tet, int fusion, PlainMemoryX<> mem, void* user_data = nullptr, uint max_quad_order = 5) const;
+        template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, EvalFunc>::value, bool>::type = true>
+        inline void interpolateOnDOF(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<>* udofs, int idof_on_tet, int fusion, DynMem<>& wmem, void* user_data = nullptr, uint max_quad_order = 5) const;
         
         template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, BaseFemSpace::EvalFunc>::value, bool>::type = true>
         inline void interpolateOnDOF(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, int idof_on_tet, PlainMemoryX<> mem, void* user_data = nullptr, uint max_quad_order = 5) const;
+        template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, BaseFemSpace::EvalFunc>::value, bool>::type = true>
+        inline void interpolateOnDOF(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, int idof_on_tet, DynMem<>& wmem, void* user_data = nullptr, uint max_quad_order = 5) const;
         
         template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, EvalFunc>::value, bool>::type = true>
         inline void interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, PlainMemoryX<> mem, void* user_data = nullptr, uint max_quad_order = 5) const;
+        template<typename EVAL_FUNCTOR, typename std::enable_if<!std::is_same<EVAL_FUNCTOR, EvalFunc>::value, bool>::type = true>
+        inline void interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, DynMem<>& wmem, void* user_data = nullptr, uint max_quad_order = 5) const;
         
         template<typename EVAL_FUNCTOR>
         inline void interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, const DofT::NestedDofMapView& sub_map, PlainMemoryX<> mem, void* user_data = nullptr, uint max_quad_order = 5) const;
+        template<typename EVAL_FUNCTOR>
+        inline void interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, const DofT::NestedDofMapView& sub_map, DynMem<>& wmem, void* user_data = nullptr, uint max_quad_order = 5) const;
         
         /// @brief Set value val on d.o.f.'s belongs to region defined by sp
         inline void interpolateConstant(double val, ArrayView<> udofs, const TetGeomSparsity& sp) const;
