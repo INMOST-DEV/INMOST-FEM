@@ -18,6 +18,7 @@ option(COMPILE_EXAMPLES "Compile usage examples" OFF)
 option(COMPILE_TESTS "Compile unit tests" OFF)
 
 option(WITH_MPI "Add MPI support" OFF)
+option(WITH_OPENMP "Add OpenMP support" OFF)
 option(WITH_INMOST "Add INMOST library" ON)
 option(WITH_EIGEN "Add Eigen3 library" OFF)
 option(WITH_KINSOL "Add KINSOL library" OFF)
@@ -37,6 +38,12 @@ if(WITH_MPI)
 	find_package(MPI REQUIRED)
 	link_libraries(MPI::MPI_CXX)
 	add_compile_definitions("WITH_MPI")
+endif()
+
+if(WITH_OPENMP)
+	find_package(OpenMP REQUIRED)
+  	add_compile_definitions("WITH_OPENMP")
+  	add_compile_options(${OpenMP_CXX_FLAGS})
 endif()
 
 # Get correct build paths automatically, but expose CMAKE_INSTALL_LIBDIR
