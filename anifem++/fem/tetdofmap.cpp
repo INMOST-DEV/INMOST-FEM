@@ -268,6 +268,21 @@ DofT::NestedDofMapView DofT::BaseDofMap::GetNestedDofMapView(const int* ext_dims
     return view;
 }
 
+DofT::UniteDofMap::UniteDofMap(DofSymmetries s): m_symmetries{s}{
+    const static uchar v[16]{1, 1, 2, 1, 2, 1, 3, 6, 1, 3, 6, 1, 4, 6, 12, 24};
+    std::array<uint, NGEOM_TYPES> NumDofs{
+        v[0] *s.m_sym[0], 
+        v[1] *s.m_sym[1] +v[2] *s.m_sym[2], v[3] *s.m_sym[3]  + v[4] *s.m_sym[4], 
+        v[5] *s.m_sym[5] +v[6] *s.m_sym[6] +v[7] *s.m_sym[7],   v[8] *s.m_sym[8] +v[9] *s.m_sym[9] +v[10]*s.m_sym[10], 
+        v[11]*s.m_sym[11]+v[12]*s.m_sym[12]+v[13]*s.m_sym[13] + v[14]*s.m_sym[14]+v[15]*s.m_sym[15]
+        };
+    m_shiftDof[0] = m_shiftTetDof[0] = 0;
+    for (uint i = 0; i < NGEOM_TYPES; ++i) {
+        m_shiftTetDof[i + 1] += m_shiftTetDof[i] + GeomTypeTetElems(NumToGeomType(i)) * NumDofs[i];
+        m_shiftDof[i + 1] += m_shiftDof[i] + NumDofs[i];
+    }
+}
+
 DofT::UniteDofMap::UniteDofMap(std::array<uint, NGEOM_TYPES> NumDofs) {
     m_shiftDof[0] = m_shiftTetDof[0] = 0;
     for (uint i = 0; i < NGEOM_TYPES; ++i) {

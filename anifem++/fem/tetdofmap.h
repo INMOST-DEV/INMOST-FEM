@@ -457,14 +457,29 @@ namespace Ani{
         DofMap merge(const std::vector<DofMap>& maps);
         /// @brief Create ComplexDofMap(maps) and simplify result
         DofMap merge_with_simplifications(const std::vector<DofMap>& maps);
+        
+        ///To store structure of simplex symmetries for dofs, used to remap local dof numeration on global numeration 
+        struct DofSymmetries{
+            std::array<uint, 1+2+2+3+3+5> m_sym = {0};
 
+            DofSymmetries() = default;
+            DofSymmetries(std::array<uint, 1> n_syms, std::array<uint, 2> eu_syms={0}, std::array<uint, 2> eo_syms = {0}, std::array<uint, 3> fu_syms = {0}, std::array<uint, 3> fo_syms = {0}, std::array<uint, 5> c_syms = {0}): 
+                DofSymmetries() { set(n_syms, eu_syms, eo_syms, fu_syms, fo_syms, c_syms); }
+            inline void set(std::array<uint, 1> n_syms={0}, std::array<uint, 2> eu_syms={0}, std::array<uint, 2> eo_syms = {0}, std::array<uint, 3> fu_syms = {0}, std::array<uint, 3> fo_syms = {0}, std::array<uint, 5> c_syms = {0});
+            inline uint get(uchar etype, uchar sym_num) const;
+            inline void add(uchar etype, uchar sym_num, uint count = 1);
+            inline bool isInited() const;
+            static inline uchar symmetry_volume(uchar etype, uchar sym_num);
+        };
         /// Store the simpliest maps
         struct UniteDofMap: public BaseDofMap{
             std::array<uint, NGEOM_TYPES+1> m_shiftDof = {0};
             std::array<uint, NGEOM_TYPES+1> m_shiftTetDof = {0};
+            DofSymmetries m_symmetries{};
 
             uint ActualType() const override { return static_cast<uint>(BaseTypes::UniteType); }
             UniteDofMap() = default;
+            UniteDofMap(DofSymmetries Symmetries);
             UniteDofMap(std::array<uint, NGEOM_TYPES> NumDofs);
             uint NumDof(uchar etype) const override { auto t = GeomTypeToNum(etype); return m_shiftDof[t+1] - m_shiftDof[t]; }
             uint NumDofOnTet(uchar etype) const override;

@@ -24,6 +24,41 @@
 #include <utility>
 #include <algorithm>
 
+/**
+* Vector of d.o.f's of physical variable should met to the following rules
+*
+*      A) First, basis function associated with vertices are enumerated
+*         in the same order as the vertices 1,2,3,4;
+*
+*      B) Second, basis function associated with edges are enumerated
+*         in the same order as egdes 12,13,14,23,24 and 34;
+*   
+*        B1) On the edge, the d.o.f.s are ordered so that first there are d.o.f.s 
+*            from the symmetry group S1, and then pairs of d.o.f.s from the symmetry group S2
+*
+*      C) Third, basis function associated with faces are enumerated
+*         in the same order as faces 123,234,341 and 412;
+*
+*        C1) On the face, degrees of freedom are enumerated as group of symmteries S1, S3, S6
+*            where for every Sk (k = 1, 3, 6) d.o.f's enumerated by k d.o.f.'s belonging to the same Sk group
+*
+*      D) Fourth, basis function associated with cells
+*
+*        D1) On the cell, degrees of freedom are enumerated as group of symmteries S1, S4, S6, S12, S24
+*            where for every Sk (k = 1, 4, 6, 12, 24) d.o.f's enumerated by k d.o.f.'s belonging to the same Sk group
+*
+*      E) The vector basis functions with several degrees of freedom per
+*         a mesh object (vertex, edge, face) are enumerated first by the
+*         corresponding mesh objects (vertex, edge, face) and then by space coordinates, x,y,z;
+*
+*      F) The vector with several physical variables are numerated first by
+*         basis functions of the variables and than by the physical variables order in the vector.
+*
+*      G) Compound variables discretized by mixture of different types of FEM basis spaces 
+*         (e.g. MINI1 = P1 + Bubble) are enumerated first by basis functions of the basis space 
+*         and then by basis space order in mixture
+**/
+
 namespace Ani{
     struct ApplyOpFromSpaceView;
     struct BaseFemSpace{

@@ -29,6 +29,33 @@ inline TetGeomSparsity operator~(TetGeomSparsity a){
     return res;
 }
 
+inline void DofSymmetries::set(std::array<uint, 1> n_syms, std::array<uint, 2> eu_syms, std::array<uint, 2> eo_syms, std::array<uint, 3> fu_syms, std::array<uint, 3> fo_syms, std::array<uint, 5> c_syms){
+    m_sym[0] = n_syms[0];
+    m_sym[1] = eu_syms[0]; m_sym[2] = eu_syms[1]; m_sym[3] = eo_syms[0]; m_sym[4] = eo_syms[1];
+    m_sym[5] = fu_syms[0]; m_sym[6] = fu_syms[1]; m_sym[7] = fu_syms[2]; m_sym[8] = fo_syms[0]; m_sym[9] = fo_syms[1]; m_sym[10] = fo_syms[2];
+    m_sym[11] = c_syms[0]; m_sym[12] = c_syms[1];  m_sym[13] = c_syms[2]; m_sym[14] = c_syms[3]; m_sym[15] = c_syms[4];
+}
+inline uint DofSymmetries::get(uchar etype, uchar sym_num) const {
+    auto t = GeomTypeToNum(etype);
+    const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
+    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
+    return m_sym[offs[t]+sym_num];
+}
+inline void DofSymmetries::add(uchar etype, uchar sym_num, uint count){
+    auto t = GeomTypeToNum(etype);
+    const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
+    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
+    m_sym[offs[t]+sym_num] += count;
+}
+inline uchar DofSymmetries::symmetry_volume(uchar etype, uchar sym_num){
+    auto t = GeomTypeToNum(etype);
+    const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
+    const static uchar vols[16]{1, 1, 2, 1, 2, 1, 3, 6, 1, 3, 6, 1, 4, 6, 12, 24};
+    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
+    return vols[offs[t]+sym_num];
+}
+inline bool DofSymmetries::isInited() const{ return std::accumulate(m_sym.begin(), m_sym.end(), 0u) > 0; }
+
 namespace FemComDetails{
     template<bool isDofMapTDerivedFromBaseDofMap, typename DofMapT>
     struct VectorDofMapCImpl{};
