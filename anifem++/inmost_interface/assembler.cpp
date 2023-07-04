@@ -349,11 +349,11 @@ std::shared_ptr<ProblemGlobEnumeration> DefaultEnumeratorFactory::build(std::str
                     int ind = 0;
                     if (oType == STRAIGHT){
                         int i = 1;
-                        for (i = 1; i < 4 && InitIndex[i] < vectorIndex.id; ++i);
+                        for (i = 1; i < 4 && InitIndex[i] <= vectorIndex.id; ++i);
                         ind = i-1;
                     } else {
                         int i = 3;
-                        for (i = 2; i >= 0 && InitIndex[i] < vectorIndex.id; --i);
+                        for (i = 2; i >= 0 && InitIndex[i] <= vectorIndex.id; --i);
                         ind = i+1;
                     }
                     GeomIndexExt res;
@@ -409,11 +409,11 @@ std::shared_ptr<ProblemGlobEnumeration> DefaultEnumeratorFactory::build(std::str
                     int ind = 0;
                     if (oType == STRAIGHT){
                         int i = 1;
-                        for (i = 1; i < 4 && InitIndex[i] < vectorIndex.id; ++i);
+                        for (i = 1; i < 4 && InitIndex[i] <= vectorIndex.id; ++i);
                         ind = i-1;
                     } else {
                         int i = 3;
-                        for (i = 2; i >= 0 && InitIndex[i] < vectorIndex.id; --i);
+                        for (i = 2; i >= 0 && InitIndex[i] <= vectorIndex.id; --i);
                         ind = i+1;
                     }
                     GeomIndexExt res;
