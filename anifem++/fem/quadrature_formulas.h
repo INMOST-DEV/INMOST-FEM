@@ -57,6 +57,7 @@ struct SegmentQuadFormula{
     int GetNumPoints() const{ return num_points; }
     const qReal* GetPointData() const { return p; }
     const qReal* GetWeightData() const { return w; }
+    bool IsSymmetric() const { return sym[0] >= 0 && sym[1] >= 0; }
     std::array<int, 2> GetSymmetryPartition() const { return sym; }
     ///@return quadrature barycentric coords and weight of the point
     ///@param ipnt is number of quadrature point
@@ -116,6 +117,7 @@ struct TriangleQuadFormula{
     int GetNumPoints() const{ return num_points; }
     const qReal* GetPointData() const { return p; }
     const qReal* GetWeightData() const { return w; }
+    bool IsSymmetric() const { return sym[0] >= 0 && sym[1] >= 0 && sym[2] >= 0; }
     std::array<int, 3> GetSymmetryPartition() const { return sym; }
     ///@return quadrature barycentric coords and weight of the point
     ///@param ipnt is number of quadrature point
@@ -177,6 +179,7 @@ struct TetraQuadFormula{
     int GetNumPoints() const{ return num_points; }
     const qReal* GetPointData() const { return p; }
     const qReal* GetWeightData() const { return w; }
+    bool IsSymmetric() const { return sym[0] >= 0 && sym[1] >= 0 && sym[2] >= 0 && sym[3] >= 0 && sym[4] >= 0; }
     std::array<int, 5> GetSymmetryPartition() const { return sym; }
     ///@return quadrature barycentric coords and weight of the point
     ///@param ipnt is number of quadrature point
