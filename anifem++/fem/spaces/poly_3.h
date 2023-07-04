@@ -121,7 +121,7 @@ namespace Ani{
     template<>
     struct Dof<FemFix<FEM_P3>>{
         static inline DofT::UniteDofMap Map(){
-            return DofT::UniteDofMap(std::array<uint, DofT::NGEOM_TYPES>{1, 2, 0, 1, 0, 0});
+            return DofT::UniteDofMap(DofT::DofSymmetries({1}, {0, 1}, {0}, {1, 0}));
         }
         template<typename EvalFunc>
         static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, double* fstorage, ArrayView<>* udofs, int idof_on_tet, int fusion, void* user_data = nullptr, uint max_quad_order = 5){
