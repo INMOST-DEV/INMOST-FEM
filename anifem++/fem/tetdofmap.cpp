@@ -66,6 +66,8 @@ DofT::TetGeomSparsity& DofT::TetGeomSparsity::unsetFace(int iface, bool with_clo
     }
     return *this;
 }
+DofT::TetGeomSparsity& DofT::TetGeomSparsity::setFaces(){ elems[2] = 0xF; return *this; }
+DofT::TetGeomSparsity& DofT::TetGeomSparsity::unsetFaces(){ elems[2] = 0; return *this; }
 DofT::TetGeomSparsity& DofT::TetGeomSparsity::setEdge(int iedge, bool with_closure) {
     elems[1] |= (1<<iedge);
     if (with_closure){
@@ -82,6 +84,8 @@ DofT::TetGeomSparsity& DofT::TetGeomSparsity::unsetEdge(int iedge, bool with_clo
     }
     return *this;
 }
+DofT::TetGeomSparsity& DofT::TetGeomSparsity::setEdges(){ elems[1] = 0x3F; return *this; }
+DofT::TetGeomSparsity& DofT::TetGeomSparsity::unsetEdges(){ elems[1] = 0; return *this; }
 DofT::TetGeomSparsity& DofT::TetGeomSparsity::setNode(int inode){
         elems[0] |= (1 << inode);
         return *this;
@@ -89,6 +93,13 @@ DofT::TetGeomSparsity& DofT::TetGeomSparsity::setNode(int inode){
 DofT::TetGeomSparsity& DofT::TetGeomSparsity::unsetNode(int inode){
         elems[0] &= ~(1 << inode);
         return *this;
+}
+DofT::TetGeomSparsity& DofT::TetGeomSparsity::setNodes(){ elems[0] = 0xF; return *this; }
+DofT::TetGeomSparsity& DofT::TetGeomSparsity::unsetNodes(){ elems[0] = 0; return *this; }
+DofT::TetGeomSparsity& DofT::TetGeomSparsity::set(uchar elem_dim){
+    static const uchar vals[]{0xF, 0x3F, 0xF, 0x1};
+    elems[elem_dim] = vals[elem_dim];
+    return *this;
 }
 DofT::TetGeomSparsity& DofT::TetGeomSparsity::set(uchar elem_dim, int ielem, bool with_closure){
     switch(elem_dim){
@@ -169,7 +180,8 @@ void DofT::BaseDofMap::BeginByGeomSparsity(const TetGeomSparsity& sp, LocalOrder
         }
         lo.nelem = sp.beginPos(i).elem_num;
         lo.leid = 0;
-        lo.gid = TetDofID(lo.getGeomOrder());
+        auto id = TetDofIDExt(lo.getGeomOrder());
+        lo.gid = id.first; lo.stype = id.second.stype; lo.lsid = id.second.lsid;
         return;
     }
     EndByGeomSparsity(lo);
@@ -185,18 +197,21 @@ void DofT::BaseDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalO
     uint nloc_dof = NumDof(lo.etype);
     if (lo.leid < nloc_dof - 1){
         ++lo.leid;
-        lo.gid = TetDofID(lo.getGeomOrder());
+        auto id = TetDofIDExt(lo.getGeomOrder());
+        lo.gid = id.first; lo.stype = id.second.stype; lo.lsid = id.second.lsid;
         return;
     }
     if (lo.etype == EDGE_UNORIENT && NumDof(EDGE_ORIENT) > 0){
         lo.etype = EDGE_ORIENT;
         lo.leid = 0;
-        lo.gid = TetDofID(lo.getGeomOrder());
+        auto id = TetDofIDExt(lo.getGeomOrder());
+        lo.gid = id.first; lo.stype = id.second.stype; lo.lsid = id.second.lsid;
         return; 
     } else if (lo.etype == FACE_UNORIENT && NumDof(FACE_ORIENT) > 0){
         lo.etype = FACE_ORIENT;
         lo.leid = 0;
-        lo.gid = TetDofID(lo.getGeomOrder());
+        auto id = TetDofIDExt(lo.getGeomOrder());
+        lo.gid = id.first; lo.stype = id.second.stype; lo.lsid = id.second.lsid;
         return;
     }
     auto dim = GeomTypeDim(lo.etype);
@@ -215,7 +230,8 @@ void DofT::BaseDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalO
             if (NumDof(FACE_UNORIENT) > 0) 
                 lo.etype = FACE_UNORIENT;
         }
-        lo.gid = TetDofID(lo.getGeomOrder());
+        auto id = TetDofIDExt(lo.getGeomOrder());
+        lo.gid = id.first; lo.stype = id.second.stype; lo.lsid = id.second.lsid;
     } else {
         TetGeomSparsity sp_new = sp;
         for (int i = 0; i < next_pos.elem_dim; ++i) sp_new.unset(i);
@@ -317,6 +333,8 @@ DofT::LocalOrder DofT::UniteDofMap::LocalOrderOnTet(TetOrder dof) const {
     lo.nelem = (dof - m_shiftTetDof[num]) / enumdof;
     lo.leid  = (dof - m_shiftTetDof[num]) % enumdof;
     lo.gid = dof;
+    auto lso = m_symmetries.GetLocSymOrder_by_geom_num(num, lo.leid);
+    lo.stype = lso.stype; lo.lsid = lso.lsid;
     return lo;
 }
 uint DofT::UniteDofMap::TypeOnTet(uint dof) const{
@@ -327,6 +345,13 @@ uint DofT::UniteDofMap::TetDofID(LocGeomOrder dof) const{
     assert(isValidIndex(dof) && "Wrong index");
     uint num = GeomTypeToNum(dof.etype);
     return m_shiftTetDof[num] + dof.nelem*(m_shiftDof[num+1] - m_shiftDof[num]) + dof.leid;
+}
+std::pair<uint, DofT::LocSymOrder> DofT::UniteDofMap::TetDofIDExt(LocGeomOrder dof) const{
+    assert(isValidIndex(dof) && "Wrong index");
+    uint num = GeomTypeToNum(dof.etype);
+    uint tet_id = m_shiftTetDof[num] + dof.nelem*(m_shiftDof[num+1] - m_shiftDof[num]) + dof.leid;
+    LocSymOrder lso = m_symmetries.GetLocSymOrder_by_geom_num(num, dof.leid);
+    return {tet_id, lso};
 }
 uint DofT::UniteDofMap::GetGeomMask() const{
     uint res = 0;
@@ -340,17 +365,23 @@ void DofT::UniteDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Local
     if (lo.leid < nloc_dof - 1){
         ++lo.leid;
         ++lo.gid;
+        auto lso = m_symmetries.GetLocSymOrder(lo.etype, lo.leid);
+        lo.stype = lso.stype; lo.lsid = lso.lsid;
         return;
     }
     if (lo.etype == EDGE_UNORIENT && NumDof(EDGE_ORIENT) > 0){
         lo.etype = EDGE_ORIENT;
         lo.leid = 0;
         lo.gid = m_shiftTetDof[2] + (m_shiftDof[3] - m_shiftDof[2])*lo.nelem;//TetDofID(lo.getGeomOrder());
+        auto lso = m_symmetries.GetLocSymOrder(lo.etype, lo.leid);
+        lo.stype = lso.stype; lo.lsid = lso.lsid;
         return; 
     } else if (lo.etype == FACE_UNORIENT && NumDof(FACE_ORIENT) > 0){
         lo.etype = FACE_ORIENT;
         lo.leid = 0;
         lo.gid = m_shiftTetDof[4] + (m_shiftDof[5] - m_shiftDof[4])*lo.nelem;//TetDofID(lo.getGeomOrder());
+        auto lso = m_symmetries.GetLocSymOrder(lo.etype, lo.leid);
+        lo.stype = lso.stype; lo.lsid = lso.lsid;
         return;
     }
     auto dim = GeomTypeDim(lo.etype);
@@ -371,6 +402,8 @@ void DofT::UniteDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Local
         }
         auto num = GeomTypeToNum(lo.etype);
         lo.gid = m_shiftTetDof[num] + (m_shiftDof[num+1] - m_shiftDof[num])*lo.nelem;//TetDofID(lo.getGeomOrder());
+        auto lso = m_symmetries.GetLocSymOrder(lo.etype, lo.leid);
+        lo.stype = lso.stype; lo.lsid = lso.lsid;
     } else {
         TetGeomSparsity sp_new = sp;
         for (int i = 0; i < next_pos.elem_dim; ++i) sp_new.unset(i);
@@ -411,6 +444,13 @@ uint DofT::VectorDofMap::TetDofID(LocGeomOrder dof_id) const{
     int component = dof_id.leid / lOdf;
     return component * nOdf + base->TetDofID(LocGeomOrder(dof_id.etype, dof_id.nelem, dof_id.leid % lOdf));
 }
+std::pair<uint, DofT::LocSymOrder> DofT::VectorDofMap::TetDofIDExt(LocGeomOrder dof_id) const{
+    assert(isValidIndex(dof_id) && "Wrong dof number");
+    int nOdf = base->NumDofOnTet(), lOdf = base->NumDofOnTet(dof_id.etype);
+    int component = dof_id.leid / lOdf;
+    auto id = base->TetDofIDExt(LocGeomOrder(dof_id.etype, dof_id.nelem, dof_id.leid % lOdf));
+    return {component * nOdf + id.first, id.second};
+}
 void DofT::VectorDofMap::GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const{
     if (ndims == 0 || ext_dims[0] < 0 || ext_dims[0] >= m_dim) {
         view.Clear();
@@ -440,12 +480,13 @@ void DofT::VectorDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loca
     ll.etype = lo.etype;
     ll.nelem = lo.nelem;
     ll.leid = lo.leid % lOdf;
+    ll.stype = lo.stype; ll.lsid = lo.lsid;
     base->EndByGeomSparsity(lend);
     if (!preferGeomOrdering){
         base->IncrementByGeomSparsity(sp, ll, false);
         if (ll != lend){
             if (ll.etype != lo.etype) lOdf = base->NumDof(ll.etype);
-            lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+            lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
             return;
         } else {
             ++dim;
@@ -453,7 +494,7 @@ void DofT::VectorDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loca
                 base->BeginByGeomSparsity(sp, ll, false);
                 if (ll != lend){
                     if (ll.etype != lo.etype) lOdf = base->NumDof(ll.etype);
-                    lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+                    lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
                     return;
                 }
             }
@@ -467,7 +508,7 @@ void DofT::VectorDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loca
         base->IncrementByGeomSparsity(ss, ll, true);
         if (ll != lend){
             if (ll.etype != lo.etype) lOdf = base->NumDof(ll.etype);
-            lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+            lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
             return;
         } else {
             ++dim;
@@ -487,7 +528,8 @@ void DofT::VectorDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loca
                         lOdf = fodf;
                     }
                 }
-                lo = LocalOrder(base->TetDofID(lgo) + dim*nOdf, lgo.etype, lgo.nelem, lgo.leid + dim*lOdf);
+                auto id = base->TetDofIDExt(lgo);
+                lo = LocalOrder(id.first + dim*nOdf, lgo.etype, lgo.nelem, lgo.leid + dim*lOdf, id.second.stype, id.second.lsid);
                 return;
             } else {
                 dim = 0;
@@ -502,7 +544,7 @@ void DofT::VectorDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loca
                 base->BeginByGeomSparsity(ss, ll, true);
                 if (ll != lend){
                     lOdf = base->NumDof(ll.etype);
-                    lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+                    lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
                 } else 
                     EndByGeomSparsity(lo);
                 return;
@@ -561,6 +603,26 @@ DofT::ComplexDofMap::ComplexDofMap(std::vector<std::shared_ptr<BaseDofMap>> spac
         m_spaceNumDofsTet[i+1] = m_spaceNumDofsTet[i] + m_spaces[i]->NumDofOnTet();
     }
 }
+void DofT::ComplexDofMap::PushBack(std::shared_ptr<BaseDofMap> space){
+    if (m_spaces.empty()){
+        for (uint t = 0; t < NGEOM_TYPES; ++t) {
+            m_spaceNumDofTet[t].reserve(2); m_spaceNumDof[t].reserve(2);
+            m_spaceNumDofTet[t].resize(1); m_spaceNumDof[t].resize(1); 
+            m_spaceNumDofTet[t][0] = m_spaceNumDof[t][0] = 0;
+        }
+        m_spaceNumDofsTet.reserve(2);
+        m_spaceNumDofsTet.resize(1);
+        m_spaceNumDofsTet[0] = 0;
+    }
+
+    m_spaces.emplace_back(std::move(space));
+    for (uint t = 0; t < NGEOM_TYPES; ++t) {
+        auto etype = NumToGeomType(t);
+        m_spaceNumDofTet[t].push_back(m_spaceNumDofTet[t].back() + m_spaces.back()->NumDofOnTet(etype));
+        m_spaceNumDof[t].push_back(m_spaceNumDof[t].back() + m_spaces.back()->NumDof(etype));
+    }
+    m_spaceNumDofsTet.push_back(m_spaceNumDofsTet.back() + m_spaces.back()->NumDofOnTet());
+}
 std::array<uint, DofT::NGEOM_TYPES> DofT::ComplexDofMap::NumDofs() const{
     std::array<uint, NGEOM_TYPES> res = {0};
     for (int t = 0; t < NGEOM_TYPES; ++t) res[t] = m_spaceNumDof[t][m_spaces.size()] - m_spaceNumDof[t][0];
@@ -590,6 +652,20 @@ uint DofT::ComplexDofMap::TetDofID(LocGeomOrder dof_id) const {
     int vid = std::upper_bound(m_spaceNumDof[num].data(), m_spaceNumDof[num].data() + m_spaceNumDof[num].size(), dof_id.leid) - m_spaceNumDof[num].data() - 1;
     dof_id.leid -= m_spaceNumDof[num][vid];
     return m_spaceNumDofsTet[vid] + m_spaces[vid]->TetDofID(dof_id);
+}
+uchar DofT::ComplexDofMap::SymComponents(uchar etype) const {
+    uchar mask = 0;
+    for (auto& s: m_spaces)
+        mask |= s->SymComponents(etype);
+    return mask;    
+}
+std::pair<uint, DofT::LocSymOrder> DofT::ComplexDofMap::TetDofIDExt(LocGeomOrder dof_id) const{
+    assert(isValidIndex(dof_id) && "Wrong index");
+    auto num = GeomTypeToNum(dof_id.etype);
+    int vid = std::upper_bound(m_spaceNumDof[num].data(), m_spaceNumDof[num].data() + m_spaceNumDof[num].size(), dof_id.leid) - m_spaceNumDof[num].data() - 1;
+    dof_id.leid -= m_spaceNumDof[num][vid];
+    auto id = m_spaces[vid]->TetDofIDExt(dof_id);
+    return {m_spaceNumDofsTet[vid] + id.first, id.second};
 }
 uint DofT::ComplexDofMap::GetGeomMask() const  { ///< @return values DefinedOn(t) for all types t
     uint res = UNDEF;
@@ -623,7 +699,7 @@ void DofT::ComplexDofMap::BeginByGeomSparsity(const TetGeomSparsity& sp, LocalOr
             m_spaces[dim]->EndByGeomSparsity(lend);
             m_spaces[dim]->BeginByGeomSparsity(sp, ll, preferGeomOrdering);
             if (ll != lend){
-                lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[GeomTypeToNum(ll.etype)][dim]);
+                lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[GeomTypeToNum(ll.etype)][dim], ll.stype, ll.lsid);
                 return;
             } 
         }
@@ -649,14 +725,14 @@ void DofT::ComplexDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loc
     assert(isValidIndex(lo) && "Wrong index");
     auto num = GeomTypeToNum(lo.etype);
     uint dim = std::upper_bound(m_spaceNumDof[num].data(), m_spaceNumDof[num].data() + m_spaceNumDof[num].size(), lo.leid) - m_spaceNumDof[num].data() - 1;
-    LocalOrder ll(lo.gid - m_spaceNumDofsTet[dim], lo.etype, lo.nelem, lo.leid - m_spaceNumDof[num][dim]); 
+    LocalOrder ll(lo.gid - m_spaceNumDofsTet[dim], lo.etype, lo.nelem, lo.leid - m_spaceNumDof[num][dim], lo.stype, lo.lsid); 
     LocalOrder lend;
     m_spaces[dim]->EndByGeomSparsity(lend);
     if (!preferGeomOrdering){
         m_spaces[dim]->IncrementByGeomSparsity(sp, ll, preferGeomOrdering);
         if (ll != lend){
             if (ll.etype != lo.etype) num = GeomTypeToNum(ll.etype);
-            lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim]);
+            lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim], ll.stype, ll.lsid);
             return;
         } else {
             ++dim;
@@ -665,7 +741,7 @@ void DofT::ComplexDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loc
                 m_spaces[dim]->BeginByGeomSparsity(sp, ll, preferGeomOrdering);
                 if (ll != lend){
                     if (ll.etype != lo.etype) num = GeomTypeToNum(ll.etype);
-                    lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim]);
+                    lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim], ll.stype, ll.lsid);
                     return;
                 }
             }
@@ -681,7 +757,7 @@ void DofT::ComplexDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loc
         // if (ll.etype != lo.etype) num = GeomTypeToNum(ll.etype);
         if (lgo != lend){
             if (lgo.etype != lo.etype) num = GeomTypeToNum(lgo.etype);
-            lo = LocalOrder(lgo.gid + m_spaceNumDofsTet[dim], lgo.etype, lgo.nelem, lgo.leid + m_spaceNumDof[num][dim]);
+            lo = LocalOrder(lgo.gid + m_spaceNumDofsTet[dim], lgo.etype, lgo.nelem, lgo.leid + m_spaceNumDof[num][dim], lgo.stype, lgo.lsid);
             return;
         } else {
             do { ++dim; } while( dim < m_spaces.size() && !m_spaces[dim]->DefinedOn(ll.etype));
@@ -689,7 +765,8 @@ void DofT::ComplexDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, Loc
                 ll.leid = 0;
                 LocGeomOrder lgo(ll.etype, ll.nelem, ll.leid);
                 num = GeomTypeToNum(ll.etype);
-                lo = LocalOrder(m_spaces[dim]->TetDofID(lgo) + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim]);
+                auto id = m_spaces[dim]->TetDofIDExt(lgo);
+                lo = LocalOrder(id.first + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim], id.second.stype, id.second.lsid);
                 return;
             } else {
                 auto next_pos = sp.nextPos(TetGeomSparsity::Pos(gdim, lo.nelem));
