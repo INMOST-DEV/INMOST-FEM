@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <iterator>
 #include <type_traits>
+#include <numeric>
 
 namespace Ani{
     namespace DofT{
@@ -63,8 +64,8 @@ namespace Ani{
             TetOrder(): gid(uint(-1)) {}
             TetOrder(uint id): gid(id) {}
             inline bool isValid() const { return gid != uint(-1); }
-            bool operator==(const TetOrder& a) { return gid == a.gid; }
-            bool operator!=(const TetOrder& a) { return !(*this == a); }
+            bool operator==(const TetOrder& a) const { return gid == a.gid; }
+            bool operator!=(const TetOrder& a) const { return !(*this == a); }
         };
         struct ComponentTetOrder{
             TetOrder gid;   ///< contigous index of dof inside embracing space
@@ -79,8 +80,18 @@ namespace Ani{
             LocGeomOrder(): leid(uint(-1)), etype(UNDEF), nelem(0) {}
             LocGeomOrder(uchar etype, uchar nelem, uint leid): leid{leid}, etype{etype}, nelem{nelem} {} 
             inline bool isValid() const { return etype != UNDEF && leid != uint(-1) &&  GeomTypeIsValid(etype) && leid < GeomTypeTetElems(etype); }
-            bool operator==(const LocGeomOrder& a) { return etype == a.etype && nelem == a.nelem && leid == a.leid; }
-            bool operator!=(const LocGeomOrder& a) { return !(*this == a); }
+            bool operator==(const LocGeomOrder& a) const { return etype == a.etype && nelem == a.nelem && leid == a.leid; }
+            bool operator!=(const LocGeomOrder& a) const { return !(*this == a); }
+        };
+
+        struct LocSymOrder{
+            uchar stype;    ///< contigous number of symmetry group, e.g. for cell 0 - s1, 1 - s4, 2 - s6, 3 - s12, 4 - s24
+            uchar lsid;     ///< number of d.o.f. in symmetry group 
+            LocSymOrder(): stype(uchar(-1)), lsid(uchar(-1)) {}
+            LocSymOrder(uchar stype, uchar lsid): stype{stype}, lsid{lsid} {}
+            inline bool isValid() const { return stype != uchar(-1) && lsid != uchar(-1); }
+            bool operator==(const LocSymOrder& a) const { return stype == a.stype && lsid == a.lsid; }
+            bool operator!=(const LocSymOrder& a) const { return !(*this == a); }
         };
         /// Store map between specific tetrahedron d.o.f. and its geometrical locus on tetrahedron
         struct LocalOrder{
@@ -89,14 +100,24 @@ namespace Ani{
             uint  leid;     ///< number of d.o.f. on specific geometrical element of tetrahedron
             uchar etype;    ///< type of geometrical element
             uchar nelem;    ///< number of geometrical element on the tetrahedron (from 0 to 3 for NODE or FACE, from 0 to 6 for EDGE, always 0 for CELL) 
-            LocalOrder(): gid(uint(-1)), leid(uint(-1)), etype(UNDEF), nelem(0) {}
-            LocalOrder(TetOrder tid, LocGeomOrder lid): gid(tid.gid), leid(lid.leid), etype(lid.etype), nelem(lid.nelem) {} 
-            LocalOrder(uint gid, uchar etype, uchar nelem, uint leid): gid(gid), leid(leid), etype(etype), nelem(nelem) {} 
+            
+            uchar stype;    ///< contigous number of symmetry group, e.g. for cell 0 - s1, 1 - s4, 2 - s6, 3 - s12, 4 - s24
+            uchar lsid;     ///< number of d.o.f. in symmetry group 
+
+            LocalOrder(): gid(uint(-1)), leid(uint(-1)), etype(UNDEF), nelem(0), stype(uchar(-1)), lsid(uchar(-1)) {}
+            LocalOrder(TetOrder tid, LocGeomOrder lid): gid(tid.gid), leid(lid.leid), etype(lid.etype), nelem(lid.nelem), stype(uchar(-1)), lsid(uchar(-1)) {} 
+            LocalOrder(uint gid, uchar etype, uchar nelem, uint leid): gid(gid), leid(leid), etype(etype), nelem(nelem), stype(uchar(-1)), lsid(uchar(-1)) {} 
+            LocalOrder(TetOrder tid, LocGeomOrder lid, LocSymOrder sid): gid(tid.gid), leid(lid.leid), etype(lid.etype), nelem(lid.nelem), stype(sid.stype), lsid(sid.lsid) {} 
+            LocalOrder(uint gid, uchar etype, uchar nelem, uint leid, uchar stype, uchar lsid): gid(gid), leid(leid), etype(etype), nelem(nelem), stype(stype), lsid(lsid) {} 
+            
             inline LocGeomOrder getGeomOrder() const { return LocGeomOrder(etype, nelem, leid); }
             inline TetOrder getTetOrder() const { return TetOrder(gid); }
-            inline bool isValid() const { return getTetOrder().isValid() && getGeomOrder().isValid(); }
+            inline LocSymOrder getLocSymOrder() const { return LocSymOrder(stype, lsid); }
+            ///@warning LocSymOrder part considered as optional and doesn't checked here by default
+            /// if you want perform checking with LocSymOrder then call with argument with_local_order = true
+            inline bool isValid(bool with_local_order = false) const { return getTetOrder().isValid() && getGeomOrder().isValid() && (!with_local_order || getLocSymOrder().isValid()); }
             bool operator==(const LocalOrder& a) const{ return gid == a.gid; } 
-            bool operator!=(const LocalOrder& a) { return !(*this == a); }
+            bool operator!=(const LocalOrder& a) const { return !(*this == a); }
         };
 
         /// Efficient handler for convenient selection of geometric parts of the tetrahedron
@@ -111,15 +132,22 @@ namespace Ani{
             TetGeomSparsity& unsetCell(bool with_closure = false);
             TetGeomSparsity& setFace(int iface, bool with_closure = false);
             TetGeomSparsity& unsetFace(int iface, bool with_closure = false);
+            TetGeomSparsity& setFaces();
+            TetGeomSparsity& unsetFaces();
             TetGeomSparsity& setEdge(int iedge, bool with_closure = false);
             TetGeomSparsity& unsetEdge(int iedge, bool with_closure = false);
+            TetGeomSparsity& setEdges();
+            TetGeomSparsity& unsetEdges();
             TetGeomSparsity& setNode(int inode);
             TetGeomSparsity& unsetNode(int inode);
+            TetGeomSparsity& setNodes();
+            TetGeomSparsity& unsetNodes();
             /// @brief Turn on some part of tetrahedron
             /// @param elem_dim is dimension of geometric part of tetrahedron to be turned on
             /// @param ielem is number of geomentric element over geomentric elements with same dimension
             /// @param with_closure should we also turn on all less dimension elements belonging to the chosen geomentric part
             TetGeomSparsity& set(uchar elem_dim, int ielem, bool with_closure = false);
+            TetGeomSparsity& set(uchar elem_dim);
             TetGeomSparsity& set(TetGeomSparsity sp) { for (uchar d = 0; d < 4; ++d) elems[d] |= sp.elems[d]; return *this; }
             TetGeomSparsity& unset(TetGeomSparsity sp) { for (uchar d = 0; d < 4; ++d) elems[d] &= ~(sp.elems[d]); return *this; }
             /// Same as set, but turn off parts of tetrahedron @see set
@@ -145,6 +173,43 @@ namespace Ani{
             friend inline TetGeomSparsity operator|(TetGeomSparsity a, TetGeomSparsity b);
             friend inline TetGeomSparsity operator^(TetGeomSparsity a, TetGeomSparsity b);
             friend inline TetGeomSparsity operator~(TetGeomSparsity a);
+        };
+
+        ///To store structure of simplex symmetries for dofs, used to remap local dof numeration on global numeration 
+        struct DofSymmetries{
+            static const uchar MASK_UNDEF = 1 << 5;
+
+            std::array<uint, 1+2+2+3+3+5> m_sym = {uint(-1), 0};
+
+            DofSymmetries() = default;
+            DofSymmetries(std::array<uint, 1> n_syms, std::array<uint, 2> eu_syms={0}, std::array<uint, 2> eo_syms = {0}, std::array<uint, 3> fu_syms = {0}, std::array<uint, 3> fo_syms = {0}, std::array<uint, 5> c_syms = {0}): 
+                DofSymmetries() { set(n_syms, eu_syms, eo_syms, fu_syms, fo_syms, c_syms); }
+            inline void set(std::array<uint, 1> n_syms={0}, std::array<uint, 2> eu_syms={0}, std::array<uint, 2> eo_syms = {0}, std::array<uint, 3> fu_syms = {0}, std::array<uint, 3> fo_syms = {0}, std::array<uint, 5> c_syms = {0});
+            inline uint get(uchar etype, uchar sym_num) const;
+            inline void add(uchar etype, uchar sym_num, uint count = 1);
+            inline bool isInited() const;
+
+            inline uchar GetSymMask_by_geom_num(uchar geom_num) const;
+            inline uchar GetSymMask(uchar etype) const { return GetSymMask_by_geom_num(GeomTypeToNum(etype)); }
+            ///Return number of d.o.f. in symmetry group
+            ///@param geom_num is geometrical number of element
+            ///@param loc_elem_id  is number of d.o.f. on specific geometrical element of tetrahedron
+            inline LocSymOrder GetLocSymOrder_by_geom_num(uchar geom_num, uint loc_elem_id) const;
+            inline LocSymOrder GetLocSymOrder(uchar etype, uint loc_elem_id) const { return GetLocSymOrder_by_geom_num(GeomTypeToNum(etype), loc_elem_id); }
+
+            /// @brief Return amount of symmtery types for specified geometry number (etype = 2^geom_num)
+            static inline uchar symmetries_amount_by_geom_num(uchar geom_num);
+            static inline uchar symmetry_volume_by_geom_num(uchar geom_num, uchar sym_num);
+            static inline uchar symmetries_amount(uchar etype);
+            static inline uchar symmetry_volume(uchar etype, uchar sym_num);
+            /// @brief Compute index on reordered element
+            /// @param etype is type of geometrical element
+            /// @param nelem is number of geometrical element on the tetrahedron (from 0 to 3 for NODE or FACE, from 0 to 6 for EDGE, always 0 for CELL) 
+            /// @param sym_num is contigous index of symmetry group
+            /// @param loc_symmetry_ind is number of dof in group of symmetry
+            /// @param node_permutation is array with 4 unique numbers 0,1,2,3 which shows numbers of the nodes in canonical tetrahedron
+            /// @return index on reordered element
+            static inline uchar index_on_reorderd_elem(uchar etype, uchar nelem, uchar sym_num, uchar loc_symmetry_ind, const uchar* node_permutation/*[4]*/);
         };
 
         struct DofIterator;
@@ -176,21 +241,26 @@ namespace Ani{
             virtual std::array<uint, NGEOM_TYPES> NumDofs() const;
             /// @return values NumDofOnTet(t) for all types t  
             virtual std::array<uint, NGEOM_TYPES> NumDofsOnTet() const;
+            ///@return mask of defined groups, if symmetric components no defined return DofSymmetries::MASK_UNDEF
+            ///@warning etype should be primitive geom type, i.e. equals to 2^i
+            virtual uchar SymComponents(uchar etype) const { (void) etype; return DofSymmetries::MASK_UNDEF; }
             /// Convert tetrahedron contiguous index into d.o.f. index  
             virtual LocalOrder LocalOrderOnTet(TetOrder dof_id) const = 0; 
             /// Convert geometric locus into d.o.f. index 
-            LocalOrder LocalOrderOnTet(LocGeomOrder dof_id) const {return LocalOrder(TetDofID(dof_id), dof_id.etype, dof_id.nelem, dof_id.leid); } 
+            LocalOrder LocalOrderOnTet(LocGeomOrder dof_id) const {auto id = TetDofIDExt(dof_id); return LocalOrder(TetOrder(id.first), dof_id, id.second); } 
             /// Compute geometrical type of element by its tetrahedron contiguous index
             virtual uint TypeOnTet(uint dof) const { assert(isValidIndex(TetOrder(dof)) && "Wrong index"); return LocalOrderOnTet(TetOrder(dof)).etype; }
             /// Get tetrahedron contiguous index from geometric locus
-            virtual uint TetDofID(LocGeomOrder dof_id) const = 0;
+            virtual uint TetDofID(LocGeomOrder dof_id) const { return TetDofIDExt(dof_id).first; }
+            /// Get tetrahedron contiguous index and symmetry index from geometric locus
+            virtual std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const = 0;
             /// Is map has d.o.f.s on specific element types
             virtual bool DefinedOn(uchar etype) const { return NumDof(etype) > 0; };
             /// @return values DefinedOn(t) for all types t
             virtual uint GetGeomMask() const;
             inline bool isValidIndex(TetOrder dof_id) const { return dof_id.gid < NumDofOnTet(); }
             inline bool isValidIndex(LocGeomOrder dof_id) const { return dof_id.etype != UNDEF && GeomTypeIsValid(dof_id.etype) && dof_id.nelem < GeomTypeTetElems(dof_id.etype) && dof_id.leid < NumDof(dof_id.etype); }
-            inline bool isValidIndex(LocalOrder dof_id) const { return isValidIndex(dof_id.getTetOrder()) && isValidIndex(dof_id.getGeomOrder()); }
+            inline bool isValidIndex(LocalOrder dof_id, bool with_sym_order = false) const;
             DofIterator begin() const;
             DofIterator end() const;
             inline LocalOrder operator[](TetOrder dof_id) const { return LocalOrderOnTet(dof_id); }
@@ -317,6 +387,8 @@ namespace Ani{
             uint TypeOnTet(uint dof) const override { return base()->TypeOnTet(dof); }
             /// @return contigous vector index from geometric locus of subvector d.o.f.
             uint TetDofID(LocGeomOrder dof_id) const override { return base()->TetDofID(dof_id) + m_shiftOnTet; }
+            uchar SymComponents(uchar etype) const override {return base()->SymComponents(etype); }
+            std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override { auto id = base()->TetDofIDExt(dof_id); return {id.first + m_shiftOnTet, id.second}; }
             /// Is subvector defined on the element of specified type
             bool DefinedOn(uchar etype) const override { return base()->DefinedOn(etype); }
             uint GetGeomMask() const override { return base()->GetGeomMask(); }
@@ -405,6 +477,8 @@ namespace Ani{
             inline uint TypeOnTet(uint dof) const { return m_invoker->TypeOnTet(dof); }
             /// @return tetrahedron contiguous index by it's geometric locus
             inline uint TetDofID(LocGeomOrder dof_id) const { return m_invoker->TetDofID(dof_id); }
+            inline uchar SymComponents(uchar etype) const { return m_invoker->SymComponents(etype); }
+            inline std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const { return m_invoker->TetDofIDExt(dof_id); }
             /// Is map has d.o.f.s on specific element types
             inline bool DefinedOn(uchar etype) const { return m_invoker->DefinedOn(etype); } 
             /// @return geometric definedness mask, if mask & etype > 0 then map has d.o.f.s on all geom elemets with types from etype
@@ -458,19 +532,6 @@ namespace Ani{
         /// @brief Create ComplexDofMap(maps) and simplify result
         DofMap merge_with_simplifications(const std::vector<DofMap>& maps);
         
-        ///To store structure of simplex symmetries for dofs, used to remap local dof numeration on global numeration 
-        struct DofSymmetries{
-            std::array<uint, 1+2+2+3+3+5> m_sym = {0};
-
-            DofSymmetries() = default;
-            DofSymmetries(std::array<uint, 1> n_syms, std::array<uint, 2> eu_syms={0}, std::array<uint, 2> eo_syms = {0}, std::array<uint, 3> fu_syms = {0}, std::array<uint, 3> fo_syms = {0}, std::array<uint, 5> c_syms = {0}): 
-                DofSymmetries() { set(n_syms, eu_syms, eo_syms, fu_syms, fo_syms, c_syms); }
-            inline void set(std::array<uint, 1> n_syms={0}, std::array<uint, 2> eu_syms={0}, std::array<uint, 2> eo_syms = {0}, std::array<uint, 3> fu_syms = {0}, std::array<uint, 3> fo_syms = {0}, std::array<uint, 5> c_syms = {0});
-            inline uint get(uchar etype, uchar sym_num) const;
-            inline void add(uchar etype, uchar sym_num, uint count = 1);
-            inline bool isInited() const;
-            static inline uchar symmetry_volume(uchar etype, uchar sym_num);
-        };
         /// Store the simpliest maps
         struct UniteDofMap: public BaseDofMap{
             std::array<uint, NGEOM_TYPES+1> m_shiftDof = {0};
@@ -489,6 +550,8 @@ namespace Ani{
             LocalOrder LocalOrderOnTet(TetOrder dof) const override;
             uint TypeOnTet(uint dof) const override;
             uint TetDofID(LocGeomOrder dof) const override;
+            uchar SymComponents(uchar etype) const override { return m_symmetries.GetSymMask(etype); }
+            std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override;
             uint GetGeomMask() const override;
             uint NestedDim() const override { return 0; }
             void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const override{ (void) ext_dims; (void) ndims; view.Clear(); }
@@ -515,6 +578,8 @@ namespace Ani{
             uint TypeOnTet(uint dof) const override { return m_dim ? base->TypeOnTet(dof % base->NumDofOnTet()) : UNDEF; }
             uint TetDofID(LocGeomOrder dof_id) const override;
             uint TetDofID(uint part_id, TetOrder lgid) const { return part_id*base->NumDofOnTet() + lgid; }
+            uchar SymComponents(uchar etype) const override { return base->SymComponents(etype); }
+            std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override;
             bool DefinedOn(uchar etype) const override { return m_dim ? base->DefinedOn(etype) : false; }
             uint GetGeomMask() const { return m_dim ? base->GetGeomMask() : UNDEF; }
             uint NestedDim() const override { return m_dim; }
@@ -555,6 +620,7 @@ namespace Ani{
             static ComplexDofMap makeCompressed(const std::vector<std::shared_ptr<BaseDofMap>>& spaces);
             ComplexDofMap() = default;
             explicit ComplexDofMap(std::vector<std::shared_ptr<BaseDofMap>> spaces);
+            virtual void PushBack(std::shared_ptr<BaseDofMap> space);
             uint NestedDim() const override { return m_spaces.size(); }
             uint ActualType() const override { return static_cast<uint>(BaseTypes::ComplexType); }
             uint NumDof(uchar etype) const override { auto t = GeomTypeToNum(etype); return m_spaceNumDof[t][m_spaces.size()] - m_spaceNumDof[t][0]; }
@@ -565,6 +631,8 @@ namespace Ani{
             uint TypeOnTet(uint dof) const override ;
             uint TetDofID(LocGeomOrder dof_id) const override;
             uint TetDofID(uint part_id, TetOrder lgid) const { return m_spaceNumDofsTet[part_id] + lgid; }
+            uchar SymComponents(uchar etype) const override;
+            std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override;
             uint GetGeomMask() const override ;
             void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const override;
             std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) override;

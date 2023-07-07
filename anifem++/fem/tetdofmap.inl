@@ -29,6 +29,15 @@ inline TetGeomSparsity operator~(TetGeomSparsity a){
     return res;
 }
 
+inline bool BaseDofMap::isValidIndex(LocalOrder dof_id, bool with_sym_order) const {
+    auto r = isValidIndex(dof_id.getTetOrder()) && isValidIndex(dof_id.getGeomOrder());
+    if (r && with_sym_order){
+        auto m = SymComponents(dof_id.etype);
+        r = ((m | DofSymmetries::MASK_UNDEF) || dof_id.lsid >= DofSymmetries::symmetries_amount(dof_id.etype)) ? false : (m | (1 << dof_id.stype));
+    } 
+    return r; 
+}
+
 inline void DofSymmetries::set(std::array<uint, 1> n_syms, std::array<uint, 2> eu_syms, std::array<uint, 2> eo_syms, std::array<uint, 3> fu_syms, std::array<uint, 3> fo_syms, std::array<uint, 5> c_syms){
     m_sym[0] = n_syms[0];
     m_sym[1] = eu_syms[0]; m_sym[2] = eu_syms[1]; m_sym[3] = eo_syms[0]; m_sym[4] = eo_syms[1];
@@ -36,25 +45,125 @@ inline void DofSymmetries::set(std::array<uint, 1> n_syms, std::array<uint, 2> e
     m_sym[11] = c_syms[0]; m_sym[12] = c_syms[1];  m_sym[13] = c_syms[2]; m_sym[14] = c_syms[3]; m_sym[15] = c_syms[4];
 }
 inline uint DofSymmetries::get(uchar etype, uchar sym_num) const {
+    if (!isInited()) return uint(-1);
     auto t = GeomTypeToNum(etype);
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
     assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
     return m_sym[offs[t]+sym_num];
 }
 inline void DofSymmetries::add(uchar etype, uchar sym_num, uint count){
+    if (!isInited()) m_sym[0] = 0;
     auto t = GeomTypeToNum(etype);
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
     assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
     m_sym[offs[t]+sym_num] += count;
 }
-inline uchar DofSymmetries::symmetry_volume(uchar etype, uchar sym_num){
-    auto t = GeomTypeToNum(etype);
+inline uchar DofSymmetries::symmetries_amount_by_geom_num(uchar geom_num){
+    assert(geom_num < 6 && "Wrong argument");
+    const static uchar amount[6]{1, 2, 2, 3, 3, 5};
+    return amount[geom_num];
+}
+inline uchar DofSymmetries::symmetries_amount(uchar etype){ return symmetries_amount_by_geom_num(GeomTypeToNum(etype)); }
+inline uchar DofSymmetries::symmetry_volume_by_geom_num(uchar geom_num, uchar sym_num){
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
     const static uchar vols[16]{1, 1, 2, 1, 2, 1, 3, 6, 1, 3, 6, 1, 4, 6, 12, 24};
-    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
-    return vols[offs[t]+sym_num];
+    assert(!(geom_num >= 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
+    return vols[offs[geom_num]+sym_num];
 }
-inline bool DofSymmetries::isInited() const{ return std::accumulate(m_sym.begin(), m_sym.end(), 0u) > 0; }
+inline uchar DofSymmetries::symmetry_volume(uchar etype, uchar sym_num){
+    assert(sym_num > 0 && "Wrong argument");
+    return symmetry_volume_by_geom_num(GeomTypeToNum(etype), sym_num);
+}
+inline bool DofSymmetries::isInited() const{ return m_sym[0] != uint(-1); }
+inline uchar DofSymmetries::GetSymMask_by_geom_num(uchar geom_num) const{
+    if (!isInited()) return MASK_UNDEF;
+    const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
+    uchar mask = 0;
+    for (int i = 0, cnt = offs[geom_num + 1] - offs[geom_num]; i < cnt; ++i) if (m_sym[offs[geom_num] + i] > 0) 
+        mask |= (1 << i); 
+    return mask;    
+}
+inline LocSymOrder DofSymmetries::GetLocSymOrder_by_geom_num(uchar geom_num, uint loc_elem_id) const{
+    if (!isInited()) return LocSymOrder();
+    const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
+    uint ndofs = 0;
+    int i = offs[geom_num];
+    uchar vol = 0;
+    for (; i < offs[geom_num+1] && loc_elem_id >= ndofs; ++i) {
+        vol = symmetry_volume_by_geom_num(geom_num, i - offs[geom_num]);
+        ndofs += vol*m_sym[i];
+    }
+    return LocSymOrder(i - (offs[geom_num]+1),  (loc_elem_id - (ndofs - vol*m_sym[i]))%vol);
+}
+inline uchar DofSymmetries::index_on_reorderd_elem(uchar etype, uchar nelem, uchar sym_num, uchar loc_symmetry_ind, const uchar* node_permutation){
+    if (etype == 0 || sym_num == 0) return loc_symmetry_ind;
+    auto dim = GeomTypeDim(etype);
+    if (dim == 1) {
+        const static std::array<uchar, 12> lookup_nds = {0, 1, 0, 2, 0, 3, 1, 2, 1, 3, 2, 3};
+        return (node_permutation[lookup_nds[2*nelem]] < node_permutation[lookup_nds[2*nelem+1]]) ? loc_symmetry_ind : ((loc_symmetry_ind+1)%2);   
+    } 
+    if (dim == 2){
+        uchar tria[3]{node_permutation[nelem], node_permutation[(nelem+1)%4], node_permutation[(nelem+2)%4]};
+        {
+            uchar i = 0, j = 0;
+            for (uchar k = 1; k < 3; ++k){
+                if (tria[k] < tria[i]) i = k;
+                else if (tria[k] > tria[j]) j = k;
+            }
+            tria[i] = 0, tria[j] = 2, tria[3-(i+j)] = 1;
+        }
+        if (sym_num == 1)
+            return tria[loc_symmetry_ind];
+        //abc bca cab acb cba bac
+        const static std::array<uchar, 18> lookup_inds{0,1,2,  1,2,0,  2,0,1,  0,2,1,  2,1,0,  1,0,2};
+        uchar from[3]{lookup_inds[3*loc_symmetry_ind], lookup_inds[3*loc_symmetry_ind+1], lookup_inds[3*loc_symmetry_ind+2]};
+        uchar to[3];
+        for (uchar k = 0; k < 3; ++k)
+            to[tria[k]] = from[k];
+        uchar change = 0;
+        for (uchar k = 0; k < 3; ++k)
+            if (to[k] > to[(k+1)%3]) ++change; 
+        return change == 1 ? to[0] : (5 - to[1]);    
+    }
+    //dim == 3
+    if (sym_num == 1)
+        return node_permutation[loc_symmetry_ind];
+    //aabb abab baab abba baba bbaa    
+    const static std::array<uchar, 6*4> lookup_inds_s6{
+        0,0,1,1, 0,1,0,1, 1,0,0,1, 0,1,1,0, 1,0,1,0, 1,1,0,0
+    };   
+    // abcc bcac cabc acbc cbac bacc  bcca cacb accb cbca ccba ccab
+    const static std::array<uchar, 12*4> lookup_inds_s12{
+        1,2,0,0, 2,0,1,0, 0,1,2,0, 1,0,2,0, 0,2,1,0, 2,1,0,0,  
+        2,0,0,1, 0,1,0,2, 1,0,0,2, 0,2,0,1, 0,0,2,1, 0,0,1,2, 
+    }; 
+    //abcd bcad cabd acbd cbad bacd  abdc bcda cadb acdb cbda badc
+    //adbc bdca cdab adcb cdba bdac  dabc dbca dcab dacb dcba dbac
+    const static std::array<uchar, 24*4> lookup_inds_s24{
+        0,1,2,3, 1,2,0,3, 2,0,1,3, 0,2,1,3, 2,1,0,3, 1,0,2,3,  
+        0,1,3,2, 1,2,3,0, 2,0,3,1, 0,2,3,1, 2,1,3,0, 1,0,3,2,
+        0,3,1,2, 1,3,2,0, 2,3,0,1, 0,3,2,1, 2,3,1,0, 1,3,0,2,  
+        3,0,1,2, 3,1,2,0, 3,2,0,1, 3,0,2,1, 3,2,1,0, 3,1,0,2,
+    };
+    const static uchar quick_ind_s6[10]{0, 25, 1, 3, 25, 25, 2, 4, 25, 5};
+    const static uchar quick_ind_s12[19]{5, 0, 1, 25, 4, 3, 2, 6, 25, 9, 25, 25, 25, 10, 25, 8, 7, 25, 11};
+    const static uchar quick_ind_s24[44]{22, 19, 25, 25, 25, 16, 25, 10, 20, 25, 21, 13, 7, 14, 25, 25, 8, 23, 18, 25, 25, 25, 25, 25, 25, 15, 9, 17, 25, 25, 11, 4, 2, 12, 25, 6, 1, 25, 5, 25, 25, 25, 3, 0};
+    const uchar* lookup_inds[3]{lookup_inds_s6.data(), lookup_inds_s12.data(), lookup_inds_s24.data()};
+    const uchar* quick_ind[3]{quick_ind_s6, quick_ind_s12, quick_ind_s24};
+    int qid = sym_num - 2;
+    uchar from[4]{lookup_inds[qid][4*loc_symmetry_ind], lookup_inds[qid][4*loc_symmetry_ind+1], lookup_inds[qid][4*loc_symmetry_ind+2], lookup_inds[qid][4*loc_symmetry_ind+3]};
+    uchar to[4];
+    for (uchar k = 0; k < 4; ++k)
+        to[node_permutation[k]] = from[k];
+    uchar unique_hash = 0;
+    switch(qid){
+        case 0: unique_hash = (to[3]<<0) + (to[2]<<1) + (to[1]<<2) + (to[0]<<3) - 3; break;
+        case 1: unique_hash = to[0] + (to[1] << 1) + (to[2] << 2) + (to[3] << 3) + to[3] - 4; break;
+        case 2: unique_hash = 5*to[1] + 6*to[2] + 14*to[3] - 16; break;
+        default:{ }
+    }
+    return quick_ind[qid][unique_hash];  
+}
 
 namespace FemComDetails{
     template<bool isDofMapTDerivedFromBaseDofMap, typename DofMapT>
@@ -80,6 +189,8 @@ namespace FemComDetails{
 
         LocalOrder LocalOrderOnTet(TetOrder dof_id) const override;
         uint TetDofID(LocGeomOrder dof_id) const override;
+        uchar SymComponents(uchar etype) const override { return m_base.SymComponents(etype); }
+        std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override;
         void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const;
         std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims);
         bool operator==(const BaseDofMap& other) const override;
@@ -103,6 +214,14 @@ namespace FemComDetails{
         int nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDofOnTet(dof_id.etype);
         int component = dof_id.leid / lOdf;
         return component * nOdf + m_base.TetDofID(LocGeomOrder(dof_id.etype, dof_id.nelem, dof_id.leid % lOdf));
+    }
+    template<typename DofMapT>
+    std::pair<uint, LocSymOrder> VectorDofMapCImpl<true, DofMapT>::TetDofIDExt(LocGeomOrder dof_id) const {
+        assert(isValidIndex(dof_id) && "Wrong dof number");
+        int nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDofOnTet(dof_id.etype);
+        int component = dof_id.leid / lOdf;
+        auto id = m_base.TetDofIDExt(LocGeomOrder(dof_id.etype, dof_id.nelem, dof_id.leid % lOdf));
+        return {component * nOdf + id.first, id.second};
     }
 
     template<typename DofMapT>
@@ -147,12 +266,13 @@ namespace FemComDetails{
         ll.etype = lo.etype;
         ll.nelem = lo.nelem;
         ll.leid = lo.leid % lOdf;
+        ll.stype = lo.stype, ll.lsid = lo.lsid;
         m_base.EndByGeomSparsity(lend);
         if (!preferGeomOrdering){
             m_base.IncrementByGeomSparsity(sp, ll, false);
             if (ll != lend){
                 if (ll.etype != lo.etype) lOdf = m_base.NumDof(ll.etype);
-                lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+                lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
                 return;
             } else {
                 ++dim;
@@ -160,7 +280,7 @@ namespace FemComDetails{
                     m_base.BeginByGeomSparsity(sp, ll, false);
                     if (ll != lend){
                         if (ll.etype != lo.etype) lOdf = m_base.NumDof(ll.etype);
-                        lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+                        lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
                         return;
                     }
                 }
@@ -174,7 +294,7 @@ namespace FemComDetails{
             m_base.IncrementByGeomSparsity(ss, ll, true);
             if (ll != lend){
                 if (ll.etype != lo.etype) lOdf = m_base.NumDof(ll.etype);
-                lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+                lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
                 return;
             } else {
                 ++dim;
@@ -194,7 +314,8 @@ namespace FemComDetails{
                             lOdf = fodf;
                         }
                     }
-                    lo = LocalOrder(m_base.TetDofID(lgo) + dim*nOdf, lgo.etype, lgo.nelem, lgo.leid + dim*lOdf);
+                    auto id = m_base.TetDofIDExt(lgo);
+                    lo = LocalOrder(id.first + dim*nOdf, lgo.etype, lgo.nelem, lgo.leid + dim*lOdf, id.second.stype, id.second.lsid);
                     return;
                 } else {
                     dim = 0;
@@ -209,7 +330,7 @@ namespace FemComDetails{
                     m_base.BeginByGeomSparsity(ss, ll, true);
                     if (ll != lend){
                         lOdf = m_base.NumDof(ll.etype);
-                        lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf);
+                        lo = LocalOrder(ll.gid + dim*nOdf, ll.etype, ll.nelem, ll.leid + dim*lOdf, ll.stype, ll.lsid);
                     } else 
                         EndByGeomSparsity(lo);
                     return;
@@ -242,6 +363,8 @@ namespace FemComDetails{
         LocalOrder LocalOrderOnTet(TetOrder dof_id) const override;
         uint TypeOnTet(uint dof) const override ;
         uint TetDofID(LocGeomOrder dof_id) const override;
+        uchar SymComponents(uchar etype) const override;
+        std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override;
         uint GetGeomMask() const override ;
         void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const override;
         std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) override;
@@ -364,6 +487,24 @@ namespace FemComDetails{
         return m_spaceNumDofsTet[vid] + s[vid]->TetDofID(dof_id);
     }
     template<typename... DofMapT>
+    std::pair<uint, LocSymOrder> ComplexDofMapCImpl<true, DofMapT...>::TetDofIDExt(LocGeomOrder dof_id) const{
+        assert(isValidIndex(dof_id) && "Wrong index");
+        auto s = content();
+        auto num = GeomTypeToNum(dof_id.etype);
+        int vid = std::upper_bound(m_spaceNumDof[num].data(), m_spaceNumDof[num].data() + m_spaceNumDof[num].size(), dof_id.leid) - m_spaceNumDof[num].data() - 1;
+        dof_id.leid -= m_spaceNumDof[num][vid];
+        auto id = s[vid]->TetDofIDExt(dof_id);
+        return {m_spaceNumDofsTet[vid] + id.first, id.second};
+    }
+    template<typename... DofMapT>
+    uchar ComplexDofMapCImpl<true, DofMapT...>::SymComponents(uchar etype) const{
+        auto s = content();
+        uchar mask = 0;
+        for (auto ss: s) 
+            mask |= ss->SymComponents(etype);
+        return mask;
+    }
+    template<typename... DofMapT>
     uint ComplexDofMapCImpl<true, DofMapT...>::GetGeomMask() const  {
         uint res = UNDEF;
         for (int i = 0; i < NGEOM_TYPES; ++i){ 
@@ -408,7 +549,7 @@ namespace FemComDetails{
                 s[dim]->EndByGeomSparsity(lend);
                 s[dim]->BeginByGeomSparsity(sp, ll, preferGeomOrdering);
                 if (ll != lend){
-                    lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[GeomTypeToNum(ll.etype)][dim]);
+                    lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[GeomTypeToNum(ll.etype)][dim], ll.stype, ll.lsid);
                     return;
                 } 
             }
@@ -436,14 +577,14 @@ namespace FemComDetails{
         auto s = content();
         auto num = GeomTypeToNum(lo.etype);
         uint dim = std::upper_bound(m_spaceNumDof[num].data(), m_spaceNumDof[num].data() + m_spaceNumDof[num].size(), lo.leid) - m_spaceNumDof[num].data() - 1;
-        LocalOrder ll(lo.gid - m_spaceNumDofsTet[dim], lo.etype, lo.nelem, lo.leid - m_spaceNumDof[num][dim]); 
+        LocalOrder ll(lo.gid - m_spaceNumDofsTet[dim], lo.etype, lo.nelem, lo.leid - m_spaceNumDof[num][dim], lo.stype, lo.lsid); 
         LocalOrder lend;
         s[dim]->EndByGeomSparsity(lend);
         if (!preferGeomOrdering){
             s[dim]->IncrementByGeomSparsity(sp, ll, preferGeomOrdering);
             if (ll != lend){
                 if (ll.etype != lo.etype) num = GeomTypeToNum(ll.etype);
-                lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim]);
+                lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim], ll.stype, ll.lsid);
                 return;
             } else {
                 ++dim;
@@ -452,7 +593,7 @@ namespace FemComDetails{
                     s[dim]->BeginByGeomSparsity(sp, ll, preferGeomOrdering);
                     if (ll != lend){
                         if (ll.etype != lo.etype) num = GeomTypeToNum(ll.etype);
-                        lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim]);
+                        lo = LocalOrder(ll.gid + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim], ll.stype, ll.lsid);
                         return;
                     }
                 }
@@ -468,7 +609,7 @@ namespace FemComDetails{
             // if (ll.etype != lo.etype) num = GeomTypeToNum(ll.etype);
             if (lgo != lend){
                 if (lgo.etype != lo.etype) num = GeomTypeToNum(lgo.etype);
-                lo = LocalOrder(lgo.gid + m_spaceNumDofsTet[dim], lgo.etype, lgo.nelem, lgo.leid + m_spaceNumDof[num][dim]);
+                lo = LocalOrder(lgo.gid + m_spaceNumDofsTet[dim], lgo.etype, lgo.nelem, lgo.leid + m_spaceNumDof[num][dim], lgo.stype, lgo.lsid);
                 return;
             } else {
                 do { ++dim; } while( dim < s.size() && !s[dim]->DefinedOn(ll.etype));
@@ -476,7 +617,7 @@ namespace FemComDetails{
                     ll.leid = 0;
                     LocGeomOrder lgo(ll.etype, ll.nelem, ll.leid);
                     num = GeomTypeToNum(ll.etype);
-                    lo = LocalOrder(s[dim]->TetDofID(lgo) + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim]);
+                    lo = LocalOrder(s[dim]->TetDofID(lgo) + m_spaceNumDofsTet[dim], ll.etype, ll.nelem, ll.leid + m_spaceNumDof[num][dim], ll.stype, ll.lsid);
                     return;
                 } else {
                     auto next_pos = sp.nextPos(TetGeomSparsity::Pos(gdim, lo.nelem));
