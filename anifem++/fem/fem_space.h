@@ -39,13 +39,22 @@
 *      C) Third, basis function associated with faces are enumerated
 *         in the same order as faces 123,234,341 and 412;
 *
-*        C1) On the face, degrees of freedom are enumerated as group of symmteries S1, S3, S6
+*        C1) On the face, degrees of freedom are enumerated as group of symmeteries S1, S3, S6
 *            where for every Sk (k = 1, 3, 6) d.o.f's enumerated by k d.o.f.'s belonging to the same Sk group
+*
+*        C2) S3 ordered by barycentric coordinates as abb bab bba
+*            S6 ordered as   abc bca cab acb cba bac
 *
 *      D) Fourth, basis function associated with cells
 *
 *        D1) On the cell, degrees of freedom are enumerated as group of symmteries S1, S4, S6, S12, S24
 *            where for every Sk (k = 1, 4, 6, 12, 24) d.o.f's enumerated by k d.o.f.'s belonging to the same Sk group
+*
+*        D2) S4 ordered as   abbb babb bbab bbba
+*            S6 ordered as   aabb abab baab abba baba bbaa
+*            S12 ordered as  abcc bcac cabc acbc cbac bacc  bcca cacb accb cbca ccba ccab
+*            S24 ordered as  abcd bcad cabd acbd cbad bacd  abdc bcda cadb acdb cbda badc
+*                            adbc bdca cdab adcb cdba bdac  dabc dbca dcab dacb dcba dbac   
 *
 *      E) The vector basis functions with several degrees of freedom per
 *         a mesh object (vertex, edge, face) are enumerated first by the
