@@ -121,9 +121,13 @@ namespace Ani{
         auto sign_shift = [](auto x) { return (x >= 0) ? " " : ""; };
         for (std::size_t i = 0; i < nRow; ++i){
             for (std::size_t j = 0; j < nCol-1; ++j){
-                oss << sign_shift((*this)(i, j)) << (*this)(i, j) << val_sep;
+                const auto& val = (*this)(i, j);
+                oss << sign_shift(val) << val << val_sep;
             }
-            if (nCol > 0) oss << sign_shift((*this)(i, nCol-1)) << (*this)(i, nCol-1) << row_sep;
+            if (nCol > 0) {
+                const auto& val = (*this)(i, nCol-1);
+                oss << sign_shift(val) << val << row_sep;
+            }
         }
         return oss.str();
     }
@@ -376,9 +380,12 @@ namespace Ani{
             if (isize == 0 && dsize == 0 && msize == 0) return 0;
             return msize*sizeof(DenseMatrix<ScalarType>) + dsize*sizeof(ScalarType) + isize*sizeof(IndexType) + std::max({alignof(DenseMatrix<ScalarType>), alignof(ScalarType), alignof(IndexType)});
         }
-        bool ge(const PlainMemoryX& o) const { return dSize >= o.dSize && iSize >= o.iSize && mSize >= o.mSize; }
-        void extend_size(const PlainMemoryX& o) { dSize = std::max(o.dSize, dSize), iSize = std::max(o.iSize, iSize), mSize = std::max(o.mSize, mSize); }
-        void append_size(const PlainMemoryX& o) { dSize += o.dSize, iSize += o.iSize, mSize += o.mSize; }
+        template<typename ScalarType1 = double, typename IndexType1 = int>
+        bool ge(const PlainMemoryX<ScalarType1, IndexType1>& o) const { return dSize >= o.dSize && iSize >= o.iSize && mSize >= o.mSize; }
+        template<typename ScalarType1 = double, typename IndexType1 = int>
+        void extend_size(const PlainMemoryX<ScalarType1, IndexType1>& o) { dSize = std::max(o.dSize, dSize), iSize = std::max(o.iSize, iSize), mSize = std::max(o.mSize, mSize); }
+        template<typename ScalarType1 = double, typename IndexType1 = int>
+        void append_size(const PlainMemoryX<ScalarType1, IndexType1>& o) { dSize += o.dSize, iSize += o.iSize, mSize += o.mSize; }
     };
 
     template<typename ScalarType = double, typename IndexType = int>
@@ -394,7 +401,7 @@ namespace Ani{
         struct MemPart{
             PlainMemoryX<ScalarType, IndexType> m_mem;
             DynMem* m_link = nullptr;
-            std::size_t m_chunk_id = -1, m_part_id = -1;;
+            std::size_t m_chunk_id = -1, m_part_id = -1;
 
             PlainMemory<ScalarType, IndexType>  getPlainMemory(){ return {m_mem.ddata, m_mem.idata, m_mem.dSize, m_mem.iSize}; }
             PlainMemoryX<ScalarType, IndexType> getPlainMemoryX(){ return m_mem; }
@@ -484,11 +491,11 @@ namespace Ani{
             if (m_chunks.size() <= 1) return;
             std::size_t rsz = 0, isz = 0, msz = 0;
             for (auto& chunk: m_chunks){
-            rsz += chunk.rdata.size();
-            isz += chunk.idata.size();
-            msz += chunk.mdata.size();
-            if (chunk.nparts != 0)
-                throw std::runtime_error("Defragmentation of busy memory is not allowed");
+                rsz += chunk.rdata.size();
+                isz += chunk.idata.size();
+                msz += chunk.mdata.size();
+                if (chunk.nparts != 0)
+                    throw std::runtime_error("Defragmentation of busy memory is not allowed");
             }
             m_chunks.clear();
             m_chunks.resize(1);
