@@ -48,14 +48,14 @@ inline uint DofSymmetries::get(uchar etype, uchar sym_num) const {
     if (!isInited()) return uint(-1);
     auto t = GeomTypeToNum(etype);
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
-    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
+    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t]) && "Wrong arguments");
     return m_sym[offs[t]+sym_num];
 }
 inline void DofSymmetries::add(uchar etype, uchar sym_num, uint count){
     if (!isInited()) m_sym[0] = 0;
     auto t = GeomTypeToNum(etype);
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
-    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
+    assert(!(t < 0 || t > 6 || sym_num >= offs[t+1] - offs[t]) && "Wrong arguments");
     m_sym[offs[t]+sym_num] += count;
 }
 inline uchar DofSymmetries::symmetries_amount_by_geom_num(uchar geom_num){
@@ -67,7 +67,7 @@ inline uchar DofSymmetries::symmetries_amount(uchar etype){ return symmetries_am
 inline uchar DofSymmetries::symmetry_volume_by_geom_num(uchar geom_num, uchar sym_num){
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
     const static uchar vols[16]{1, 1, 2, 1, 2, 1, 3, 6, 1, 3, 6, 1, 4, 6, 12, 24};
-    assert(!(geom_num >= 6 || sym_num >= offs[t+1] - offs[t+1]) && "Wrong arguments");
+    assert(!(geom_num >= 6 || sym_num >= offs[geom_num+1] - offs[geom_num]) && "Wrong arguments");
     return vols[offs[geom_num]+sym_num];
 }
 inline uchar DofSymmetries::symmetry_volume(uchar etype, uchar sym_num){

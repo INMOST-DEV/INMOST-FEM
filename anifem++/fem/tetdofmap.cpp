@@ -26,7 +26,7 @@ DofT::DofSparsedIterator DofT::BaseDofMap::endBySparsity() const{
     return it;
 }
 
-DofT::DofIterator DofT::BaseDofMap::begin() const { return NumDofOnTet() > 0 ? DofIterator(this, LocalOrderOnTet(TetOrder(0))) : end(); }
+DofT::DofIterator DofT::BaseDofMap::begin() const { LocalOrder lo; lo.gid = 0; return DofIterator(this, lo); }
 DofT::DofIterator DofT::BaseDofMap::end() const { LocalOrder lo; lo.gid = NumDofOnTet(); return DofIterator(this, lo); }
 
 DofT::TetGeomSparsity& DofT::TetGeomSparsity::setCell(bool with_closure) { 
@@ -789,6 +789,15 @@ DofT::ComponentTetOrder DofT::ComplexDofMap::ComponentID(TetOrder dof_id) const{
     int vid = std::upper_bound(m_spaceNumDofsTet.data(), m_spaceNumDofsTet.data() + m_spaceNumDofsTet.size(), dof_id.gid) - m_spaceNumDofsTet.data() - 1;
     TetOrder lgid(dof_id.gid - m_spaceNumDofsTet[vid]);
     return {dof_id, lgid, static_cast<uint>(vid)};
+}
+
+DofT::ComponentElemOrder DofT::ComplexDofMap::ComponentID(ElemOrder dof_id) const{
+    assert(dof_id.isValid() && dof_id.gid < NumDof(dof_id.etype) &&"Wrong dof number");
+    auto elem_num = GeomTypeToNum(dof_id.etype);
+    auto& numdof = m_spaceNumDof[elem_num];
+    int vid = std::upper_bound(numdof.data(), numdof.data() + numdof.size(), dof_id.gid) - numdof.data() - 1;
+    auto lgid = dof_id.gid - numdof[vid];
+    return {dof_id.etype, dof_id.gid, lgid, static_cast<uint>(vid)};
 }
 
 bool DofT::ComplexDofMap::operator==(const BaseDofMap& o) const {

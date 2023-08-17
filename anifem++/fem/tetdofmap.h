@@ -51,6 +51,10 @@ namespace Ani{
             static constexpr uchar lookup[] = {NODE, EDGE, FACE, CELL};
             return (dim >= 0) ? lookup[dim] : UNDEF;
         }
+        inline int NumToGeomDim(int num) {
+            static constexpr uchar lookup[] = {0, 1, 1, 2, 2, 3};
+            return (num >= 0 && num < NGEOM_TYPES) ? lookup[num] : -1;
+        }
         inline bool GeomTypeIsValid(uchar etype) { return etype < (1 << NGEOM_TYPES); }
         /// Return count of elements of specified primitive type on tetrahedron
         inline uchar GeomTypeTetElems(uchar etype) { 
@@ -67,9 +71,25 @@ namespace Ani{
             bool operator==(const TetOrder& a) const { return gid == a.gid; }
             bool operator!=(const TetOrder& a) const { return !(*this == a); }
         };
+    
         struct ComponentTetOrder{
             TetOrder gid;   ///< contigous index of dof inside embracing space
             TetOrder cgid;  ///< contigous index of dof inside component
+            uint part_id;   ///< component id, number of component in array of components
+        };
+        struct ElemOrder{
+            uchar etype;    ///< type of geometrical element
+            uint gid;       ///< contiguous d.o.f. index on specified element
+            ElemOrder(): etype(UNDEF), gid(uint(-1)) {}
+            ElemOrder(uchar etype, uint gid): etype(etype), gid(gid) {}
+            inline bool isValid() const { return gid != uint(-1); }
+            bool operator==(const ElemOrder& a) const { return etype == a.etype && gid == a.gid; }
+            bool operator!=(const ElemOrder& a) const { return !(*this == a); }
+        };
+        struct ComponentElemOrder{
+            uchar etype;    ///< type of geometrical element
+            uint gid;       ///< contigous index of dof on the element inside embracing space
+            uint cgid;      ///< contigous index of dof on the element inside the component
             uint part_id;   ///< component id, number of component in array of components
         };
 
@@ -85,7 +105,7 @@ namespace Ani{
         };
 
         struct LocSymOrder{
-            uchar stype;    ///< contigous number of symmetry group, e.g. for cell 0 - s1, 1 - s4, 2 - s6, 3 - s12, 4 - s24
+            uchar stype;    ///< contiguous number of symmetry group, e.g. for cell 0 - s1, 1 - s4, 2 - s6, 3 - s12, 4 - s24
             uchar lsid;     ///< number of d.o.f. in symmetry group 
             LocSymOrder(): stype(uchar(-1)), lsid(uchar(-1)) {}
             LocSymOrder(uchar stype, uchar lsid): stype{stype}, lsid{lsid} {}
@@ -101,7 +121,7 @@ namespace Ani{
             uchar etype;    ///< type of geometrical element
             uchar nelem;    ///< number of geometrical element on the tetrahedron (from 0 to 3 for NODE or FACE, from 0 to 6 for EDGE, always 0 for CELL) 
             
-            uchar stype;    ///< contigous number of symmetry group, e.g. for cell 0 - s1, 1 - s4, 2 - s6, 3 - s12, 4 - s24
+            uchar stype;    ///< contiguous number of symmetry group, e.g. for cell 0 - s1, 1 - s4, 2 - s6, 3 - s12, 4 - s24
             uchar lsid;     ///< number of d.o.f. in symmetry group 
 
             LocalOrder(): gid(uint(-1)), leid(uint(-1)), etype(UNDEF), nelem(0), stype(uchar(-1)), lsid(uchar(-1)) {}
@@ -357,7 +377,7 @@ namespace Ani{
         private:
             void BrokeGeomOrd(){ ord.etype = UNDEF; }
             bool isOrdValid() const { return ord.etype != UNDEF; }
-            void RepairGeomOrd() const { assert(map->isValidIndex(ord.getTetOrder()) && "Tet index is not valid"); ord = map->LocalOrderOnTet(ord.getTetOrder()); }
+            void RepairGeomOrd() const { assert(map->isValidIndex(ord.getTetOrder()) && "Tet index is not valid"); auto tgid = ord.gid; ord = map->LocalOrderOnTet(ord.getTetOrder()); ord.gid = tgid; }
         };
 
         struct NestedDofMapBase: public BaseDofMap{
@@ -449,6 +469,7 @@ namespace Ani{
             explicit DofMap(std::shared_ptr<BaseDofMap> dof_map): m_invoker(std::move(dof_map)) {}
             DofMap& operator=(const DofMap &f){ return m_invoker = f.m_invoker, *this; }
             DofMap& operator=(DofMap &&f){ return m_invoker = std::move(f.m_invoker), *this; }
+            DofMap& operator=(std::shared_ptr<BaseDofMap> f){ return m_invoker = std::move(f), *this; }
             
             template<typename DofMapT = BaseDofMap>
             DofMapT* target() { return static_cast<DofMapT *>(m_invoker.get()); }
@@ -590,6 +611,7 @@ namespace Ani{
             
             void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const;
             ComponentTetOrder ComponentID(TetOrder dof_id) const { return {dof_id, dof_id % base->NumDofOnTet(), dof_id / base->NumDofOnTet()}; }
+            ComponentElemOrder ComponentID(ElemOrder dof_id) const { auto nd = base->NumDof(dof_id.etype); return {dof_id.etype, dof_id.gid, dof_id.gid % nd, dof_id.gid / nd};  }
         };
 
         namespace FemComDetails{
@@ -625,6 +647,7 @@ namespace Ani{
             uint ActualType() const override { return static_cast<uint>(BaseTypes::ComplexType); }
             uint NumDof(uchar etype) const override { auto t = GeomTypeToNum(etype); return m_spaceNumDof[t][m_spaces.size()] - m_spaceNumDof[t][0]; }
             uint NumDofOnTet(uchar etype) const override { auto t = GeomTypeToNum(etype); return m_spaceNumDofTet[t][m_spaces.size()] - m_spaceNumDofTet[t][0]; }
+            uint NumDofOnTet() const override { return BaseDofMap::NumDofOnTet(); }
             std::array<uint, NGEOM_TYPES> NumDofs() const override;
             std::array<uint, NGEOM_TYPES> NumDofsOnTet() const override;
             LocalOrder LocalOrderOnTet(TetOrder dof_id) const override;
@@ -642,6 +665,7 @@ namespace Ani{
             void BeginByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const override;
             void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const override;
             ComponentTetOrder ComponentID(TetOrder dof_id) const;
+            ComponentElemOrder ComponentID(ElemOrder dof_id) const;
         };
 
     };
