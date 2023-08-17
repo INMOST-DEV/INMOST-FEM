@@ -100,8 +100,8 @@ void print_linear_solver_status(INMOST::Solver& s, const std::string& prob_name,
 }
 
 Tag createFemVarTag(Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::string& tag_name, bool use_fixed_size){
-    auto mask = Ani::AniGeomMaskToInmostElementType(dofmap.GetGeomMask()); 
-    auto ndofs = Ani::DofTNumDofsToGeomNumDofs(dofmap.NumDofs());
+    auto mask = Ani::GeomMaskToInmostElementType(dofmap.GetGeomMask()); 
+    auto ndofs = Ani::DofTNumDofsToInmostNumDofs(dofmap.NumDofs());
     INMOST_DATA_ENUM_TYPE sz;
     if (!use_fixed_size){
         sz = ndofs[0];

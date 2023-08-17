@@ -5,419 +5,432 @@
 #ifndef CARNUM_ASSEMBLER_H
 #define CARNUM_ASSEMBLER_H
 
-#include "inmost.h"
-#include "elemental_assembler.h"
-#include <iterator>
-#include <array>
-#include <vector>
-#include <utility>
-#include <memory>
-#include <string>
-#include <functional>
+#include "global_enumerator.h"
+#include "ordering.h"
 
-/// Base class for any type of fem global matrix and rhs enumeration
-class ProblemGlobEnumeration{
-public:
-    struct VectorIndex{
-        static const long UnSet = -2;
-        static const long UnValid = -1;
+namespace Ani{
 
-        long id = UnSet;
-        bool isValid() { return id >= 0; }
-        VectorIndex() = default;
-        explicit VectorIndex(long id): id{id} {}
+struct InitValueSetFromTag{
+    union GenTag{
+        double v;
+        INMOST::Tag t;
+        INMOST::Tag* p;
+        GenTag(): v(0) {}
+        ~GenTag() {}
     };
-    struct GeomIndex{
-        INMOST::Element elem;           ///< geometrical element
+    GenTag m_t;
+    char m_tp = -1;
 
-        int var_id = INT_MIN;           ///< number of the variable in physical vector of variables
-        int var_elem_dof_id = INT_MIN;  ///< variable element-local d.o.f. index (if there is no other variables on the element it's index of d.o.f on the element)
-
-        GeomIndex() = default;
-        GeomIndex(INMOST::Element elem, int var_id, int loc_elem_dof_id):
-            elem(elem), var_id(var_id), var_elem_dof_id(loc_elem_dof_id) {}
-    };
-    struct GeomIndexExt: public GeomIndex{
-        int var_vector_elem_dof_shift = 0;  ///< memory shift on the element if there are other variables on the element
-
-        GeomIndexExt() = default;
-        GeomIndexExt(INMOST::Element elem, int var_id, int loc_elem_dof_id, int var_vector_elem_dof_shift = 0):
-                GeomIndex(elem, var_id, loc_elem_dof_id), var_vector_elem_dof_shift(var_vector_elem_dof_shift) {}
-        /// Get index of d.o.f on the element
-        int GetElemDofInd(){ return var_elem_dof_id + var_vector_elem_dof_shift; }
-    };
-
-    struct iteratorByVector;
-    struct VecIterVal{
-    protected:
-        VectorIndex vid;
-        GeomIndexExt gid;
-        const ProblemGlobEnumeration* enumeration;
-        VecIterVal(const ProblemGlobEnumeration* enumeration, VectorIndex vid): vid{vid}, gid(), enumeration(enumeration) {}
-    public:
-        VectorIndex GetVecInd(){ return vid; }
-        GeomIndexExt GetGeomInd(){
-            if (!gid.elem.isValid())
-                gid = enumeration->operator()(vid);
-            return gid;
-        }
-        friend struct iteratorByVector;
-        friend bool operator==(const VecIterVal& a, const VecIterVal& b) { return a.vid.id == b.vid.id; }
-    };
-
-    struct SliceIteratorData{
-        enum Status{
-            NONE = 0,
-            SAME_VAR = 1,
-            SAME_LOC_ELEM_IDS = 2
-        };
-        const std::array<std::vector<int>, 4>* slice_elem_ids;
-        int slice_id = 0;
-        Status status = NONE;
-
-        INMOST::Mesh::iteratorElement it;
-        int var_id;
-        int var_elem_dof_id;
-        int var_elem_shift = 0;
-        SliceIteratorData(INMOST::Mesh::iteratorElement it, int var_id, int var_elem_dof_id, int var_elem_shift, Status status = NONE, const std::array<std::vector<int>, 4>* slice_elem_ids = nullptr):
-            slice_elem_ids(slice_elem_ids), status(status), it(it), var_id(var_id), var_elem_dof_id(var_elem_dof_id), var_elem_shift(var_elem_shift) {}
-
-        GeomIndexExt GetGeomInd() { return {it->getAsElement(), var_id, var_elem_dof_id, var_elem_shift}; }
-    };
-
-    struct SliceIterator;
-    struct SliceIteratorValue{
-    protected:
-        SliceIteratorData data;
-        long id = VectorIndex::UnSet;
-        const ProblemGlobEnumeration* enumeration;
-        SliceIteratorValue(const ProblemGlobEnumeration* enumeration, SliceIteratorData data): data(std::move(data)), enumeration(enumeration) {}
-    public:
-        VectorIndex GetVecInd() {
-            if (id == VectorIndex::UnSet)
-                id = enumeration->operator()(data.GetGeomInd()).id;
-            return VectorIndex(id);
-        }
-        GeomIndexExt GetGeomInd() { return data.GetGeomInd(); }
-
-        friend bool operator==(const SliceIteratorValue& a, const SliceIteratorValue& b) {
-            return a.enumeration == b.enumeration && a.data.it == b.data.it && a.data.var_id == b.data.var_id && a.data.var_elem_dof_id == b.data.var_elem_dof_id;
-        }
-        friend struct SliceIterator;
-    };
-    /// Specify order of rows in global matrix
-    /// Must be computable on all elements excluding GHOST Elements
-    inline VectorIndex OrderR(const GeomIndex& physIndex) const { return operator()(std::move(physIndex)); };
-    /// Specify order of vector of unknowns
-    /// Must be computable on all elements including GHOST Elements
-    virtual VectorIndex OrderC(const GeomIndex& physIndex) const = 0;
-    /// Map function from position in vector to position on the mesh
-    virtual GeomIndexExt operator()(VectorIndex vectorIndex) const  = 0;
-    /// Map function from position on mesh to position on the vector
-    virtual VectorIndex operator()(const GeomIndex& geomIndex) const  = 0;
-    /// Sets the iterator pointer to the next position, should skip GHOST elements
-    virtual void Clear();
-    /// Iterate by incrementing SliceIteratorData index according specific policies:
-    /// 1. Iterate over all no Ghost geometrical elements according to input INMOST::ElementType mask (internally specified in INMOST::Mesh::iteratorElement it)
-    /// 2. If (status & SAME_VAR) iterate only over d.o.f.s of variable with var_id number else iterate over all variables
-    /// 3.a) If slice_elem_ids specified and (status & SAME_LOC_ELEM_IDS):
-    ///     - if (status & SAME_VAR) iterate only over d.o.f.s of variable with var_id number and with var_elem_dof_id that taken from slice_elem_ids
-    ///       else iterate over all indexes of d.o.f (var_elem_shift + var_elem_dof_id) on the element that taken from slice_elem_ids
-    /// 3.b) otherwise:
-    ///     - if (status & SAME_LOC_ELEM_IDS) iterate only over d.o.f.s that have same var_elem_dof_id value
-    ///       else iterate over all available values of var_elem_dof_id
-    virtual void IncrementSliceIter(SliceIteratorData& it) const;
-
-    iteratorByVector beginByVector() const {
-        iteratorByVector iter(BegInd, this);
-        return iter;
+    InitValueSetFromTag() = default;
+    InitValueSetFromTag(InitValueSetFromTag&& a) = default;
+    InitValueSetFromTag(const InitValueSetFromTag& a){
+        m_tp = a.m_tp;
+        if (m_tp < 0) m_t.v = a.m_t.v;
+        else if (m_tp > 0) m_t.p = a.m_t.p;
+        else m_t.t = a.m_t.t;
     }
-    iteratorByVector endByVector() const {
-        iteratorByVector iter(EndInd, this);
-        return iter;
-    }
-    SliceIterator beginByGeom(INMOST::ElementType mask = INMOST::NODE|INMOST::EDGE|INMOST::FACE|INMOST::CELL, int var_id = 0, int var_elem_dof_id = 0, SliceIteratorData::Status status = SliceIteratorData::NONE) const;
-    SliceIterator beginByGeom(const std::array<std::vector<int>, 4>& slice_elem_dof, INMOST::ElementType mask = INMOST::NODE|INMOST::EDGE|INMOST::FACE|INMOST::CELL, int var_id = 0, int var_elem_dof_id = 0, SliceIteratorData::Status status = SliceIteratorData::NONE) const;
-    SliceIterator endByGeom() const { return {this, mesh->EndElement()}; }
-    INMOST::ElementType GetGeomMask() const;
+    InitValueSetFromTag& set(double v) { unset_tag(-1); m_tp = -1; m_t.v = v; return *this; }
+    InitValueSetFromTag& set(INMOST::Tag t){ unset_tag(0); m_tp = 0; m_t.t = t; return *this;  }
+    InitValueSetFromTag& set(INMOST::Tag* p){ unset_tag(1); m_tp = 1; m_t.p = p; return *this; }
+    ~InitValueSetFromTag(){ if (m_tp == 0) m_t.t.~Tag(); }
 
-    struct SliceIterator{
-    protected:
-        const ProblemGlobEnumeration* enumeration;
-        std::shared_ptr<std::array<std::vector<int>, 4>> slice_elem_ids;
-        SliceIteratorData data;
-        SliceIterator(const ProblemGlobEnumeration* enumeration, INMOST::Mesh::iteratorElement it, int var_id = 0, int var_elem_dof_id = 0, SliceIteratorData::Status status = SliceIteratorData::NONE):
-                enumeration(enumeration), data(it, var_id, var_elem_dof_id, 0, status, nullptr) {}
-        SliceIterator(const std::array<std::vector<int>, 4>& slice_elem_ids, const ProblemGlobEnumeration* enumeration, INMOST::Mesh::iteratorElement it, int var_id = 0, int var_elem_dof_id = 0, SliceIteratorData::Status status = SliceIteratorData::NONE):
-                SliceIterator(enumeration, it, var_id, var_elem_dof_id, status)
-        {
-            SliceIterator::slice_elem_ids = std::make_shared<std::array<std::vector<int>, 4>>(slice_elem_ids);
-            data.slice_elem_ids = SliceIterator::slice_elem_ids.get();
+    void operator()(ElementalAssembler& p) const {
+        if (m_tp < 0){
+            std::fill(p.vars->initValues.begin(), p.vars->initValues.end(), m_t.v);
+            return;
         }
-    public:
-        typedef std::input_iterator_tag  iterator_category; //forward_iterator_tag but do not satisfy reference requirement
-        typedef SliceIteratorValue value_type;
-        typedef void difference_type;
-        typedef SliceIteratorValue*  pointer;
-        typedef SliceIteratorValue reference;
-
-        SliceIterator& operator ++() { enumeration->IncrementSliceIter(data); return *this; }
-        SliceIterator  operator ++(int) {SliceIterator ret(*this); operator++(); return ret;}
-        bool operator ==(const SliceIterator & b) const { return data.it == b.data.it && ( (data.it == enumeration->mesh->EndElement()) || (data.var_id == b.data.var_id && data.var_elem_dof_id == b.data.var_elem_dof_id)); }
-        bool operator !=(const SliceIterator & other) const { return !operator==(other); }
-        reference operator*(){ SliceIteratorValue ind(enumeration, data); return ind; }
-        reference operator ->() { return operator*(); }
-        friend class ProblemGlobEnumeration;
-    };
-
-    /// Iterate by incrementing vector index
-    struct iteratorByVector{
-    protected:
-        unsigned long id;
-        const ProblemGlobEnumeration* enumeration;
-        iteratorByVector(unsigned long id, const ProblemGlobEnumeration* enumeration): id{id}, enumeration{enumeration} {}
-    public:
-        typedef std::input_iterator_tag  iterator_category; //random_access_iterator_tag but do not satisfy reference requirement
-        typedef VecIterVal value_type;
-        typedef long difference_type;
-        typedef VecIterVal*  pointer;
-        typedef VecIterVal reference;
-
-        iteratorByVector& operator ++() { ++id; return *this; }
-        iteratorByVector  operator ++(int) {iteratorByVector ret(*this); operator++(); return ret;}
-        iteratorByVector& operator --() { --id; return *this; }
-        iteratorByVector  operator --(int) {iteratorByVector ret(*this); operator--(); return ret;}
-        iteratorByVector(const iteratorByVector& other) = default;
-        iteratorByVector& operator = (const iteratorByVector & other) { if (this != &other) {id = other.id, enumeration = other.enumeration;} return *this; }
-        bool operator ==(const iteratorByVector & other) const { return id == other.id; }
-        bool operator !=(const iteratorByVector & other) const { return !operator==(other); }
-        bool operator < (const iteratorByVector & other) const { return id < other.id; }
-        bool operator > (const iteratorByVector & other) const { return id > other.id; }
-        bool operator <= (const iteratorByVector & other) const { return id <= other.id; }
-        bool operator >= (const iteratorByVector & other) const { return id < other.id; }
-        iteratorByVector& operator += (difference_type n) { id += n; return *this; }
-        iteratorByVector& operator -= (difference_type n) { id -= n; return *this; }
-        friend iteratorByVector operator+(iteratorByVector& a, difference_type n) { iteratorByVector b(a); return b+=n; }
-        friend iteratorByVector operator+(difference_type n, iteratorByVector& a) { return a + n; }
-        friend iteratorByVector operator-(iteratorByVector& a, difference_type n) { iteratorByVector b(a); return b-=n; }
-        friend iteratorByVector operator-(difference_type n, iteratorByVector& a) { return a - n; }
-        friend difference_type operator-(const iteratorByVector& a, const iteratorByVector& b) { return static_cast<difference_type>(a.id) - b.id; }
-        reference operator*(){ VecIterVal ind(enumeration, VectorIndex(id)); return ind; }
-        reference operator ->() { return operator*(); }
-        reference operator[](difference_type n) { VecIterVal ind(enumeration, VectorIndex(id+n)); return ind; }
-        friend iteratorByVector ProblemGlobEnumeration::beginByVector() const;
-        friend iteratorByVector ProblemGlobEnumeration::endByVector() const;
-    };
-
-
-    long NumDof[4] = {0, 0, 0, 0},
-         NumElem[4] = {0, 0, 0, 0},
-         MinElem[4] = {LONG_MAX, LONG_MAX, LONG_MAX, LONG_MAX},
-         MaxElem[4] = {-1, -1, -1, -1};
-    long MatrSize = -1;
-    long BegInd = LONG_MAX,
-         EndInd = -1;
-
-    std::shared_ptr<FemExprDescr::ComplexSpaceHelper> unite_var;
-    INMOST::Mesh* mesh;
+        INMOST::Tag t = (m_tp == 1) ? (*m_t.p) : m_t.t;
+        ElementalAssembler::GatherDataOnElement(t, p, p.vars->initValues.data(), nullptr, 0);
+    }; 
+    operator bool() const { return m_tp < 0 || (m_tp == 1 ? (m_t.p != nullptr) : m_t.t.isValid()); }
+private:
+    void unset_tag(char tp){ if (tp != m_tp && m_tp == 0) m_t.t.~Tag(); }
 };
 
+struct InitValueSetTagVector{
+    std::vector<INMOST::Tag> m_ts;
 
-struct DefaultEnumeratorFactory{
-    enum ASSEMBLING_TYPE {
-        MINIBLOCKS,
-        ANITYPE
-    };
-    enum ORDER_TYPE {
-        STRAIGHT,
-        REVERSE
-    };
-    INMOST::Mesh* m = nullptr;
-    const FemExprDescr* info = nullptr;
-    ASSEMBLING_TYPE aType = ANITYPE;
-    ORDER_TYPE oType = STRAIGHT;
-
-    DefaultEnumeratorFactory(INMOST::Mesh& mesh, const FemExprDescr& descr, ASSEMBLING_TYPE aType = ANITYPE, ORDER_TYPE oType = STRAIGHT):
-        m{&mesh}, info{&descr}, aType(aType), oType(oType) { }
-
-    ///Produce problem enumerator
-    ///@param enum_prefix is prefix will be used for enumeration tags
-    ///@param is_global_id_updated should be set on true if the mesh was modified from last call of this function
-    std::shared_ptr<ProblemGlobEnumeration> build(std::string enum_prefix, bool is_global_id_updated = false);
+    InitValueSetTagVector() = default;
+    InitValueSetTagVector& set(std::vector<INMOST::Tag> t){ m_ts = std::move(t); return *this; }
+    void operator()(ElementalAssembler& p) const {
+        ElementalAssembler::GatherDataOnElement(m_ts, p, p.vars->initValues.data(), nullptr, 0);
+    }
+     operator bool() const { return !m_ts.empty(); }
 };
 
+struct DefaultAssemblerTraits{
+    using MatFuncT = MatFuncWrapHolder<>;
+    using Real = typename MatFuncT::Real;
+    using Int = typename MatFuncT::Int;
+    using GlobEnumMap = GlobEnumeration;
+    using ProbHandler = std::function<void(ElementalAssembler&)>;
+    using InitValueSetter = std::function<void(ElementalAssembler&)>;
+};
 
-class Assembler {
-    using Real = double;
-    using Int = int;
+template<ThreadPar::Type ParType =
+#ifdef WITH_OPENMP  
+ThreadPar::Type::OMP
+#else
+ThreadPar::Type::STD
+#endif
+>
+struct DefaultParallelAssemblerTraits{
+    using MatFuncT = MatFuncWrapHolder<ParType>;
+    using Real = typename MatFuncT::Real;
+    using Int = typename MatFuncT::Int;
+    using GlobEnumMap = GlobEnumeration;
+    using ProbHandler = std::function<void(ElementalAssembler&)>;
+    using InitValueSetter = std::function<void(ElementalAssembler&)>;
+};
+
+namespace internals{
+    template<typename MatFuncT>
+    struct MatFromSystemFWrap: public MatFuncWrap<typename MatFuncT::Real, typename MatFuncT::Int>{
+        using Base = MatFuncT;
+        using Real = typename Base::Real;
+        using Int = typename Base::Int;
+        using Memory = typename Base::Memory;
+
+        bool is_mat_func = true;
+        MatFuncT* m_f = nullptr;
+
+        int operator()(const Real** args, Real** res, Real* w = nullptr, Int* iw = nullptr, void* user_data = nullptr, Int mem_id = -1) const{ return m_f->operator()(args, res, w, iw, user_data, mem_id); }
+        int operator()(Memory mem) const { return m_f->operator()(std::move(mem));}
+        Int setup_and_alloc_memory(){ return m_f->setup_and_alloc_memory(); }
+        void release_memory(Int mem_id) { return m_f->release_memory(mem_id); }
+        void defragment_memory(Int mem_id){ return m_f->defragment_memory(mem_id); }
+        std::pair<Int, Int> setup_and_alloc_memory_range(Int num_threads){ return m_f->setup_and_alloc_memory_range(num_threads); }
+        void release_memory_range(std::pair<Int, Int> id_range){ return m_f->release_memory_range(id_range); }
+        void release_all_memory(){ return m_f->release_all_memory(); }
+        void clear_memory(){ return m_f->clear_memory(); }
+        void working_sizes(size_t& sz_args, size_t& sz_res, size_t& sz_w, size_t& sz_iw) const{ return m_f->working_sizes(sz_args, sz_res, sz_w, sz_iw); }
+        bool is_user_data_required() const{ return m_f->is_user_data_required(); }
+        size_t n_in() const{ return m_f->n_in(); }
+        size_t n_out() const{ return 1; }
+        MatSparsityView<Int> out_sparsity(Int res_id) const{ return m_f->out_sparsity(res_id); }
+        Int out_nnz  (Int res_id) const{ return m_f->out_nnz(res_id); }
+        Int out_size1(Int res_id) const{ return m_f->out_size1(res_id); }
+        Int out_size2(Int res_id) const{ return m_f->out_size2(res_id); }
+        void out_csc(Int res_id, Int* colind, Int* row) const{ return m_f->out_csc(res_id, colind, row); }
+        MatSparsityView<Int> in_sparsity(Int arg_id) const{ return m_f->in_sparsity(arg_id); }
+        Int in_nnz  (Int arg_id) const{ return m_f->in_nnz(arg_id); }
+        Int in_size1(Int arg_id) const{ return m_f->in_size1(arg_id); }
+        Int in_size2(Int arg_id) const{ return m_f->in_size2(arg_id); }
+        void in_csc(Int arg_id, Int* colind, Int* row) const{ return m_f->in_csc(arg_id, colind, row); }
+        std::ostream& print_signature(std::ostream& out = std::cout) const{ return m_f->print_signature(out); }
+        bool isValid() const { return m_f && m_f->isValid(); }
+        operator bool() const { return isValid(); }
+        MatFromSystemFWrap() = default;
+        MatFromSystemFWrap(MatFuncT* f, bool is_mat_func = true): m_f{f}, is_mat_func{is_mat_func} {} 
+    };
+
+    template<typename MatFuncT>
+    struct RhsFromSystemFWrap: public MatFuncWrap<typename MatFuncT::Real, typename MatFuncT::Int>{
+        using Base = MatFuncT;
+        using Real = typename Base::Real;
+        using Int = typename Base::Int;
+        using Memory = typename Base::Memory;
+
+        bool is_rhs_func = true;
+        MatFuncT* m_f = nullptr;
+
+        int operator()(const Real** args, Real** res, Real* w = nullptr, Int* iw = nullptr, void* user_data = nullptr, Int mem_id = -1) const;
+        int operator()(Memory mem) const;
+        Int setup_and_alloc_memory(){ return m_f->setup_and_alloc_memory(); }
+        void release_memory(Int mem_id) { return m_f->release_memory(mem_id); }
+        void defragment_memory(Int mem_id){ return m_f->defragment_memory(mem_id); }
+        std::pair<Int, Int> setup_and_alloc_memory_range(Int num_threads){ return m_f->setup_and_alloc_memory_range(num_threads); }
+        void release_memory_range(std::pair<Int, Int> id_range){ return m_f->release_memory_range(id_range); }
+        void release_all_memory(){ return m_f->release_all_memory(); }
+        void clear_memory(){ return m_f->clear_memory(); }
+        void working_sizes(size_t& sz_args, size_t& sz_res, size_t& sz_w, size_t& sz_iw) const{ return m_f->working_sizes(sz_args, sz_res, sz_w, sz_iw); }
+        bool is_user_data_required() const{ return m_f->is_user_data_required(); }
+        size_t n_in() const{ return m_f->n_in(); }
+        size_t n_out() const{ return 1; }
+        MatSparsityView<Int> out_sparsity(Int res_id) const{ return m_f->out_sparsity(res_id+(is_rhs_func ? 0 : 1) ); }
+        Int out_nnz  (Int res_id) const{ return m_f->out_nnz(res_id+(is_rhs_func ? 0 : 1) ); }
+        Int out_size1(Int res_id) const{ return m_f->out_size1(res_id+(is_rhs_func ? 0 : 1) ); }
+        Int out_size2(Int res_id) const{ return m_f->out_size2(res_id+(is_rhs_func ? 0 : 1) ); }
+        void out_csc(Int res_id, Int* colind, Int* row) const{ return m_f->out_csc(res_id+(is_rhs_func ? 0 : 1) , colind, row); }
+        MatSparsityView<Int> in_sparsity(Int arg_id) const{ return m_f->in_sparsity(arg_id); }
+        Int in_nnz  (Int arg_id) const{ return m_f->in_nnz(arg_id); }
+        Int in_size1(Int arg_id) const{ return m_f->in_size1(arg_id); }
+        Int in_size2(Int arg_id) const{ return m_f->in_size2(arg_id); }
+        void in_csc(Int arg_id, Int* colind, Int* row) const{ return m_f->in_csc(arg_id, colind, row); }
+        std::ostream& print_signature(std::ostream& out = std::cout) const{ return m_f->print_signature(out); }
+        bool isValid() const { return m_f && m_f->isValid(); }
+        operator bool() const { return isValid(); }
+        RhsFromSystemFWrap() = default;
+        RhsFromSystemFWrap(MatFuncT* f, bool is_rhs_func = true): m_f{f}, is_rhs_func{is_rhs_func} {} 
+    };
+    template<typename MatFuncT>
+    struct SystemFromMatRhsFWrap: public MatFuncWrap<typename MatFuncT::Real, typename MatFuncT::Int>{
+        using Base = MatFuncT;
+        using Real = typename Base::Real;
+        using Int = typename Base::Int;
+        using Memory = typename Base::Memory;
+
+        MatFuncT* m_mat = nullptr;
+        MatFuncT* m_rhs = nullptr;
+
+        int operator()(const Real** args, Real** res, Real* w = nullptr, Int* iw = nullptr, void* user_data = nullptr, Int mem_id = -1) const;
+        int operator()(Memory mem) const;
+        static Int encode_id(Int id1, Int id2) { return id1 + (id2 << 16); }
+        static std::pair<Int, Int> decode_id(Int encoded_ids){ return {encoded_ids & 0xFFFF, (encoded_ids >> 16)}; }
+        Int setup_and_alloc_memory();
+        void release_memory(Int mem_id);
+        void defragment_memory(Int mem_id);
+        std::pair<Int, Int> setup_and_alloc_memory_range(Int num_threads);
+        void release_memory_range(std::pair<Int, Int> id_range);
+        void release_all_memory();
+        void clear_memory();
+        void working_sizes(size_t& sz_args, size_t& sz_res, size_t& sz_w, size_t& sz_iw) const;
+        bool is_user_data_required() const{ return m_mat->is_user_data_required() || (m_rhs && m_rhs->is_user_data_required()); }
+        size_t n_in() const{ return std::max(m_mat->n_in(), m_rhs ? m_rhs->n_in() : size_t(0)); }
+        size_t n_out() const{ return 1 + (m_rhs ? m_rhs->n_out() : 0); }
+        MatSparsityView<Int> out_sparsity(Int res_id) const{ return (res_id == 0 || !m_rhs) ? m_mat->out_sparsity(res_id) : m_rhs->out_sparsity(res_id - 1); }
+        Int out_nnz  (Int res_id) const{ return (res_id == 0 || !m_rhs) ? m_mat->out_nnz(res_id) : m_rhs->out_nnz(res_id - 1);  }
+        Int out_size1(Int res_id) const{ return (res_id == 0 || !m_rhs) ? m_mat->out_size1(res_id) : m_rhs->out_size1(res_id - 1); }
+        Int out_size2(Int res_id) const{ return (res_id == 0 || !m_rhs) ? m_mat->out_size2(res_id) : m_rhs->out_size2(res_id - 1); }
+        void out_csc(Int res_id, Int* colind, Int* row) const{ return (res_id == 0 || !m_rhs) ? m_mat->out_csc(res_id, colind, row) : m_rhs->out_csc(res_id - 1, colind, row); }
+        MatSparsityView<Int> in_sparsity(Int arg_id) const{ return m_mat->in_sparsity(arg_id); }
+        Int in_nnz  (Int arg_id) const{ return m_mat->in_nnz(arg_id); }
+        Int in_size1(Int arg_id) const{ return m_mat->in_size1(arg_id); }
+        Int in_size2(Int arg_id) const{ return m_mat->in_size2(arg_id); }
+        void in_csc(Int arg_id, Int* colind, Int* row) const{ return m_mat->in_csc(arg_id, colind, row); }
+        std::ostream& print_signature(std::ostream& out = std::cout) const;
+        bool isValid() const { return m_mat && m_mat->isValid(); }
+        operator bool() const { return isValid(); }
+        SystemFromMatRhsFWrap() = default;
+        SystemFromMatRhsFWrap(MatFuncT* system_func): m_mat{system_func} {}
+        SystemFromMatRhsFWrap(MatFuncT* mat_f, MatFuncT* rhs_f): m_mat{mat_f}, m_rhs{rhs_f} {} 
+    };
+}
+
+template<typename Traits = DefaultAssemblerTraits>
+class AssemblerT{
+#ifndef NO_ASSEMBLER_TIMERS
+    struct TimerData{
+        TimerWrap m_timer, m_timer_ttl;
+        double  m_time_init_assemble_dat = 0,
+                m_time_fill_map_template = 0,
+                m_time_init_val_setter = 0,
+                m_time_init_user_handler = 0,
+                m_time_comp_func = 0,
+                m_time_proc_user_handler = 0,
+                m_time_set_elemental_res = 0,
+                m_timer_total = 0;
+        void reset(); 
+        ElementalAssembler::TimeMessures getTimeMessures();      
+    };
+#endif //NO_ASSEMBLER_TIMERS
+    using Real = typename Traits::Real;
+    using Int = typename Traits::Int;
+
     struct WorkMem{
-        //internal working arrays
         std::vector<Real> m_A, m_F, m_w;
-        std::vector<Int> colindA, colindF, rowA, rowF, m_iw;
-        std::vector<Real*> m_args, m_res;
-        std::vector<Int> m_indexesR, m_indexesC;
+        std::vector<Int> m_iw;
+        std::vector<const Real*> m_args;
+        std::vector<Real*> m_res;
+        std::vector<long> m_indexesR, m_indexesC;
         std::vector<bool> m_Ab; //m_Ab[i] is true if m_A[i] is nonzero according template
         void Clear(){
             m_A.clear(), m_F.clear(), m_w.clear();
-            colindA.clear(), colindF.clear(), rowA.clear(), rowF.clear(), m_iw.clear();
-            m_args.clear(), m_res.clear();
+            m_iw.clear();
+            m_args.clear();
+            m_res.clear();
             m_indexesR.clear(), m_indexesC.clear();
             m_Ab.clear();
         }
+#ifndef NO_ASSEMBLER_TIMERS
+        TimerData m_timers;
+#endif
+        INMOST::ElementArray<INMOST::Node> nodes; 
+        INMOST::ElementArray<INMOST::Edge> edges; 
+        INMOST::ElementArray<INMOST::Face> faces;
+        int status = 0;
+        DynMem<Real, Int> pool;
+    };
+    struct CommonFuncData{
+        std::vector<Int> colindA, colindF, rowA, rowF;
+        void Clear() { colindA.clear(); colindF.clear(); rowA.clear(); rowF.clear();}
     };
     struct OrderTempl{
-        int var_id;
-        INMOST::ElementType etype;
-        int nelem;
-        int loc_elem_dof_id;
+        DofT::uint var_id;   ///< contiguous number of variable 
+        DofT::uint dim_id;   ///< number of dimensional component in the variable
+        DofT::uchar etype;   ///< type of geometrical element
+        DofT::uchar nelem;   ///< number of geometrical element on the tetrahedron (from 0 to 3 for NODE or FACE, from 0 to 6 for EDGE, always 0 for CELL) 
+        DofT::uint lde_id;  ///< element-local d.o.f. index for specific dim of the var (if there is no other variables on the element and dim == 0 it's index of d.o.f on the element)
+
+        DofT::uchar stype;    ///< contiguous number of symmetry group, e.g. for cell 0 - s1, 1 - s4, 2 - s6, 3 - s12, 4 - s24
+        DofT::uchar lsid;     ///< number of d.o.f. in symmetry group 
     };
-    WorkMem m_w;
+
+    std::vector<WorkMem> m_wm;
+    CommonFuncData m_fd;
     ElementalAssembler::VarsHelper m_helper;
     std::vector<OrderTempl> orderC;
     std::vector<OrderTempl> orderR;
 public:
-    struct AssembleTraits{
-        bool reorder_nodes = true;
-        bool prepare_edges = true;
-        bool prepare_faces = true;
+    struct AssembleMode{
+        bool reorder_nodes = true;  ///Reorder the nodes if they form a tetrahedron of negative volume?
+        bool prepare_edges = true;  ///Prepare edges of the cell?
+        bool prepare_faces = true;  ///Prepare faces of the cell?
+        int  num_threads = -1;      ///Number of used concurrency threads if they available, if num_threads < 0 then will use maximal available number of threads
     };
 
     ///\warning Next three functions must have same input parameters
-    std::shared_ptr<ElemMatEval> mat_func;  ///< evaluates elemental matrix only
-    std::shared_ptr<ElemMatEval> rhs_func;  ///< evaluates elemental right hand-side only
-    std::shared_ptr<ElemMatEval> mat_rhs_func;///< evaluates elemental matrix and rhs together
+    typename Traits::MatFuncT mat_func;     ///< evaluates elemental matrix only
+    typename Traits::MatFuncT rhs_func;     ///< evaluates elemental right hand-side only
+    typename Traits::MatFuncT mat_rhs_func; ///< evaluates elemental matrix and rhs together
 
-    AssembleTraits m_assm_traits;
-    FemExprDescr m_info;                    ///< fem problem description
-    std::function<void(ElementalAssembler& p)> m_prob_handler;  ///< set parameters required by elemental evaluator
-    std::function<void(ElementalAssembler& p)> initial_value_setter; ///< set initial value for fem-variables (important for nonlinear problems)
-    std::shared_ptr<ProblemGlobEnumeration> m_enum; ///< matrix and rhs enumerator
+    AssembleMode m_assm_traits;
+    FemExprDescr m_info;
+    typename Traits::ProbHandler m_prob_handler;
+    typename Traits::InitValueSetter m_init_value_setter;
+    typename Traits::GlobEnumMap m_enum;
     INMOST::Mesh* m_mesh = nullptr;
 
-    Assembler() = default;
-    explicit Assembler(INMOST::Mesh *m): m_mesh(m) {}
-    explicit Assembler(INMOST::Mesh& m): Assembler(&m) {}
-    ///Allocate internal memory for the problem ( must be called after all Set* calls )
+    AssemblerT() = default;
+    explicit AssemblerT(INMOST::Mesh *m): m_mesh(m) {}
+    explicit AssemblerT(INMOST::Mesh& m): AssemblerT(&m) {}
+    // ///Allocate internal memory for the problem ( must be called after all Set* calls )
     void PrepareProblem();
 
-    Assembler& SetMesh(INMOST::Mesh& m) { m_mesh = &m; return *this; }
-    Assembler& SetEnumerator(std::shared_ptr<ProblemGlobEnumeration> enumeration) { m_enum = std::move(enumeration); return *this; }
-    Assembler& SetDataGatherer(std::function<void(ElementalAssembler& p)> problem_handler) { m_prob_handler = std::move(problem_handler); return *this; }
-    Assembler& SetProbDescr(FemExprDescr info) { m_info = std::move(info); return *this; }
-    Assembler& SetMatFunc (std::shared_ptr<ElemMatEval> func){ mat_func = std::move(func); return *this; }
-    Assembler& SetRHSFunc (std::shared_ptr<ElemMatEval> func){ rhs_func = std::move(func); return *this; }
-    Assembler& SetMatRHSFunc (std::shared_ptr<ElemMatEval> func){ mat_rhs_func = std::move(func); return *this; }
-    Assembler& SetInitValueSetter(std::function<void(ElementalAssembler& p)> init_value_setter) { initial_value_setter = std::move(init_value_setter); return *this; }
-    Assembler& pullInitValFrom(INMOST::Tag  tag_x              ) { initial_value_setter = makeInitValueSetter(tag_x); return *this; }
-    Assembler& pullInitValFrom(INMOST::Tag* tag_x              ) { initial_value_setter = makeInitValueSetter(tag_x); return *this; }
-    Assembler& pullInitValFrom(std::vector<INMOST::Tag> tag_vec) { initial_value_setter = makeInitValueSetter(tag_vec ); return *this; }
+    AssemblerT& SetMesh(INMOST::Mesh& m) { m_mesh = &m; return *this; }
+    AssemblerT& SetEnumerator(typename Traits::GlobEnumMap&& enumeration) { m_enum = std::move(enumeration); return *this; }
+    AssemblerT& SetDataGatherer(typename Traits::ProbHandler&& problem_handler) { m_prob_handler = std::move(problem_handler); return *this; }
+    AssemblerT& SetProbDescr(FemExprDescr info) { m_info = std::move(info); return *this; }
+    AssemblerT& SetMatFunc (typename Traits::MatFuncT&& func){ mat_func = std::move(func); return *this; }
+    AssemblerT& SetRHSFunc (typename Traits::MatFuncT&& func){ rhs_func = std::move(func); return *this; }
+    AssemblerT& SetMatRHSFunc(typename Traits::MatFuncT&& func){ mat_rhs_func = std::move(func); return *this; }
+    AssemblerT& SetInitValueSetter(typename Traits::InitValueSetter&& init_value_setter) { m_init_value_setter = std::move(init_value_setter); return *this; }
 
-    void SaveSolution(const INMOST::Sparse::Vector& from, INMOST::Tag& to) const;
-    void SaveSolution(const INMOST::Sparse::Vector& from, std::vector<INMOST::Tag> to) const ;
-    void SaveSolution(const INMOST::Tag& from, INMOST::Sparse::Vector& to) const;
-    void SaveSolution(const INMOST::Tag& from, INMOST::Tag& to) const;
-    void SaveSolution(const INMOST::Tag& from, std::vector<INMOST::Tag> to) const;
-    void SaveSolution(const std::vector<INMOST::Tag>& from, INMOST::Tag& to) const;
-    void SaveSolution(const std::vector<INMOST::Tag>& from, INMOST::Sparse::Vector& to) const;
+    template<typename T, typename V>
+    using TCS = typename std::enable_if<std::is_copy_constructible<T>::value && std::is_same<T, V>::value, AssemblerT<Traits>&>::type;
+    template<typename T, typename V>
+    using TCO = typename std::enable_if<std::is_constructible<V, T>::value && !std::is_same<T, V>::value, AssemblerT<Traits>&>::type;
+    template<typename T, typename V>
+    using TCX = typename std::enable_if<std::is_constructible<V, T>::value, AssemblerT<Traits>&>::type;
+    template<typename T> 
+    TCS<T, typename Traits::GlobEnumMap> SetEnumerator(const T& enumeration) { m_enum = enumeration; return *this; }
+    template<typename T> 
+    TCO<T, typename Traits::GlobEnumMap> SetEnumerator(T enumeration) { m_enum = typename Traits::GlobEnumMap(std::move(enumeration)); return *this; }
+
+    template<typename T> 
+    TCS<T, typename Traits::ProbHandler> SetDataGatherer(const T& problem_handler) { m_prob_handler = problem_handler; return *this; }
+    template<typename T> 
+    TCO<T, typename Traits::ProbHandler> SetDataGatherer(T problem_handler) { m_prob_handler = typename Traits::ProbHandler(std::move(problem_handler)); return *this; }
+
+    template<typename T> 
+    TCS<T, typename Traits::MatFuncT> SetMatFunc (const T& func){ mat_func = func; return *this; }
+    template<typename T>
+    TCS<T, typename Traits::MatFuncT> SetRHSFunc (const T& func){ rhs_func = func; return *this; }
+    template<typename T>
+    TCS<T, typename Traits::MatFuncT> SetMatRHSFunc(const T& func){ mat_rhs_func = func; return *this; }
+    template<typename T> 
+    TCO<T, typename Traits::MatFuncT> SetMatFunc (T func){ mat_func = typename Traits::MatFuncT(std::move(func)); return *this; }
+    template<typename T>
+    TCO<T, typename Traits::MatFuncT> SetRHSFunc (T func){ rhs_func = typename Traits::MatFuncT(std::move(func)); return *this; }
+    template<typename T>
+    TCO<T, typename Traits::MatFuncT> SetMatRHSFunc(T func){ mat_rhs_func = typename Traits::MatFuncT(std::move(func)); return *this; }
+
+    template<typename T>
+    TCS<T, typename Traits::InitValueSetter> SetInitValueSetter(const T& init_value_setter) { return m_init_value_setter = init_value_setter, *this; }
+    template<typename T>
+    TCO<T, typename Traits::InitValueSetter> SetInitValueSetter(T init_value_setter) { return m_init_value_setter = typename Traits::InitValueSetter(std::move(init_value_setter)), *this; }
+
+    
+
+    void SaveSolution(const INMOST::Sparse::Vector& from, INMOST::Tag to) const { m_enum.CopyByEnumeration(from, to); }
+    void SaveSolution(const INMOST::Sparse::Vector& from, std::vector<INMOST::Tag> to) const { m_enum.CopyByEnumeration(from, to); }
+    void SaveSolution(INMOST::Tag from, INMOST::Sparse::Vector& to) const { m_enum.CopyByEnumeration(from, to); }
+    void SaveSolution(INMOST::Tag from, INMOST::Tag to) const { m_enum.CopyByEnumeration(from, to); }
+    void SaveSolution(INMOST::Tag from, std::vector<INMOST::Tag> to) const { m_enum.CopyByEnumeration(from, to); }
+    void SaveSolution(const std::vector<INMOST::Tag>& from, INMOST::Tag to) const { m_enum.CopyByEnumeration(from, to); }
+    void SaveSolution(const std::vector<INMOST::Tag>& from, INMOST::Sparse::Vector& to) const { m_enum.CopyByEnumeration(from, to); }
     /// Save variable with number iVar from vector vars to var_tag
-    void SaveVar(const INMOST::Sparse::Vector& vars, int iVar, INMOST::Tag& var_tag) const;
+    void SaveVar(const INMOST::Sparse::Vector& vars, int iVar, INMOST::Tag var_tag) const { m_enum.CopyVarByEnumeration(vars, var_tag, iVar); }
     /// Save variable with number iVar from tag of physical variables vars to var_tag
-    void SaveVar(const INMOST::Tag& vars, int iVar, INMOST::Tag& var_tag) const;
+    void SaveVar(INMOST::Tag vars, int iVar, INMOST::Tag var_tag) const { m_enum.CopyVarByEnumeration(vars, var_tag, iVar); }
     /// Save variable with number iVar from var_tag to tag of physical variables vars
-    void SaveVar(int iVar, const INMOST::Tag& var_tag, INMOST::Tag& vars) const;
+    void SaveVar(int iVar, const INMOST::Tag var_tag, INMOST::Tag vars) const { m_enum.CopyVarByEnumeration(var_tag, iVar, vars); }
     /// Copy variable with number iVar from var_tag_from to var_tag_to
-    void CopyVar(int iVar, const INMOST::Tag& var_tag_from, INMOST::Tag& var_tag_to) const;
+    void CopyVar(int iVar, const INMOST::Tag var_tag_from, INMOST::Tag var_tag_to) const { m_enum.CopyVarByEnumeration(iVar, var_tag_from, var_tag_to); }
 
     int Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse::Vector &rhs, void* user_data = nullptr, double drp_val = 1e-100);
     int AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* user_data = nullptr, double drp_val = 1e-100);
     int AssembleRHS(INMOST::Sparse::Vector &rhs, void* user_data = nullptr, double drp_val = 1e-100);
 
     /// Begin index for sparse matrix and vector
-    int getBegInd() const { return m_enum->BegInd;}
+    long getBegInd() const { return m_enum.getBegInd();}
     /// End index for sparse matrix and vector
-    int getEndInd() const { return m_enum->EndInd;}
+    long getEndInd() const { return m_enum.getEndInd();}
 
     void Clear();
     const ElementalAssembler::VarsHelper& GetVarHelper() const { return m_helper; }
-
-    template<class TagContainer, class RandomIt>
-    void GatherDataOnElement(const TagContainer& from, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, int ncomp) const {
-        auto* m = cell.GetMeshLink();
-        INMOST::ElementArray<INMOST::Node> nds(m, 4); 
-        INMOST::ElementArray<INMOST::Edge> eds(m, 6); 
-        INMOST::ElementArray<INMOST::Face> fcs(m, 4);
-        int nds_ord[] = {0, 1, 2, 3}, eds_ord[6], fcs_ord[4];
-        collect_connectivity_info(cell, nds, eds, fcs, eds_ord, fcs_ord, true, true);
-        
-        ElementalAssembler::GatherDataOnElement(from, m_helper, cell, fcs, eds, nds, fcs_ord, eds_ord, nds_ord, out, component, ncomp);
-    }
-    template<class RandomIt>
-    void GatherDataOnElement(const INMOST::Tag& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement<INMOST::Tag, RandomIt>(from, cell, out, components.begin(), components.size()); }
-    template<class RandomIt>
-    void GatherDataOnElement(const std::vector<INMOST::Tag>& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement<std::vector<INMOST::Tag>, RandomIt>(from, cell, out, components.begin(), components.size()); }
+    const typename Traits::GlobEnumMap& GetEnumerator() const { return m_enum; }
+    typename Traits::GlobEnumMap& GetEnumerator() { return m_enum; }
 
     /// Create initial_value_setter that sets all initial values of all variables
-    static std::function<void(ElementalAssembler& p)> makeInitValueSetter(double val = 0.0);
-    static std::function<void(ElementalAssembler& p)> makeInitValueSetter(std::vector<double> val);
-    static std::function<void(ElementalAssembler& p)> makeInitValueSetter(INMOST::Tag* tag_x);
-    static std::function<void(ElementalAssembler& p)> makeInitValueSetter(INMOST::Tag tag_x);
-    static std::function<void(ElementalAssembler& p)> makeInitValueSetter(std::vector<INMOST::Tag> tag_vec);
-    /// Get cell and restore tetrahedron connectivity on the cell
-    /// @warning this function doesn't aalocate memory for arrays nodes, edges, faces
-    static bool collect_connectivity_info(const INMOST::Cell& cell, INMOST::ElementArray<INMOST::Node>& nodes, INMOST::ElementArray<INMOST::Edge>& edges, INMOST::ElementArray<INMOST::Face>& faces, 
-                                            int* loc_edge_ids/*[6]*/, int* loc_face_ids/*[4]*/, bool reorder_nodes = true, bool prepare_edges_and_faces = true);
-    double GetTimeInitAssembleData();
-    double GetTimeFillMapTemplate();
-    double GetTimeInitValSet();
-    double GetTimeInitUserHandler();
-    double GetTimeEvalLocFunc();
-    double GetTimePostProcUserHandler();
-    double GetTimeFillGlobalStructs();
-    double GetTimeTotal();
+    static InitValueSetFromTag makeInitValueSetter(double val = 0.0) { return InitValueSetFromTag().set(val); }
+    static InitValueSetFromTag makeInitValueSetter(INMOST::Tag* tag_x) { return InitValueSetFromTag().set(tag_x); }
+    static InitValueSetFromTag makeInitValueSetter(INMOST::Tag tag_x) { return InitValueSetFromTag().set(tag_x); }
+    static InitValueSetTagVector makeInitValueSetter(std::vector<INMOST::Tag> tag_vec) { return InitValueSetTagVector().set(std::move(tag_vec)); }
+    template<typename T>
+    TCX<decltype(makeInitValueSetter(std::declval<INMOST::Tag>())), T> pullInitValFrom(INMOST::Tag  tag_x) { m_init_value_setter = T(makeInitValueSetter(tag_x)); return *this; }
+    template<typename T>
+    TCX<decltype(makeInitValueSetter(std::declval<INMOST::Tag*>())), T> pullInitValFrom(INMOST::Tag* tag_x) { m_init_value_setter = T(makeInitValueSetter(tag_x)); return *this; }
+    template<typename T>
+    TCX<decltype(makeInitValueSetter(std::declval<std::vector<INMOST::Tag>>())), T> pullInitValFrom(std::vector<INMOST::Tag> tag_vec) { m_init_value_setter = T(makeInitValueSetter(std::move(tag_vec) )); return *this; }
+
+    template<class RandomIt>
+    void GatherDataOnElement(const INMOST::Tag* var_tag, const std::size_t ntags, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp) const;
+    template<class RandomIt>
+    void GatherDataOnElement(INMOST::Tag from, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp) const;
+    template<class RandomIt>
+    void GatherDataOnElement(const INMOST::Tag& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement(from, cell, out, components.begin(), components.size()); }
+    template<class RandomIt>
+    void GatherDataOnElement(const std::vector<INMOST::Tag>& var_tags, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement(var_tags.data(), var_tags.size(), cell, out, components.begin(), components.size()); }
+
+    double GetTimeInitAssembleData() const;
+    double GetTimeFillMapTemplate() const;
+    double GetTimeInitValSet() const;
+    double GetTimeInitUserHandler() const;
+    double GetTimeEvalLocFunc() const;
+    double GetTimePostProcUserHandler() const;
+    double GetTimeFillGlobalStructs() const;
+    double GetTimeTotal() const;
 private:
-    void extend_memory_for_fem_func(ElemMatEval* func);
-    bool fill_assemble_templates(int nRows,
-                                 INMOST::ElementArray<INMOST::Node>& nodes, INMOST::ElementArray<INMOST::Edge>& edges, INMOST::ElementArray<INMOST::Face>& faces, INMOST::Mesh::iteratorCell it,
-                                 std::vector<int>& indexesR, std::vector<int>& indexesC,
-                                 int* local_edge_index, int* local_face_index);
-    void generate_mat_rhs_func();
-    void generate_mat_func();
-    void generate_rhs_func();
+    template <typename T, bool IsAssignable = std::is_constructible<T, decltype(makeInitValueSetter(std::declval<double>()))>::value>
+    struct TryZeroInit{ void operator()(typename Traits::InitValueSetter& init_value_setter) const { assert("InitValueSetter is not initialized"); } };
+    template<typename T> struct TryZeroInit<T, true>{ void operator()(typename Traits::InitValueSetter& init_value_setter) const { init_value_setter = typename Traits::InitValueSetter(makeInitValueSetter(0.0)); } };
+
+    template<typename MatFuncT1>
+    void extend_memory_for_fem_func(MatFuncT1& func);
+    void resize_work_memory(int size);
+    bool fill_assemble_templates(const INMOST::ElementArray<INMOST::Node>& nodes, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::Cell& cell, std::vector<long>& indexesC, std::vector<long>& indexesR, const unsigned char* canonical_node_indexes);
+    int _return_assembled_status(int nthreads);
+    internals::SystemFromMatRhsFWrap<typename Traits::MatFuncT> generate_mat_rhs_func();
+    internals::MatFromSystemFWrap<typename Traits::MatFuncT> generate_mat_func();
+    internals::RhsFromSystemFWrap<typename Traits::MatFuncT> generate_rhs_func();
 
 #ifndef NO_ASSEMBLER_TIMERS
-    TimerWrap m_timer, m_timer_ttl;
-    double  m_time_init_assemble_dat = 0,
-            m_time_fill_map_template = 0,
-            m_time_init_val_setter = 0,
-            m_time_init_user_handler = 0,
-            m_time_comp_func = 0,
-            m_time_proc_user_handler = 0,
-            m_time_set_elemental_res = 0,
-            m_timer_total = 0;
+    TimerData m_timers;
 #endif
-    void reset_timers(){
-#ifndef NO_ASSEMBLER_TIMERS
-        m_timer_ttl.reset();
-        m_timer.reset();
-        m_time_init_assemble_dat = 0,
-        m_time_fill_map_template = 0,
-        m_time_init_val_setter = 0,
-        m_time_init_user_handler = 0,
-        m_time_comp_func = 0,
-        m_time_proc_user_handler = 0,
-        m_time_set_elemental_res = 0,
-        m_timer_total = 0;
-#endif
-    }
-#ifndef NO_ASSEMBLER_TIMERS
-    ElementalAssembler::TimeMessures getTimeMessures(){
-        ElementalAssembler::TimeMessures tm;
-        tm.m_timer = &m_timer;
-        tm.m_time_init_user_handler = &m_time_init_user_handler;
-        tm.m_time_comp_func = &m_time_comp_func;
-        return tm;
-    };
-#endif
+    void reset_timers();
 };
+
+}
+
+#ifndef WITH_OPENMP  
+using Assembler = typename Ani::AssemblerT<>;
+#else
+using Assembler = typename Ani::AssemblerT< Ani::DefaultParallelAssemblerTraits<> >;
+#endif
+
+using AssemblerP = typename Ani::AssemblerT< Ani::DefaultParallelAssemblerTraits<> >;
+
+#include "assembler.inl"
 
 #endif //CARNUM_ASSEMBLER_H

@@ -47,7 +47,7 @@ int main(int argc, char* argv[]){
     using UFem = FemFix<FEM_P2>; //you can replace FEM_P2 on any 1D space and the code will remain correct
     constexpr auto UNF = Operator<IDEN, UFem>::Nfa::value;
     auto dofmap = Dof<UFem>::Map();
-    auto mask = AniGeomMaskToInmostElementType(dofmap.GetGeomMask()); 
+    auto mask = GeomMaskToInmostElementType(dofmap.GetGeomMask()); 
     // Set boundary labels
     Tag BndLabel = m->CreateTag("bnd_label", DATA_INTEGER, mask, NONE, 1);
     for (auto it = m->BeginElement(mask); it != m->EndElement(); ++it){
@@ -78,7 +78,7 @@ int main(int argc, char* argv[]){
     // Define tag to store result
     Tag u;
     {
-        auto ndofs = DofTNumDofsToGeomNumDofs(dofmap.NumDofs());
+        auto ndofs = DofTNumDofsToInmostNumDofs(dofmap.NumDofs());
         INMOST_DATA_ENUM_TYPE sz = ndofs[0];
         for (unsigned i = 1; i < ndofs.size(); ++i)
             if (ndofs[i] != 0){
@@ -110,10 +110,10 @@ int main(int argc, char* argv[]){
         mem_req.extend_size(fem3Dtet_memory_requirements<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>>(quad_order));
     }
     // define elemental assembler of local matrix and rhs
-    std::function<void(const double**, double*, double*, double*, int*, void*)> local_assembler =
-            [&D_tensor, &F_tensor, &U_0, order = quad_order, mem_req](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, int* iw, void* user_data) -> void{
+    std::function<void(const double**, double*, double*, double*, long*, void*)> local_assembler =
+            [&D_tensor, &F_tensor, &U_0, order = quad_order, mem_req](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, long* iw, void* user_data) -> void{
         PlainMemory<> mem = mem_req;
-        mem.ddata = w, mem.idata = iw;
+        mem.ddata = w, mem.idata = reinterpret_cast<int*>(iw);
         DenseMatrix<> A(Adat, UNF, UNF), F(Fdat, UNF, 1);
         A.SetZero(); F.SetZero();
 
@@ -159,11 +159,11 @@ int main(int argc, char* argv[]){
         }
         if (geom_mask & DofT::EDGE){
             for (unsigned i = 0; i < data.elbl.size(); ++i) 
-                data.elbl[i] = (*p.edges)[p.local_edge_index[i]].Integer(BndLabel);
+                data.elbl[i] = (*p.edges)[i].Integer(BndLabel);
         }
         if (geom_mask & DofT::FACE){
             for (unsigned i = 0; i < data.flbl.size(); ++i) 
-                data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(BndLabel);
+                data.flbl[i] = (*p.faces)[i].Integer(BndLabel);
         }
 
         p.compute(args, &data);
@@ -176,7 +176,7 @@ int main(int argc, char* argv[]){
         //create global degree of freedom enumenator
         auto Var0Helper = GenerateHelper<UFem>();
         FemExprDescr fed;
-        fed.PushVar(Var0Helper, "u");
+        fed.PushTrialFunc(Var0Helper, "u");
         fed.PushTestFunc(Var0Helper, "phi_u");
         discr.SetProbDescr(std::move(fed));
     }
@@ -190,7 +190,7 @@ int main(int argc, char* argv[]){
     double total_assm_time = m_timer_total.elapsed();
     // Print Assembler timers
     if (pRank == 0) {
-        std::cout << "#dofs = " << discr.m_enum->MatrSize << std::endl; 
+        std::cout << "#dofs = " << discr.m_enum.getMatrixSize() << std::endl; 
         std::cout << "Assembler timers:"
         #ifndef NO_ASSEMBLER_TIMERS
                   << "\n\tInit assembler: " << discr.GetTimeInitAssembleData() << "s"

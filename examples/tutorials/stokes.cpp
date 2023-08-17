@@ -71,7 +71,7 @@ int main(int argc, char* argv[]){
                 PFem = choose_space_from_name(p.PSpace);
     uint unf = UFem.dofMap().NumDofOnTet(), pnf = PFem.dofMap().NumDofOnTet();
     auto& u_dmap = UFem.dofMap(), &p_dmap = PFem.dofMap();
-    auto mask = AniGeomMaskToInmostElementType(u_dmap.GetGeomMask() | p_dmap.GetGeomMask()) | FACE;
+    auto mask = GeomMaskToInmostElementType(u_dmap.GetGeomMask() | p_dmap.GetGeomMask()) | FACE;
 
     INMOST::MarkerType boundary_face = m->CreateMarker();
     m->MarkBoundaryFaces(boundary_face);
@@ -135,10 +135,10 @@ int main(int argc, char* argv[]){
     }
     PlainMemory<> shrt_req = mem_req.enoughPlainMemory();
     // define elemental assembler of local matrix and rhs
-    std::function<void(const double**, double*, double*, double*, int*, void*)> local_assembler =
-            [&U_0, &nu_tensor, order = quad_order, mem_req, shrt_req, unf, &UFem, pnf, &PFem](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, int* iw, void* user_data) -> void{
+    std::function<void(const double**, double*, double*, double*, long*, void*)> local_assembler =
+            [&U_0, &nu_tensor, order = quad_order, mem_req, shrt_req, unf, &UFem, pnf, &PFem](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, long* iw, void* user_data) -> void{
         PlainMemory<> _mem = shrt_req;
-        _mem.ddata = w, _mem.idata = iw;
+        _mem.ddata = w, _mem.idata = reinterpret_cast<int*>(iw);
         PlainMemoryX<> mem = mem_req;
         mem.allocateFromPlainMemory(_mem);
         uint nf = unf + pnf;
@@ -194,11 +194,11 @@ int main(int argc, char* argv[]){
         }
         if (geom_mask & DofT::EDGE){
             for (unsigned i = 0; i < data.elbl.size(); ++i) 
-                data.elbl[i] = (*p.edges)[p.local_edge_index[i]].Integer(BndLabel);
+                data.elbl[i] = (*p.edges)[i].Integer(BndLabel);
         }
         {//required for Neumann and Robin BC
             for (unsigned i = 0; i < data.flbl.size(); ++i) 
-                data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(BndLabel);
+                data.flbl[i] = (*p.faces)[i].Integer(BndLabel);
         }
 
         p.compute(args, &data);
@@ -212,9 +212,9 @@ int main(int argc, char* argv[]){
         auto Var0Helper = GenerateHelper(*UFem.base()),
              Var1Helper = GenerateHelper(*PFem.base());
         FemExprDescr fed;
-        fed.PushVar(Var0Helper, "u");
+        fed.PushTrialFunc(Var0Helper, "u");
         fed.PushTestFunc(Var0Helper, "phi_u");
-        fed.PushVar(Var1Helper, "p");
+        fed.PushTrialFunc(Var1Helper, "p");
         fed.PushTestFunc(Var1Helper, "phi_p");
         discr.SetProbDescr(std::move(fed));
     }
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]){
     double total_assm_time = m_timer_total.elapsed();
     // Print Assembler timers
     if (pRank == 0) {
-        std::cout << "#dofs = " << discr.m_enum->MatrSize << std::endl; 
+        std::cout << "#dofs = " << discr.m_enum.getMatrixSize() << std::endl; 
         std::cout << "Assembler timers:"
         #ifndef NO_ASSEMBLER_TIMERS
                   << "\n\tInit assembler: " << discr.GetTimeInitAssembleData() << "s"
