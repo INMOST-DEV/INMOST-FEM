@@ -14,6 +14,7 @@ include(GoogleTest)
 set(ANIFEM_TEST "") # - list of tests
 add_subdirectory(fem)
 add_subdirectory(kinsol_interface)
+add_subdirectory(inmost_interface)
 
 add_executable( anifem_test ${ANIFEM_TEST} )
 target_link_libraries(anifem_test gtest_main AniFem++)
