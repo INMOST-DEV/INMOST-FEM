@@ -42,8 +42,8 @@ endif()
 
 if(WITH_OPENMP)
 	find_package(OpenMP REQUIRED)
-  	add_compile_definitions("WITH_OPENMP")
-  	add_compile_options(${OpenMP_CXX_FLAGS})
+	link_libraries(OpenMP::OpenMP_CXX)
+	add_compile_definitions("WITH_OPENMP")
 endif()
 
 # Get correct build paths automatically, but expose CMAKE_INSTALL_LIBDIR
