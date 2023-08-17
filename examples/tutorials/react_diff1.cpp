@@ -45,7 +45,7 @@ int main(int argc, char* argv[]){
     using UFem = FemFix<FEM_P1>; //you can replace FEM_P2 on any 1D space and the code will remain correct
     constexpr auto UNF = Operator<IDEN, UFem>::Nfa::value;
     auto dofmap = Dof<UFem>::Map();
-    auto mask = AniGeomMaskToInmostElementType(dofmap.GetGeomMask()) | FACE; 
+    auto mask = GeomMaskToInmostElementType(dofmap.GetGeomMask()) | FACE; 
     // Set boundary labels
     Tag BndLabel = m->CreateTag("bnd_label", DATA_INTEGER, mask, NONE, 1);
     for (auto it = m->BeginElement(mask); it != m->EndElement(); ++it){
@@ -88,19 +88,19 @@ int main(int argc, char* argv[]){
     auto U_0 = [](const Coord<> &X, double* res, ulong dim, void* user_data)->int{ 
         (void) dim; (void) user_data; 
         double f = X[0] + X[1] + X[2];
-        res[0] = f * f; 
+        res[0] = exp(X[2]) + f * f; 
         return 0;
     }; 
     auto G_0 = [](const Coord<> &X, double *g0, TensorDims dims, void *user_data, int iTet) {
         (void) dims; (void) user_data; (void) iTet;
         double f = X[0] + X[1] + X[2];
-        g0[0] = -2*f;
+        g0[0] = -exp(X[2]) -2*f;
         return Ani::TENSOR_SCALAR;
     };
     auto G_1 = [](const Coord<> &X, double *g1, TensorDims dims, void *user_data, int iTet) {
         (void) dims; (void) user_data; (void) iTet;
         double f = X[0] + X[1] + X[2];
-        g1[0] = f*(f+2);
+        g1[0] = 2*exp(X[2]) + f*(f+2);
         return Ani::TENSOR_SCALAR;
     };
 
@@ -173,11 +173,11 @@ int main(int argc, char* argv[]){
         }
         if (geom_mask & DofT::EDGE){
             for (unsigned i = 0; i < data.elbl.size(); ++i) 
-                data.elbl[i] = (*p.edges)[p.local_edge_index[i]].Integer(BndLabel);
+                data.elbl[i] = (*p.edges)[i].Integer(BndLabel);
         }
         {//required for Neumann and Robin BC
             for (unsigned i = 0; i < data.flbl.size(); ++i) 
-                data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(BndLabel);
+                data.flbl[i] = (*p.faces)[i].Integer(BndLabel);
         }
 
         p.compute(args, &data);
@@ -190,7 +190,7 @@ int main(int argc, char* argv[]){
         //create global degree of freedom enumenator
         auto Var0Helper = GenerateHelper<UFem>();
         FemExprDescr fed;
-        fed.PushVar(Var0Helper, "u");
+        fed.PushTrialFunc(Var0Helper, "u");
         fed.PushTestFunc(Var0Helper, "phi_u");
         discr.SetProbDescr(std::move(fed));
     }
@@ -208,7 +208,7 @@ int main(int argc, char* argv[]){
     double total_assm_time = m_timer_total.elapsed();
     // Print Assembler timers
     if (pRank == 0) {
-        std::cout << "#dofs = " << discr.m_enum->MatrSize << std::endl; 
+        std::cout << "#dofs = " << discr.m_enum.getMatrixSize() << std::endl; 
         std::cout << "Assembler timers:"
         #ifndef NO_ASSEMBLER_TIMERS
                   << "\n\tInit assembler: " << discr.GetTimeInitAssembleData() << "s"
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]){
     discr.SaveVar(x, 0, u);
 
     //Compare result with analytical solution
-    auto U_analytic = [](const Coord<> &X)->double{ return (X[0] + X[1] + X[2])*(X[0] + X[1] + X[2]); };
+    auto U_analytic = [](const Coord<> &X)->double{ return exp(X[2]) + (X[0] + X[1] + X[2])*(X[0] + X[1] + X[2]); };
     auto U_eval = [&discr, &u](const Cell& c, const Coord<> &X)->double{
         std::array<double, UNF> dofs;
         discr.GatherDataOnElement(u, c, dofs.data());

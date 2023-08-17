@@ -300,14 +300,14 @@ int main(int argc, char* argv[]){
         //create global degree of freedom enumenator
         auto Var0Helper = GenerateHelper<UFem>();
         FemExprDescr fed;
-        fed.PushVar(Var0Helper, "u");
+        fed.PushTrialFunc(Var0Helper, "u");
         fed.PushTestFunc(Var0Helper, "phi_u");
         discr.SetProbDescr(std::move(fed));
     }
     discr.SetDataGatherer(local_data_gatherer);
     discr.PrepareProblem();
     if (pRank == 0) 
-        std::cout << "#dofs = " << discr.m_enum->MatrSize << std::endl; 
+        std::cout << "#dofs = " << discr.m_enum.getMatrixSize() << std::endl; 
 
     //prepare work matrices and vectors
     Sparse::Matrix L("L"), M("M");
@@ -330,8 +330,8 @@ int main(int argc, char* argv[]){
         double val = 0;
         if (lbl == 1)
             G_bnd(X, &val, 1, nullptr);
-        ProblemGlobEnumeration::GeomIndex gid(n->getAsElement(), 0, 0);    
-        auto vec_id = discr.m_enum->OrderR(gid);
+        IGlobEnumeration::NaturalIndex nid(n->getAsElement(), DofT::NODE, 0, 0, 0);   
+        auto vec_id = discr.m_enum.OrderR(nid);
         U[0][vec_id.id] = U[1][vec_id.id] = U[2][vec_id.id] = val;
     }
 
@@ -345,8 +345,8 @@ int main(int argc, char* argv[]){
             double val = 0;
             if (lbl == 1)
                 G_bnd(X, &val, 1, nullptr);
-            ProblemGlobEnumeration::GeomIndex gid(n->getAsElement(), 0, 0);    
-            auto vec_id = discr.m_enum->OrderR(gid);
+            IGlobEnumeration::NaturalIndex nid(n->getAsElement(), DofT::NODE, 0, 0, 0);   
+            auto vec_id = discr.m_enum.OrderR(nid);
             U[k][vec_id.id] = val;    
         }
     };

@@ -678,11 +678,11 @@ auto local_data_gatherer = [&BndLabel](ElementalAssembler& p) -> void{
 - $A = 1$ 
 - $S = 1$ 
 - $F = (x+y+z)^2 - 2$ 
-- $u_0(\mathbf{x}) = (x + y + z)^2$
-- $g_0(\mathbf{x}) = -2(x+y+z)$ 
-- $g_1 = (x + y + z)(x+y+z+2)$
+- $u_0(\mathbf{x}) = e^{z} + (x + y + z)^2$
+- $g_0(\mathbf{x}) = -e^{z} - 2(x+y+z)$ 
+- $g_1 = 2e^{z} + (x + y + z)(x+y+z+2)$
 
-с аналитическим решением $u_{a} = (x+y+z)^2$.
+с аналитическим решением $u_{a} = e^{z} + (x+y+z)^2$.
 
 Слабая поставновка имеет вид:
 $$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mathbf{x} + \int_{\Omega} (A\ u) \cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_R} (S\ u)\cdot \phi\ d^2\mathbf{x} = \int_{\Omega} f(\mathbf{x})\cdot \phi\ d^3\mathbf{x} + \int_{\Gamma_N} g_0 \cdot \phi\ d^2\mathbf{x} + \int_{\Gamma_R} g_1 \cdot \phi\ d^2\mathbf{x}$$

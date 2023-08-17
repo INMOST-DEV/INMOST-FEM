@@ -121,9 +121,9 @@ int main(int argc, char* argv[]){
     discr.SetMatRHSFunc(GenerateElemMatRhs(local_assembler, UNF, UNF));
     {
         //create global degree of freedom enumenator
-        auto Var0Helper = GenerateHelper<UFem>();
+        auto Var0Helper = GenerateHelper<UFem>(); //DofT::DofMap(Dof<UFem>::Map());
         FemExprDescr fed;
-        fed.PushVar(Var0Helper, "u");
+        fed.PushTrialFunc(Var0Helper, "u");
         fed.PushTestFunc(Var0Helper, "phi_u");
         discr.SetProbDescr(std::move(fed));
     }
@@ -142,7 +142,7 @@ int main(int argc, char* argv[]){
     double total_assm_time = m_timer_total.elapsed();
     // Print Assembler timers
     if (pRank == 0) {
-        std::cout << "#dofs = " << discr.m_enum->MatrSize << std::endl; 
+        std::cout << "#dofs = " << discr.m_enum.getMatrixSize() << std::endl; 
         std::cout << "Assembler timers:"
         #ifndef NO_ASSEMBLER_TIMERS
                   << "\n\tInit assembler: " << discr.GetTimeInitAssembleData() << "s"
