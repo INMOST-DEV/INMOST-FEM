@@ -199,7 +199,7 @@ namespace Ani{
                 std::vector<MatSparsity<Int>>(4, MatSparsity<Int>::make_as_dense(3, 1)), {MatSparsity<Int>::make_as_dense(Int(nRow))}, 0, 0, false, false };
     }
     template<ThreadPar::Type ParType, typename Real, typename Int>
-    MatFuncWrapDynamic<ParType, Real, Int> GenerateElemRhs(std::function<void(const Real** XY/*[4]*/, Real* F, void* user_data)> f, size_t nRow, size_t nCol){
+    MatFuncWrapDynamic<ParType, Real, Int> GenerateElemRhs(std::function<void(const Real** XY/*[4]*/, Real* F, void* user_data)> f, size_t nRow){
         return {[f](const Real** args, Real** res, Real* w, Int* iw, void* user_data, Ani::DynMem<Real, Int>* dyn_mem)->int{ (void) w; (void) iw; (void) dyn_mem; return f(args, res[0], user_data), 0; },
                 std::vector<MatSparsity<Int>>(4, MatSparsity<Int>::make_as_dense(3, 1)), {MatSparsity<Int>::make_as_dense(Int(nRow), 1)}, 0, 0, true, false };
     }

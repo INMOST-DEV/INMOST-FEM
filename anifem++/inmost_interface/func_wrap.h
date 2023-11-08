@@ -338,7 +338,7 @@ namespace Ani{
     template<ThreadPar::Type ParType = ThreadPar::Type::NONE, typename Real = double, typename Int = long>
     MatFuncWrapDynamic<ParType, Real, Int> GenerateElemRhs(std::function<void(const Real** XY/*[4]*/, Real* F)> f, size_t nRow);
     template<ThreadPar::Type ParType = ThreadPar::Type::NONE, typename Real = double, typename Int = long>
-    MatFuncWrapDynamic<ParType, Real, Int> GenerateElemRhs(std::function<void(const Real** XY/*[4]*/, Real* F, void* user_data)> f, size_t nRow, size_t nCol);
+    MatFuncWrapDynamic<ParType, Real, Int> GenerateElemRhs(std::function<void(const Real** XY/*[4]*/, Real* F, void* user_data)> f, size_t nRow);
     template<ThreadPar::Type ParType = ThreadPar::Type::NONE, typename Real = double, typename Int = long>
     MatFuncWrapDynamic<ParType, Real, Int> GenerateElemRhs(std::function<void(const Real** XY/*[4]*/, Real* F, Real* w, Int* iw, void* user_data)> f, size_t nRow, size_t nw, size_t niw);
     template<ThreadPar::Type ParType = ThreadPar::Type::NONE, typename Real = double, typename Int = long>
