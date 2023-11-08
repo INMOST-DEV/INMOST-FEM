@@ -121,7 +121,7 @@ namespace internals{
         bool isValid() const { return m_f && m_f->isValid(); }
         operator bool() const { return isValid(); }
         MatFromSystemFWrap() = default;
-        MatFromSystemFWrap(MatFuncT* f, bool is_mat_func = true): m_f{f}, is_mat_func{is_mat_func} {} 
+        MatFromSystemFWrap(MatFuncT* f, bool is_mat_func = true): is_mat_func{is_mat_func}, m_f{f} {} 
     };
 
     template<typename MatFuncT>
@@ -161,7 +161,7 @@ namespace internals{
         bool isValid() const { return m_f && m_f->isValid(); }
         operator bool() const { return isValid(); }
         RhsFromSystemFWrap() = default;
-        RhsFromSystemFWrap(MatFuncT* f, bool is_rhs_func = true): m_f{f}, is_rhs_func{is_rhs_func} {} 
+        RhsFromSystemFWrap(MatFuncT* f, bool is_rhs_func = true): is_rhs_func{is_rhs_func}, m_f{f} {} 
     };
     template<typename MatFuncT>
     struct SystemFromMatRhsFWrap: public MatFuncWrap<typename MatFuncT::Real, typename MatFuncT::Int>{
