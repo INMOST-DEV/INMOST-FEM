@@ -250,7 +250,7 @@ int main(int argc, char* argv[]){
         NodeLabelsData data;
         for (int i = 0; i < 4; ++i) {
             data.nlbl[i] = (*p.nodes)[i].Integer(BndLabel);
-            data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(BndLabel);
+            data.flbl[i] = (*p.faces)[i].Integer(BndLabel);
         }
         p.compute(args, &data);
     };
@@ -260,7 +260,7 @@ int main(int argc, char* argv[]){
     {
         auto Var0Helper = GenerateHelper<FemFix<FEM_P1>>();
         FemExprDescr fed;
-        fed.PushVar(Var0Helper, "u");
+        fed.PushTrialFunc(Var0Helper, "u");
         fed.PushTestFunc(Var0Helper, "phi_u");
         discr.SetProbDescr(std::move(fed));
     }

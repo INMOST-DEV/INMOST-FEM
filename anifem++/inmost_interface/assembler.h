@@ -377,11 +377,11 @@ public:
     static InitValueSetFromTag makeInitValueSetter(INMOST::Tag* tag_x) { return InitValueSetFromTag().set(tag_x); }
     static InitValueSetFromTag makeInitValueSetter(INMOST::Tag tag_x) { return InitValueSetFromTag().set(tag_x); }
     static InitValueSetTagVector makeInitValueSetter(std::vector<INMOST::Tag> tag_vec) { return InitValueSetTagVector().set(std::move(tag_vec)); }
-    template<typename T>
+    template<typename T = typename Traits::InitValueSetter>
     TCX<decltype(makeInitValueSetter(std::declval<INMOST::Tag>())), T> pullInitValFrom(INMOST::Tag  tag_x) { m_init_value_setter = T(makeInitValueSetter(tag_x)); return *this; }
-    template<typename T>
+    template<typename T = typename Traits::InitValueSetter>
     TCX<decltype(makeInitValueSetter(std::declval<INMOST::Tag*>())), T> pullInitValFrom(INMOST::Tag* tag_x) { m_init_value_setter = T(makeInitValueSetter(tag_x)); return *this; }
-    template<typename T>
+    template<typename T = typename Traits::InitValueSetter>
     TCX<decltype(makeInitValueSetter(std::declval<std::vector<INMOST::Tag>>())), T> pullInitValFrom(std::vector<INMOST::Tag> tag_vec) { m_init_value_setter = T(makeInitValueSetter(std::move(tag_vec) )); return *this; }
 
     template<class RandomIt>
