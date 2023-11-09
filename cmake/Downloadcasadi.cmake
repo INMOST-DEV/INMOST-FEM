@@ -1,9 +1,16 @@
 include(FetchContent)
 include(ExternalProject)
 
+set(casadi_url https://github.com/casadi/casadi/archive/3.5.5.tar.gz)
+if (DEFINED ENV{CASADI_SRC_ARCHIVE})
+        if(EXISTS $ENV{CASADI_SRC_ARCHIVE})
+            set(casadi_url $ENV{CASADI_SRC_ARCHIVE})
+        endif()
+endif()
+
 message("-- Download CasAdi")
 FetchContent_Declare(casadi_get
-        URL https://github.com/casadi/casadi/archive/3.5.5.tar.gz
+        URL "${casadi_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"
         SOURCE_DIR "${LIB_DOWNLOAD_PATH}/casadi"

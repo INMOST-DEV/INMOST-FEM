@@ -1,9 +1,16 @@
 include(FetchContent)
 include(ExternalProject)
 
+set(sundials_url https://github.com/LLNL/sundials/archive/v5.6.1.tar.gz)
+if (DEFINED ENV{SUNDIALS_SRC_ARCHIVE})
+        if(EXISTS $ENV{SUNDIALS_SRC_ARCHIVE})
+            set(sundials_url $ENV{SUNDIALS_SRC_ARCHIVE})
+        endif()
+endif()
+
 message("-- Download SUNDIALS")
 FetchContent_Declare(sundials_get
-        URL https://github.com/LLNL/sundials/archive/v5.6.1.tar.gz
+        URL "${sundials_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"
         SOURCE_DIR "${LIB_DOWNLOAD_PATH}/sundials"

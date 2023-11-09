@@ -1,10 +1,17 @@
 include(FetchContent)
 include(ExternalProject)
 
+set(eigen3_url https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz)
+if (DEFINED ENV{EIGEN3_SRC_ARCHIVE})
+        if(EXISTS $ENV{EIGEN3_SRC_ARCHIVE})
+            set(eigen3_url $ENV{EIGEN3_SRC_ARCHIVE})
+        endif()
+endif()
+
 message("-- Download Eigen3")
 FetchContent_Declare(
         eigen3_get
-        URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+        URL "${eigen3_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"
         SOURCE_DIR "${LIB_DOWNLOAD_PATH}/eigen3"

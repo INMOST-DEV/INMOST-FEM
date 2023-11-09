@@ -1,9 +1,16 @@
 include(FetchContent)
 include(ExternalProject)
 
+set(inmost_url https://github.com/INMOST-DEV/INMOST/archive/3bf3d4eb8a7e86d59d377f51e17568bd64e1957d.tar.gz)
+if (DEFINED ENV{INMOST_SRC_ARCHIVE})
+        if(EXISTS $ENV{INMOST_SRC_ARCHIVE})
+            set(inmost_url $ENV{INMOST_SRC_ARCHIVE})
+        endif()
+endif()
+
 message("-- Download INMOST")
 FetchContent_Declare(inmost_get
-        URL https://github.com/INMOST-DEV/INMOST/archive/3bf3d4eb8a7e86d59d377f51e17568bd64e1957d.tar.gz
+        URL "${inmost_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"
         SOURCE_DIR "${LIB_DOWNLOAD_PATH}/inmost"
