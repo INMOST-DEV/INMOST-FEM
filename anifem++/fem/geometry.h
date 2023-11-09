@@ -6,7 +6,7 @@
 #define CARNUM_GEOMETRY_H
 
 #ifdef WITH_EIGEN
-#include <Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 #endif
 
 #include <algorithm> 

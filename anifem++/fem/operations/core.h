@@ -11,7 +11,7 @@
 #include "anifem++/fem/quadrature_formulas.h"
 
 #ifdef WITH_EIGEN
-#include <Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 #endif
 
 #include <type_traits>

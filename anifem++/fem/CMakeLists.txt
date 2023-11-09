@@ -17,7 +17,7 @@ add_library(Fem diff_tensor.h fem_space.h fem_space.cpp fem_space.inl expr_inter
                 tetdofmap.h tetdofmap.inl tetdofmap.cpp ${SPACES_HEADERS} ${OPERATION_HEADERS})
 target_link_libraries(Fem PUBLIC QuadFormulas)
 if (WITH_EIGEN)
-    target_link_libraries(Fem INTERFACE Eigen3::Eigen)
+    target_link_libraries(Fem PUBLIC Eigen3::Eigen)
 endif()
 
 target_include_directories(Fem INTERFACE

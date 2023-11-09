@@ -13,7 +13,7 @@
 #include <array>
 
 #ifdef WITH_EIGEN
-#include "Eigen/Eigen"
+#include "eigen3/Eigen/Eigen"
 #endif
 
 #ifndef QUADRATURE_FORMULAS_NUM_TYPE
