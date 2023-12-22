@@ -502,7 +502,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
         else 
             throw std::runtime_error("Matrix local evaluator is not specified");
     }
-    auto func = generate_mat_rhs_func();
+    auto func = generate_mat_func();
     int nRows = m_info.TrialFuncs().NumDofOnTet();
     int nthreads = ThreadPar::get_num_threads<Traits::MatFuncT::parallel_type>(m_assm_traits.num_threads);
     resize_work_memory(nthreads);
