@@ -10,6 +10,9 @@ target_link_libraries(ex3 AniFem++ excom)
 add_executable(ex4 ex4.cpp prob_args.h prob_args.cpp)
 target_link_libraries(ex4 AniFem++ excom)
 
+add_executable(ex5 ex5.cpp prob_args.h prob_args.cpp)
+target_link_libraries(ex5 AniFem++ excom)
+
 add_executable(react_diff1 react_diff1.cpp prob_args.h prob_args.cpp)
 target_link_libraries(react_diff1 AniFem++ excom)
 
