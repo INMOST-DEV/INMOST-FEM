@@ -41,7 +41,7 @@ namespace Ani{
     inline void BaseFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, DynMem<>& wmem, void* user_data, uint max_quad_order) const {
         auto req = interpolateByDOFs_mem_req(max_quad_order);
         auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
-        interpolateOnDOF(XYZ, f, udofs, sp, mem.m_mem, user_data, max_quad_order);
+        interpolateByDOFs(XYZ, f, udofs, sp, mem.m_mem, user_data, max_quad_order);
     }
     template<typename EVAL_FUNCTOR>
     inline void BaseFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EVAL_FUNCTOR& f, ArrayView<> udofs, const TetGeomSparsity& sp, const DofT::NestedDofMapView& sub_map, PlainMemoryX<> mem, void* user_data, uint max_quad_order) const {

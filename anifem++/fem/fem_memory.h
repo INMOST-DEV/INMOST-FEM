@@ -390,7 +390,7 @@ namespace Ani{
 
     template<typename ScalarType = double, typename IndexType = int>
     struct DynMem{
-        using DM = DenseMatrix<ScalarType>;
+        using DM = DenseMatrix<ScalarType>; 
         struct Chunk{
             std::vector<ScalarType> rdata;
             std::vector<IndexType>  idata;
@@ -398,11 +398,11 @@ namespace Ani{
             std::size_t rbusy = 0, ibusy = 0, mbusy = 0;
             std::size_t nparts = 0; //number of memory parts where pointers from the vectors are used
         };
-        struct MemPart{
+        struct MemPart{  
             PlainMemoryX<ScalarType, IndexType> m_mem;
             DynMem* m_link = nullptr;
             std::size_t m_chunk_id = -1, m_part_id = -1;
-
+        
             PlainMemory<ScalarType, IndexType>  getPlainMemory(){ return {m_mem.ddata, m_mem.idata, m_mem.dSize, m_mem.iSize}; }
             PlainMemoryX<ScalarType, IndexType> getPlainMemoryX(){ return m_mem; }
             MemPart() = default;
@@ -426,29 +426,18 @@ namespace Ani{
             }
             void clear(){
                 if (!m_link) return;
-                auto& chunk = m_link->m_chunks[m_chunk_id];
-                chunk.nparts--;
-                if (chunk.nparts == m_part_id)
-                    chunk.rbusy -= m_mem.dSize, chunk.ibusy -= m_mem.iSize, chunk.mbusy -= m_mem.mSize;
-                if (chunk.nparts == 0)
-                    chunk.rbusy = chunk.ibusy = chunk.mbusy = 0;
+                m_link->clearChunk(m_chunk_id, m_part_id, m_mem.dSize, m_mem.iSize, m_mem.mSize);
                 m_mem = PlainMemoryX<ScalarType, IndexType>();  
                 m_link = nullptr;  
             }
             ~MemPart(){
                 if (!m_link) return;
-                auto& chunk = m_link->m_chunks[m_chunk_id];
-                chunk.nparts--;
-                if (chunk.nparts == m_part_id)
-                    chunk.rbusy -= m_mem.dSize, chunk.ibusy -= m_mem.iSize, chunk.mbusy -= m_mem.mSize;
-                if (chunk.nparts == 0)
-                    chunk.rbusy = chunk.ibusy = chunk.mbusy = 0;
+                m_link->clearChunk(m_chunk_id, m_part_id, m_mem.dSize, m_mem.iSize, m_mem.mSize);
             }
+            friend class DynMem<ScalarType, IndexType>;
         };
-
-        std::vector<Chunk> m_chunks;
         
-        MemPart alloc(std::size_t dsize, std::size_t isize, std::size_t msize){
+        virtual MemPart alloc(std::size_t dsize, std::size_t isize, std::size_t msize){
             MemPart res;
             res.m_link = this;
             Chunk* chunk = nullptr;
@@ -487,7 +476,7 @@ namespace Ani{
             chunk->nparts++;
             return res;
         }
-        void defragment(){
+        virtual void defragment(){
             if (m_chunks.size() <= 1) return;
             std::size_t rsz = 0, isz = 0, msz = 0;
             for (auto& chunk: m_chunks){
@@ -503,7 +492,57 @@ namespace Ani{
             m_chunks[0].idata.resize(isz);
             m_chunks[0].mdata.resize(msz);
         }
+    // protected:
+        virtual void clearChunk(std::size_t chunk_id, std::size_t part_id, std::size_t dSize, std::size_t iSize, std::size_t mSize) {
+            auto& chunk = m_chunks[chunk_id];
+            chunk.nparts--;
+            if (chunk.nparts == part_id)
+                chunk.rbusy -= dSize, chunk.ibusy -= iSize, chunk.mbusy -= mSize;
+            if (chunk.nparts == 0)
+                chunk.rbusy = chunk.ibusy = chunk.mbusy = 0;
+        }
+    public:    
+    //protected:
+        std::vector<Chunk> m_chunks;
     };
+
+    template<typename ScalarType1, typename IndexType1, typename ScalarType0, typename IndexType0>
+    struct DynMemT: public DynMem<ScalarType1, IndexType1>{
+        DynMem<ScalarType0, IndexType0>* m_invoker;
+        using DM = DenseMatrix<ScalarType1>;
+
+        typename DynMem<ScalarType1, IndexType1>::MemPart alloc(std::size_t dsize, std::size_t isize, std::size_t msize) override{
+            static_assert(sizeof(ScalarType1) <= sizeof(ScalarType0) && sizeof(IndexType1) <= sizeof(IndexType0) &&
+                "This adaptor work only for emulation of storing objects that less then expected");
+            typename DynMem<ScalarType0, IndexType0>::MemPart tmem = m_invoker->alloc(dsize, isize, msize);
+            typename DynMem<ScalarType1, IndexType1>::MemPart mem;
+            if (dsize > 0) mem.m_mem.ddata = new (tmem.m_mem.ddata) ScalarType1[dsize];
+            if (isize > 0) mem.m_mem.idata = new (tmem.m_mem.idata) IndexType1[isize];
+            if (msize > 0) mem.m_mem.mdata = new (tmem.m_mem.mdata) DM[msize];
+            mem.m_mem.dSize = dsize, mem.m_mem.iSize = isize; mem.m_mem.mSize = msize;
+            mem.m_link = this; tmem.m_link = nullptr;
+            mem.m_chunk_id = tmem.m_chunk_id, mem.m_part_id = tmem.m_part_id;
+            return mem;
+        }
+        void defragment() override { m_invoker->defragment();}
+    protected:
+        void clearChunk(std::size_t chunk_id, std::size_t part_id, std::size_t dSize, std::size_t iSize, std::size_t mSize) override { 
+            m_invoker->clearChunk(chunk_id, part_id, dSize, iSize, mSize);
+        }
+    };
+    template<typename ScalarType1, typename IndexType1, typename DYNMEM>
+    DynMemT<ScalarType1, IndexType1, 
+            typename decltype(std::declval<typename DYNMEM::Chunk>().rdata)::value_type, 
+            typename decltype(std::declval<typename DYNMEM::Chunk>().idata)::value_type> makeAdaptor(DYNMEM& mem){
+        using R1 = ScalarType1; 
+        using I1 = IndexType1;
+        using R0 = typename decltype(std::declval<typename DYNMEM::Chunk>().rdata)::value_type;
+        using I0 = typename decltype(std::declval<typename DYNMEM::Chunk>().idata)::value_type;
+        using DynMemT1 = DynMemT<R1, I1, R0, I0>;
+        DynMemT1 m;
+        m.m_invoker = &mem;
+        return m;
+    }
 
     struct OpMemoryRequirements{
         std::size_t Usz = 0;

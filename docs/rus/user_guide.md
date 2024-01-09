@@ -634,11 +634,11 @@ auto local_data_gatherer = [&BndLabel](ElementalAssembler& p) -> void{
   
   if (geom_mask & DofT::EDGE)
     for (unsigned i = 0; i < data.elbl.size(); ++i) 
-      data.elbl[i] = (*p.edges)[p.local_edge_index[i]].Integer(BndLabel);
+      data.elbl[i] = (*p.edges)[i].Integer(BndLabel);
   
   if (geom_mask & DofT::FACE)
     for (unsigned i = 0; i < data.flbl.size(); ++i) 
-      data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(BndLabel);
+      data.flbl[i] = (*p.faces)[i].Integer(BndLabel);
   
   p.compute(args, &data);
 };
