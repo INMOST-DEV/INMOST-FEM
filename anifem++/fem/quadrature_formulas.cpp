@@ -113,7 +113,7 @@ TriangleQuadFormula triangle_quadrature_formulas(int order){
 #define WCENTRE(w) w
 #define TWIST3(k1) PUSH(k1, k1), PUSH(k1, qReal(1) - 2*k1), PUSH(qReal(1) - 2*k1, k1)
 #define WTWIST3(w) w, w, w
-#define TWIST6(k1, k2) PUSH(k1, k2), PUSH(k2, k1), PUSH(k1, qReal(1) - (k1+k2)), PUSH(k2, qReal(1) - (k1+k2)), PUSH(qReal(1) - (k1+k2), k1), PUSH(qReal(1) - (k1+k2), k2)
+#define TWIST6(k1, k2) PUSH(k1, k2), PUSH(k2, qReal(1) - (k1+k2)), PUSH(qReal(1) - (k1+k2), k1), PUSH(k1, qReal(1) - (k1+k2)), PUSH(qReal(1) - (k1+k2), k2), PUSH(k2, k1)
 #define WTWIST6(w) w, w, w, w, w, w
 #define ALG 128
 #define ARRTP alignas(ALG) static const qReal
@@ -547,7 +547,7 @@ TetraQuadFormula tetrahedron_quadrature_formulas(int order){
                 ws3_2 = 0.122508688442493575800406008927376017158350537859356028878476870397455956314698482221022070844495316869739197403271310149772116596;
     ARRTP fs3[] = {TWIST4(ks3_1, ks3_2), TWIST4(ks3_3, ks3_4)}, ws3[] = {WTWIST4(ws3_1), WTWIST4(ws3_2)};
     ARRI s3[5] = {0, 2, 0, 0, 0};
-#define TWIST6(k1, k2) PUSH(k1, k2, k2), PUSH(k2, k1, k2), PUSH(k1, k1, k2), PUSH(k2, k2, k1), PUSH(k1, k2, k1), PUSH(k2, k1, k1)
+#define TWIST6(k1, k2) PUSH(k1, k1, k2), PUSH(k1, k2, k1), PUSH(k2, k1, k1), PUSH(k1, k2, k2), PUSH(k2, k1, k2), PUSH(k2, k2, k1)
 #define WTWIST6(w) w, w, w, w, w, w
     const qReal ks5_2 = 0.310885919263300609797345733763457832992617413439748379102751749937612373146802716716583221273044297751089636956710797678885240418,
                 ks5_1 = 0.0673422422100981706079627987096265010221477596807548626917447501871628805595918498502503361808671067467310891298676069633442787456 ,
@@ -560,8 +560,8 @@ TetraQuadFormula tetrahedron_quadrature_formulas(int order){
                 ws5_3 = 0.042546020777081466438069428120257441777627278117123448683280995708108662969768504490505295793709418834060821479728889357559173254;
     ARRTP fs5[] = {TWIST4(ks5_1, ks5_2), TWIST4(ks5_3, ks5_4), TWIST6(ks5_5, ks5_6)}, ws5[] = {WTWIST4(ws5_1), WTWIST4(ws5_2), WTWIST6(ws5_3)};
     ARRI s5[5] = {0, 2, 1, 0, 0};
-#define TWIST12(k1, k2, k3)  PUSH(k1, k2, k2), PUSH(k2, k1, k2), PUSH(k2, k2, k1), PUSH(k3, k2, k2), PUSH(k3, k1, k2), PUSH(k3, k2, k1), \
-                                PUSH(k2, k3, k2), PUSH(k1, k3, k2), PUSH(k2, k3, k1), PUSH(k2, k2, k3), PUSH(k1, k2, k3), PUSH(k2, k1, k3)
+#define TWIST12(k1, k2, k3) PUSH(k1, k3, k2), PUSH(k3, k2, k1), PUSH(k2, k1, k3), PUSH(k1, k2, k3), PUSH(k2, k3, k1), PUSH(k3, k1, k2), \
+                            PUSH(k3, k2, k2), PUSH(k2, k1, k2), PUSH(k1, k2, k2), PUSH(k2, k3, k2), PUSH(k2, k2, k3), PUSH(k2, k2, k1) 
 #define WTWIST12(w)  w, w, w, w, w, w, w, w, w, w, w, w
     const qReal ks6_2 = 0.0406739585346113531155794489564100592785960568604092914659426077825531381030296870528624540966846326901121359736913316432130519127,
                 ks6_1 = 0.877978124396165940653261653130769822164211829418772125602172176652340585690910938841412637709946101929663592078926005070360844262,
@@ -701,9 +701,9 @@ TetraQuadFormula tetrahedron_quadrature_formulas(int order){
             WTWIST12(0.00132567884826423562580198314070876373406593535538907900376640162728080579025234727682462862535366514578759896606108293504137199367),
     };
     ARRI s10[5] = {1, 2, 2, 5, 0};
-#define TWIST24(k1, k2, k3, k4)  PUSH(k2,k1,k4), PUSH(k2,k4,k1), PUSH(k1,k2,k4), PUSH(k4,k2,k1), PUSH(k1,k4,k2), PUSH(k4,k1,k2), PUSH(k3,k1,k4), PUSH(k3,k4,k1),\
-                                    PUSH(k3,k2,k4), PUSH(k3,k2,k1), PUSH(k3,k4,k2), PUSH(k3,k1,k2), PUSH(k1,k3,k4), PUSH(k4,k3,k1), PUSH(k2,k3,k4), PUSH(k2,k3,k1),\
-                                    PUSH(k4,k3,k2), PUSH(k1,k3,k2), PUSH(k1,k4,k3), PUSH(k4,k1,k3), PUSH(k2,k4,k3), PUSH(k2,k1,k3), PUSH(k4,k2,k3), PUSH(k1,k2,k3)
+#define TWIST24(k1, k2, k3, k4)  PUSH(k1, k2, k3), PUSH(k2, k3, k1), PUSH(k3, k1, k2), PUSH(k1, k3, k2), PUSH(k3, k2, k1), PUSH(k2, k1, k3), PUSH(k1, k2, k4), PUSH(k2, k3, k4), \
+                                 PUSH(k3, k1, k4), PUSH(k1, k3, k4), PUSH(k3, k2, k4), PUSH(k2, k1, k4), PUSH(k1, k4, k2), PUSH(k2, k4, k3), PUSH(k3, k4, k1), PUSH(k1, k4, k3), \
+                                 PUSH(k3, k4, k2), PUSH(k2, k4, k1), PUSH(k4, k1, k2), PUSH(k4, k2, k3), PUSH(k4, k3, k1), PUSH(k4, k1, k3), PUSH(k4, k3, k2), PUSH(k4, k2, k1)
 #define WTWIST24(w)  w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w, w
     ARRTP fs11[] = {
             TWIST4(0.102060722801972527275270006509938504933988255678673279369328755587765155325697570814679652930600032073045217837618762596075082174,
