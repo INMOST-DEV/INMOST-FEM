@@ -268,7 +268,7 @@ class AssemblerT{
 
     std::vector<WorkMem> m_wm;
     CommonFuncData m_fd;
-    ElementalAssembler::VarsHelper m_helper;
+    std::vector<ElementalAssembler::VarsHelper> m_helpers;
     std::vector<OrderTempl> orderC;
     std::vector<OrderTempl> orderR;
 public:
@@ -368,7 +368,7 @@ public:
     long getEndInd() const { return m_enum.getEndInd();}
 
     void Clear();
-    const ElementalAssembler::VarsHelper& GetVarHelper() const { return m_helper; }
+    const ElementalAssembler::VarsHelper& GetVarHelper() const { return m_helpers[0]; }
     const typename Traits::GlobEnumMap& GetEnumerator() const { return m_enum; }
     typename Traits::GlobEnumMap& GetEnumerator() { return m_enum; }
 
@@ -410,6 +410,7 @@ private:
     void extend_memory_for_fem_func(MatFuncT1& func);
     void resize_work_memory(int size);
     bool fill_assemble_templates(const INMOST::ElementArray<INMOST::Node>& nodes, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::Cell& cell, std::vector<long>& indexesC, std::vector<long>& indexesR, const unsigned char* canonical_node_indexes);
+    bool fill_assemble_templates(const INMOST::ElementArray<INMOST::Node>& nodes, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::Cell& cell, std::vector<long>& indexesC, std::vector<long>& indexesR, const unsigned char* canonical_node_indexes, bool is_same_template);
     int _return_assembled_status(int nthreads);
     internals::SystemFromMatRhsFWrap<typename Traits::MatFuncT> generate_mat_rhs_func();
     internals::MatFromSystemFWrap<typename Traits::MatFuncT> generate_mat_func();

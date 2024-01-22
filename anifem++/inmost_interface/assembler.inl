@@ -116,7 +116,7 @@ namespace internals{
 template <typename Traits>
 bool AssemblerT<Traits>::fill_assemble_templates(
     const INMOST::ElementArray<INMOST::Node>& nodes, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::Cell& cell, 
-    std::vector<long>& indexesC, std::vector<long>& indexesR, const unsigned char* canonical_node_indexes){
+    std::vector<long>& indexesC, std::vector<long>& indexesR, const unsigned char* canonical_node_indexes, bool is_same_template){
     INMOST::HandleType ch = cell.GetHandle();
     std::array<const INMOST::HandleType*, 4> h{nodes.data(), edges.data(), faces.data(), &ch};
     indexesC.resize(orderC.size()); indexesR.resize(orderR.size());
@@ -144,7 +144,7 @@ bool AssemblerT<Traits>::fill_assemble_templates(
         return has_active;
     };
     bool has_active = set_indexes(orderC, indexesC, [&m_enum = this->m_enum](const IGlobEnumeration::NaturalIndex& ind){ return m_enum.OrderC(ind); });
-    if (!m_helper.same_template){
+    if (!is_same_template){
         auto has_active1 = set_indexes(orderR, indexesR, [&m_enum = this->m_enum](const IGlobEnumeration::NaturalIndex& ind){ return m_enum.OrderR(ind); });
         has_active = has_active || has_active1;
     } else {
@@ -158,6 +158,13 @@ bool AssemblerT<Traits>::fill_assemble_templates(
         }
     }
     return has_active;
+}
+
+template <typename Traits>
+bool AssemblerT<Traits>::fill_assemble_templates(
+    const INMOST::ElementArray<INMOST::Node>& nodes, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::Cell& cell, 
+    std::vector<long>& indexesC, std::vector<long>& indexesR, const unsigned char* canonical_node_indexes){
+    return fill_assemble_templates(nodes, edges, faces, cell, indexesC, indexesR, canonical_node_indexes, m_helpers[0].same_template);
 }
 
 template <typename Traits>
@@ -181,9 +188,10 @@ void AssemblerT<Traits>::PrepareProblem(){
     m_w.edges = INMOST::ElementArray<INMOST::Edge>(m_mesh, 6);
     m_w.faces = INMOST::ElementArray<INMOST::Face>(m_mesh, 4);
 
-    m_helper.descr = &m_info;
-    m_helper.initValues.resize(nRows);
-    m_helper.same_template = (m_info.TrialFuncs() == m_info.TestFuncs());
+    m_helpers.resize(1);
+    m_helpers[0].descr = &m_info;
+    m_helpers[0].initValues.resize(nRows);
+    m_helpers[0].same_template = (m_info.TrialFuncs() == m_info.TestFuncs());
 
     extend_memory_for_fem_func(mat_func);
     extend_memory_for_fem_func(rhs_func);
@@ -237,7 +245,7 @@ void AssemblerT<Traits>::PrepareProblem(){
         }
     };
     prepareOrder(m_info.TrialFuncs(), orderC);
-    if (m_helper.same_template)
+    if (m_helpers[0].same_template)
         orderR = orderC;
     else
         prepareOrder(m_info.TestFuncs(), orderR);
@@ -289,6 +297,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
     int nRows = m_info.TrialFuncs().NumDofOnTet();
     int nthreads = ThreadPar::get_num_threads<Traits::MatFuncT::parallel_type>(m_assm_traits.num_threads);
     resize_work_memory(nthreads);
+    m_helpers.resize(nthreads, m_helpers[0]);
     rhs.SetInterval(getBegInd(), getEndInd());
     matrix.SetInterval(getBegInd(),getEndInd());
     for(auto i = getBegInd(); i < getEndInd(); i++) if (matrix[i].get_safe(i) == 0.0)
@@ -319,7 +328,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
             canonical_node_indexes = createOrderPermutation(gni.data()); 
             // std::cout << "GID:\n" << DenseMatrix<long>(gni.data(), 1, 4);    
         }
-        bool has_active = fill_assemble_templates(m_w.nodes, m_w.edges, m_w.faces, cell, m_w.m_indexesC, m_w.m_indexesR, canonical_node_indexes.data());
+        bool has_active = fill_assemble_templates(m_w.nodes, m_w.edges, m_w.faces, cell, m_w.m_indexesC, m_w.m_indexesR, canonical_node_indexes.data(), m_helpers[nthread].same_template);
         TIMER_SCOPE( m_w.m_timers.m_time_fill_map_template += m_w.m_timers.m_timer.elapsed_and_reset(); ) 
         if (!has_active) return;
 
@@ -330,7 +339,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
                            ElementalAssembler::MAT_RHS,
                            SparsedData<>(MatSparsityView<Int>(tp1, func.out_nnz(0), func.out_size1(0), func.out_size2(0), m_fd.colindA.data(), m_fd.rowA.data()), m_w.m_A.data()),
                            SparsedData<>(MatSparsityView<Int>(tp2, func.out_nnz(1), func.out_size1(1), func.out_size2(1), m_fd.colindF.data(), m_fd.rowF.data()), m_w.m_F.data()),
-                           fmem, &m_w.m_Ab, &m_helper, m_mesh, &m_w.nodes, &m_w.edges, &m_w.faces, &cell, canonical_node_indexes.data(),
+                           fmem, &m_w.m_Ab, &(m_helpers[nthread]), m_mesh, &m_w.nodes, &m_w.edges, &m_w.faces, &cell, canonical_node_indexes.data(),
                            TIMER_NOSCOPE (m_w.m_timers.getTimeMessures())  &m_w.pool );
         m_init_value_setter(dat);
         dat.update();
@@ -413,6 +422,7 @@ int AssemblerT<Traits>::AssembleRHS(INMOST::Sparse::Vector &rhs, void* user_data
     int nRows = m_info.TrialFuncs().NumDofOnTet();
     int nthreads = ThreadPar::get_num_threads<Traits::MatFuncT::parallel_type>(m_assm_traits.num_threads);
     resize_work_memory(nthreads);
+    m_helpers.resize(nthreads, m_helpers[0]);
     rhs.SetInterval(getBegInd(), getEndInd());
     INMOST::Sparse::LockService L;
     if (nthreads > 1) L.SetInterval(getBegInd(), getEndInd());
@@ -439,7 +449,7 @@ int AssemblerT<Traits>::AssembleRHS(INMOST::Sparse::Vector &rhs, void* user_data
                 gni[i] = m_enum.GNodeIndex(m_w.nodes[i]);
             canonical_node_indexes = createOrderPermutation(gni.data());    
         }
-        bool has_active = fill_assemble_templates(m_w.nodes, m_w.edges, m_w.faces, cell, m_w.m_indexesC, m_w.m_indexesR, canonical_node_indexes.data());
+        bool has_active = fill_assemble_templates(m_w.nodes, m_w.edges, m_w.faces, cell, m_w.m_indexesC, m_w.m_indexesR, canonical_node_indexes.data(), m_helpers[nthread].same_template);
         TIMER_SCOPE( m_w.m_timers.m_time_fill_map_template += m_w.m_timers.m_timer.elapsed_and_reset(); ) 
         if (!has_active) return;
 
@@ -448,7 +458,7 @@ int AssemblerT<Traits>::AssembleRHS(INMOST::Sparse::Vector &rhs, void* user_data
         ElementalAssembler dat(&func, ElementalAssembler::RHS,
                            SparsedData<>(MatSparsityView<Int>::make_as_dense(0, 0), nullptr),
                            SparsedData<>(MatSparsityView<Int>(tp2, func.out_nnz(0), func.out_size1(0), func.out_size2(0), m_fd.colindF.data(), m_fd.rowF.data()), m_w.m_F.data()),
-                           fmem, &m_w.m_Ab, &m_helper, m_mesh, &m_w.nodes, &m_w.edges, &m_w.faces, &cell, canonical_node_indexes.data(),
+                           fmem, &m_w.m_Ab, &(m_helpers[nthread]), m_mesh, &m_w.nodes, &m_w.edges, &m_w.faces, &cell, canonical_node_indexes.data(),
                            TIMER_NOSCOPE (m_w.m_timers.getTimeMessures())  &m_w.pool );
         m_init_value_setter(dat);
         dat.update();
@@ -506,6 +516,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
     int nRows = m_info.TrialFuncs().NumDofOnTet();
     int nthreads = ThreadPar::get_num_threads<Traits::MatFuncT::parallel_type>(m_assm_traits.num_threads);
     resize_work_memory(nthreads);
+    m_helpers.resize(nthreads, m_helpers[0]);
     matrix.SetInterval(getBegInd(),getEndInd());
     for(auto i = getBegInd(); i < getEndInd(); i++) if (matrix[i].get_safe(i) == 0.0)
         matrix[i][i] = 0.0;
@@ -534,7 +545,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
                 gni[i] = m_enum.GNodeIndex(m_w.nodes[i]);
             canonical_node_indexes = createOrderPermutation(gni.data());    
         }
-        bool has_active = fill_assemble_templates(m_w.nodes, m_w.edges, m_w.faces, cell, m_w.m_indexesC, m_w.m_indexesR, canonical_node_indexes.data());
+        bool has_active = fill_assemble_templates(m_w.nodes, m_w.edges, m_w.faces, cell, m_w.m_indexesC, m_w.m_indexesR, canonical_node_indexes.data(), m_helpers[nthread].same_template);
         TIMER_SCOPE( m_w.m_timers.m_time_fill_map_template += m_w.m_timers.m_timer.elapsed_and_reset(); ) 
         if (!has_active) return;
 
@@ -543,7 +554,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
         ElementalAssembler dat(&func, ElementalAssembler::MAT,
                            SparsedData<>(MatSparsityView<Int>(tp1, func.out_nnz(0), func.out_size1(0), func.out_size2(0), m_fd.colindA.data(), m_fd.rowA.data()), m_w.m_A.data()),
                            SparsedData<>(MatSparsityView<Int>::make_as_dense(0, 0), nullptr),
-                           fmem, &m_w.m_Ab, &m_helper, m_mesh, &m_w.nodes, &m_w.edges, &m_w.faces, &cell, canonical_node_indexes.data(),
+                           fmem, &m_w.m_Ab, &(m_helpers[nthread]), m_mesh, &m_w.nodes, &m_w.edges, &m_w.faces, &cell, canonical_node_indexes.data(),
                            TIMER_NOSCOPE (m_w.m_timers.getTimeMessures())  &m_w.pool );
         m_init_value_setter(dat);
         dat.update();
@@ -851,7 +862,7 @@ template <typename Traits>
 void AssemblerT<Traits>::Clear() {
     m_wm.clear();
     m_fd.Clear();
-    m_helper.Clear();
+    m_helpers.clear();
     orderC.clear();
     orderR.clear();
     mat_func = typename Traits::MatFuncT();
