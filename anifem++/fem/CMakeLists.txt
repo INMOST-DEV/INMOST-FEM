@@ -10,8 +10,8 @@ target_include_directories(QuadFormulas PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> )       
 install(FILES quadrature_formulas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/anifem++/fem)
 
-list(TRANSFORM OPERATION_HEADERS APPEND "operations/")
-list(TRANSFORM SPACES_HEADERS APPEND "spaces/")
+list(TRANSFORM OPERATION_HEADERS PREPEND "operations/")
+list(TRANSFORM SPACES_HEADERS PREPEND "spaces/")
 add_library(Fem diff_tensor.h fem_space.h fem_space.cpp fem_space.inl expr_interface.h expr_interface.inl numeric_expr.h numeric_expr.inl
                 operators.h operators.inl geometry.h fem_memory_parallel.h mutex_type.h fem_memory.h 
                 tetdofmap.h tetdofmap.inl tetdofmap.cpp ${SPACES_HEADERS} ${OPERATION_HEADERS})
