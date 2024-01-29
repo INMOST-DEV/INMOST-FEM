@@ -10,6 +10,7 @@ endif()
 
 message("-- Download CasAdi")
 FetchContent_Declare(casadi_get
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         URL "${casadi_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"

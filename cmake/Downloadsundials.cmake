@@ -10,6 +10,7 @@ endif()
 
 message("-- Download SUNDIALS")
 FetchContent_Declare(sundials_get
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         URL "${sundials_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"

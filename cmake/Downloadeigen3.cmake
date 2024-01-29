@@ -11,6 +11,7 @@ endif()
 message("-- Download Eigen3")
 FetchContent_Declare(
         eigen3_get
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         URL "${eigen3_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"

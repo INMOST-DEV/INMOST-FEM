@@ -10,6 +10,7 @@ endif()
 
 message("-- Download INMOST")
 FetchContent_Declare(inmost_get
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         URL "${inmost_url}"
         UPDATE_DISCONNECTED TRUE
         PREFIX "${LIB_DOWNLOAD_PATH}"
