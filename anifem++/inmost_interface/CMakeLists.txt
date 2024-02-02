@@ -21,7 +21,7 @@ endif()
 
 install(FILES
             func_wrap.h func_wrap.inl timer_wrap.h ext_array_enum.h ext_array_enum.inl interval_enum.h interval_enum.inl
-            elemental_assembler.h 
+            elemental_assembler.h elemental_assembler.inl
             ordering.h ordering.inl global_enumerator.h assembler.h assembler.inl fem.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/anifem++/inmost_interface
         )
