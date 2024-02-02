@@ -568,7 +568,10 @@ void PGE::setupIGlobEnumeration(){
     for (int i = 0; i < DofT::NGEOM_TYPES; ++i){
         if (NumDof[i] > 0) {
             auto dim = DofT::NumToGeomDim(i);
-            et |= INMOST::ElementTypeFromDim(dim);
+            auto elem = INMOST::ElementTypeFromDim(dim);
+            if (!mesh->HaveGlobalID(elem))
+                mesh->AssignGlobalID(elem);
+            et |= elem;
         }
     }
 
