@@ -8,6 +8,10 @@ if (@WITH_MPI@)
     find_dependency(MPI)
 endif()
 
+if (@WITH_OPENMP@)
+    find_dependency(OpenMP)
+endif()
+
 if (@WITH_INMOST@)
     if (NOT @DOWNLOAD_inmost@)
         find_dependency(INMOST HINTS "@INMOST_DIR@")

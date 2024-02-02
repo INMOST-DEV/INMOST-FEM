@@ -439,7 +439,7 @@ namespace Ani{
         };
 
         struct NestedDofMapView: public NestedDofMapBase{
-            const BaseDofMap* m_base;
+            const BaseDofMap* m_base = nullptr;
             
             NestedDofMapView() = default;
             explicit NestedDofMapView(const BaseDofMap* base, const std::array<uint, NGEOM_TYPES>& shifts_on_elem = std::array<uint, NGEOM_TYPES>{0}, uint full_shift = 0): m_base{base} { m_shiftNumDof = shifts_on_elem, m_shiftOnTet = full_shift; }
