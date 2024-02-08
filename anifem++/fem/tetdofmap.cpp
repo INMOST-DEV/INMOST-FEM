@@ -972,6 +972,16 @@ std::shared_ptr<DofT::BaseDofMap> DofT::NestedDofMapView::GetSubDofMap(const int
         return nullptr;
 }
 
+void DofT::NestedDofMapBase::BeginByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering) const{
+    base()->BeginByGeomSparsity(sp, lo, preferGeomOrdering);
+    LocalOrder end;
+    base()->EndByGeomSparsity(end);
+    if (lo != end){
+        lo.gid += m_shiftOnTet;
+        lo.leid += m_shiftNumDof[GeomTypeToNum(lo.etype)];
+    } else 
+        EndByGeomSparsity(lo);
+}
 void DofT::NestedDofMapBase::IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering) const{
     assert(isValidOutputIndex(lo) && "Wrong local index");
     lo.gid -= m_shiftOnTet;

@@ -416,6 +416,7 @@ namespace Ani{
             uint NestedDim() const override { return 1; }
             bool operator==(const BaseDofMap& other) const;
 
+            void BeginByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const;
             void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const;
         };
 
