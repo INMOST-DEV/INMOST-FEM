@@ -184,9 +184,12 @@ void RepartMesh(Mesh* m){
         delete p;
         BARRIER
 
-        m->Redistribute();
-        m->ReorderEmpty(CELL | FACE | EDGE | NODE);
+        // prior exchange ghost to get optimization in Redistribute
         m->ExchangeGhost(1, NODE); //<- required for parallel fem
+        m->Redistribute();
+        BARRIER;
+        m->ExchangeGhost(1, NODE); //<- required for parallel fem
+        m->ReorderEmpty(CELL | FACE | EDGE | NODE);
     }
 #else
     if(pCount >1) {

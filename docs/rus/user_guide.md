@@ -470,7 +470,9 @@ $$\int_{\Omega}(\mathbb{D}(\mathbf{x})\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \
 
 После дискретизации области $\Omega^h$ и выбора соответствующих дискретных КЭ пространств $u^h = \sum_{j} u_j \phi_j$ имеем систему уравнений: 
 
-$$\sum_{j} \sum_{T \in \Omega^h} \sum_{\mathbf{x}_q \in T} w_q [(\mathbb{D}\ \mathrm{grad}\ \phi_j) \cdot \mathrm{grad}\ \phi_i]_{\mathbf{x}_q} u_j = \sum_{T \in \Omega^h} \sum_{\mathbf{x}_q \in T} w_q [f \phi_i]_{\mathbf{x}_q},$$
+```math
+\sum_{j} \sum_{T \in \Omega^h} \sum_{\mathbf{x}_q \in T} w_q [(\mathbb{D}\ \mathrm{grad}\ \phi_j) \cdot \mathrm{grad}\ \phi_i]_{\mathbf{x}_q} u_j = \sum_{T \in \Omega^h} \sum_{\mathbf{x}_q \in T} w_q [f \phi_i]_{\mathbf{x}_q},
+```
 
 где $\sum_{T \in \Omega^h}$ - сумма по всем элементам $T$ области $\Omega^h$, $\sum_{\mathbf{x}_q \in T} w_q$ - сумма по точкам квадратурных формул с соответствующими весами. После переобозначений последнее выражение принимает вид:
 
@@ -695,6 +697,44 @@ $$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mat
 
 В файле [react_diff1.cpp](../../examples/tutorials/react_diff1.cpp) представлено решение этой задачи с использованием шаблонного интерфейса, а в [react_diff2.cpp](../../examples/tutorials/react_diff2.cpp) - с использованием runtime интрефейса.
 
+## Стационарная линейная упругость: изгиб балки
+Данный пример демонстрирует работу с векторными КЭ пространствами и подход к КЭ дискретизации задач, содержащих несколько физических переменных.
+```math
+\begin{aligned}
+ \mathrm{div}\ \mathbf{\sigma} (\mathbf{\varepsilon}) + \mathbf{f} &= 0\    in\  \Omega  \\
+                   \mathbf{u}                      &= \mathbf{u}_0\  on\  \Gamma_D\\
+                  \mathbf{\sigma} \cdot \mathbf{N}          &= -p \mathbf{N}\ on\  \Gamma_P\\  
+                  \mathbf{\sigma}\cdot \mathbf{N}          &= 0\    on\  \Gamma_0\\
+   \mathbf{\sigma} &= \mathcal{A}_{(ij)(kl)} \mathbf{\varepsilon}_{(kl)} \\
+   \mathcal{A}_{(ij)(kl)} &= \lambda \delta_{ij}\delta_{kl} + \mu (\delta_{ik}\delta_{jl} + \delta_{il}\delta_{jk})\\
+   \mathbf{\varepsilon} &= \frac{1}{2}(\mathrm{grad}\ \mathbf{u} + (\mathrm{grad}\ \mathbf{u})^T)
+\end{aligned}
+```
+где $\Omega = [0,10]\times[0,1]^2$, $\Gamma_D = \{0\}\times [0,1]^2$, $\Gamma_P = [0,10] \times [0, 1] \times\{0\}$, $\Gamma_0 = \partial \Omega \setminus (\Gamma_D \cup \Gamma_P)$; 
+- $\mu(x) = 3.0,\ \lambda(x) = 1.0$ - коэффициенты Ламе
+- $\mathbf{f}(x) = (0, 0, 0)^T$ - вектор плотности внешних массовых сил
+- $\mathbf{u}_0(x) = ( 0, 0, 0 )^T$ - начальное смещение
+- $p(x) = 0.001$ - давление, прикладываемое на нижную границу
+
+Слабая постановка имеет вид ($\mathbf{u} \leftrightarrow \mathbf{v}$):
+```math
+\int_\Omega (\mathcal{A} : \mathbf{\varepsilon(u)}) : \varepsilon(\mathbf{v}) = \int_\Omega\mathbf{f} \cdot \mathbf{v} - \int_{\Gamma_P} p \mathbf{N}\cdot \mathbf{v}
+```
+Однако для использования AniFem++ первое выражение надо преобразовать, чтобы оно зависело только от градиентов. Для этого мы можем воспользоваться симметрией тензора $\mathcal{A}$: $\mathcal{A}_{(ij)(kl)} \nabla_k \mathbf{u}_l = \mathcal{A}_{(ij)(kl)} \nabla_l \mathbf{u}_k$. Таким образом имеем: 
+```math
+\int_\Omega (\mathcal{A} : \mathrm{grad}\ \mathbf{u})) : \mathrm{grad}\ \mathbf{v} = \int_\Omega\mathbf{f} \cdot \mathbf{v} - \int_{\Gamma_P} p \mathbf{N}\cdot \mathbf{v}
+```
+
+Итак, мы готовы записать вид локальной элементной матрицы и правой части:
+```math
+\begin{aligned}
+\mathbb{A} &= \int_{S^3} GRAD((P_1)^3) : \mathcal{A} : GRAD((P_1)^3)\ d^3 \mathbf{x}\\
+\mathbf{b} &= \int_{S^3} IDEN(P_0) \cdot (\mathbf{f} \cdot IDEN((P_1)^3))\ d^3 \mathbf{x} + \int_{S^2} IDEN(P_0) \cdot (p\mathbf{I}) : (\mathbf{N} \otimes IDEN((P_1)^3))) d^3 \mathbf{x} \\
+\end{aligned}
+```
+В файле [lin_elast.cpp](../../examples/tutorials/lin_elast.cpp) представлено решение этой задачи с использованием runtime интерфейса.
+
+
 ## Стационарное уравнение Стокса
 Данный пример демонстрирует работу с векторными КЭ пространствами и подход к КЭ дискретизации задач, содержащих несколько физических переменных.
 ```math
@@ -713,7 +753,14 @@ $$J((\mathbf{u}, p), (\mathbf{\phi}, q)) = \int_{\Omega} (\nu \nabla_i u_j, \nab
 $$J((\mathbf{u}, p), (\mathbf{\phi}, q)) = \int_{\Omega} (\mathrm{grad}\ \mathbf{u})^T :  \mathrm{grad}\ \mathbf{\phi} - p\ \mathrm{div} \mathbf{\phi} - \mathrm{div}\ \mathbf{u}\ q\ d^3\mathbf{x} = 0$$
 
 
-После дискретизации $\mathbf{u}^h = \sum\limits_{k = 1}^{K} u_k \mathbf{\phi}_k$, $p = \sum\limits_{l = 1}^{L} p_l q_l$, соответственно выражение конечно-элементной невязки принимает вид:
+После дискретизации 
+```math
+\mathbf{u}^h = \sum\limits_{k = 1}^{K} u_k \mathbf{\phi}_k,
+```
+```math
+p = \sum\limits_{l = 1}^{L} p_l q_l,
+```
+соответственно выражение конечно-элементной невязки принимает вид:
 
 $$J^h_{k} = \int_{\Omega} \sum_m u_m [(\nu\ \mathrm{grad}\ \mathbf{\phi}_m)^T : \mathrm{grad}\ \mathbf{\phi}_k] - \sum_n p_n [q_n\ \mathrm{div}\ \mathbf{\phi}_k]$$
 
@@ -765,7 +812,16 @@ $$\int_\Omega \left(\frac{\partial u}{\partial t}\ \phi + (\mathbb{D}\ \mathrm{g
 \end{equation*}
 ```
 
-где $\delta_c = \begin{cases}0.01, Pe_c \ge 1\\ 0,\ \textit{otherwise}\end{cases}$, $Pe_c = \frac{\mathrm{diam}(c) ||\mathbf{v}||}{\mathcal{D}_v}$ - сеточное число Пекле, $\mathcal{D}_v = \frac{(\mathbb{D} \mathbf{v}, \mathbf{v})}{(\mathbf{v}, \mathbf{v})}$
+где 
+```math
+  \delta_c = \begin{cases}0.01, Pe_c \ge 1\\ 0,\ \textit{otherwise}\end{cases},
+```
+```math
+Pe_c = \frac{\mathrm{diam}(c) ||\mathbf{v}||}{\mathcal{D}_v}\textit{ - сеточное число Пекле,}
+```
+```math
+\mathcal{D}_v = \frac{(\mathbb{D} \mathbf{v}, \mathbf{v})}{(\mathbf{v}, \mathbf{v})}
+```
 
 Заметим, что для $P_1$ дискретизации выражение $\mathrm{div}\ \mathbb{D}\ \mathrm{grad}\ u^h$ внутри стабилизирующей поправки обращается в ноль, поэтому далее это слагаемое не учитывается.
 
@@ -775,7 +831,7 @@ $$\frac{\partial y}{\partial t} = f(t) \Rightarrow \frac{1.5 y^{n+1} - 2y^n + 0.
 
 Вводём обозначения для некоторых элементных матриц и правых частей:
 - $\mathcal{M}_{ij} = (\phi_j, \phi_i) + \sum_c \delta_c (\phi_j, v_k \nabla_k \phi_i)$
-- $\mathcal{A}_{ij} = ( \mathbb{D}_{lk} \nabla_k \phi_j, \nabla_l \phi_i ) + ( v_k \nabla_k \phi_j, \phi_i ) + \sum_c \delta_c ( v_k \nabla_k \phi_j, v_l \nabla_l \phi_i )$
+- $\mathcal{A}_{ij} = ( \mathbb{D} _{lk} \nabla_k \phi_j, \nabla_l \phi_i ) + ( v_k \nabla_k \phi_j, \phi_i ) + \sum_c \delta_c ( v_k \nabla_k \phi_j, v_l \nabla_l \phi_i )$
 - $\mathcal{F}_i = (f, \phi_i) + \sum_c \delta_c (f, v_k \nabla_k \phi_i)$
 - $U^{n}$ - вектор степеней свободы задачи
 
