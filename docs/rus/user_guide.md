@@ -720,7 +720,7 @@ $$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mat
 ```math
 \int_\Omega (\mathcal{A} : \mathbf{\varepsilon(u)}) : \varepsilon(\mathbf{v}) = \int_\Omega\mathbf{f} \cdot \mathbf{v} - \int_{\Gamma_P} p \mathbf{N}\cdot \mathbf{v}
 ```
-Однако для использования AniFem++ первое выражение надо преобразовать, чтобы оно зависело только от градиентов. Для этого мы можем воспользоваться симметрией тензора $\mathcal{A}$: $\mathcal{A}_{(ij)(kl)} \nabla_k \mathbf{u}_l = \mathcal{A}_{(ij)(kl)} \nabla_l \mathbf{u}_k$. Таким образом имеем: 
+Однако для использования AniFem++ первое выражение надо преобразовать, чтобы оно зависело только от градиентов. Для этого мы можем воспользоваться симметрией тензора $\mathcal{A}$: $\mathcal{A}_{(ij)(kl)} \nabla_k \mathbf{u} _l = \mathcal{A} _{(ij)(kl)} \nabla_l \mathbf{u}_k$. Таким образом имеем: 
 ```math
 \int_\Omega (\mathcal{A} : \mathrm{grad}\ \mathbf{u})) : \mathrm{grad}\ \mathbf{v} = \int_\Omega\mathbf{f} \cdot \mathbf{v} - \int_{\Gamma_P} p \mathbf{N}\cdot \mathbf{v}
 ```
