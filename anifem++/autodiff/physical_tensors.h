@@ -53,13 +53,13 @@ struct SymMtx{
         std::size_t imap[N*(N+1)/2];
         std::size_t jmap[N*(N+1)/2];
     };
-    static constexpr Index index(std::size_t continuous_index) { constexpr IndexMap a{}; return Index{a.imap[continuous_index], a.jmap[continuous_index]}; }
+    static Index index(std::size_t continuous_index) { static const IndexMap a{}; return Index{a.imap[continuous_index], a.jmap[continuous_index]}; }
     static std::size_t continuous_index(Index id){ return (2*N-1-id.i)*id.i/2 + id.j; }
 
     std::array<FT, N*(N+1)/2> m_dat = {FT(0)};
     constexpr std::size_t rank() const { return 2U; }
     constexpr std::size_t continuous_size() const { return N*(N+1)/2; }
-    constexpr std::size_t index_duplication(std::size_t continuous_index) const { auto v = index(continuous_index); return (v.first != v.second ? 2 : 1);  }
+    constexpr std::size_t index_duplication(std::size_t continuous_index) const {constexpr IndexMap a{}; return (a.imap[continuous_index] != a.jmap[continuous_index] ? 2 : 1);  }
     
     SymMtx() = default;
     explicit SymMtx(std::array<FT, N*(N+1)/2> arr): m_dat{std::move(arr)} {}
@@ -278,7 +278,7 @@ struct SymTensor4Rank{
         bool operator==(Index a) const { return i == a.i && j == a.j && k == a.k && l == a.l; }
         std::size_t operator[](std::size_t n) const { return id[n]; }
     };
-    static constexpr Index index(std::size_t continuous_index){ auto q = SymMtx<N*N, FT>::index(continuous_index); return Index(q.i/N, q.i%N, q.j/N, q.j%N); }
+    static Index index(std::size_t continuous_index){ auto q = SymMtx<N*N, FT>::index(continuous_index); return Index(q.i/N, q.i%N, q.j/N, q.j%N); }
     static std::size_t continuous_index(Index id){ return SymMtx<N*N, FT>::continuous_index(typename SymMtx<N*N, FT>::Index{id.j + N*id.i, id.l + N*id.k}); }
 
     std::array<FT, N*N*(N*N+1)/2> m_dat = {FT(0)};
@@ -288,7 +288,7 @@ struct SymTensor4Rank{
 
     constexpr std::size_t rank() const { return 4U; }
     constexpr std::size_t continuous_size() const { return N*N*(N*N+1)/2; }
-    constexpr std::size_t index_duplication(std::size_t continuous_index) const { auto q = SymMtx<N*N, FT>::index(continuous_index); return q.i != q.j ? 2 : 1; }
+    constexpr std::size_t index_duplication(std::size_t continuous_index) const { constexpr typename SymMtx<N*N, FT>::IndexMap a{}; return (a.imap[continuous_index] != a.jmap[continuous_index] ? 2 : 1);}
 
     template <typename DataType = FT>
     struct mtx_iterator{
@@ -401,7 +401,7 @@ struct BiSymTensor4Rank{
     //     std::size_t kmap[N*(N+1)/2 * (N*(N+1)/2 + 1)/2];
     //     std::size_t lmap[N*(N+1)/2 * (N*(N+1)/2 + 1)/2];
     // };
-    static constexpr Index index(std::size_t continuous_index) { 
+    static Index index(std::size_t continuous_index) { 
         auto q = SymMtx<N*(N+1)/2, FT>::index(continuous_index); 
         auto ti = SymMtx<N, FT>::index(q.i), tj = SymMtx<N, FT>::index(q.j);
         return Index(ti.i, ti.j, tj.i, tj.i); 
@@ -420,8 +420,10 @@ struct BiSymTensor4Rank{
     constexpr std::size_t rank() const { return 4U; }
     constexpr std::size_t continuous_size() const { return N*(N+1)/2 * (N*(N+1)/2 + 1) / 2; }
     constexpr std::size_t index_duplication(std::size_t continuous_index) const { 
-        auto q = SymMtx<N*(N+1)/2, FT>::index(continuous_index); 
-        return SymMtx<N*(N+1)/2, FT>::index_duplication(continuous_index) * SymMtx<N, FT>::index_duplication(q.i) * SymMtx<N, FT>::index_duplication(q.j);
+        constexpr typename SymMtx<N*(N+1)/2, FT>::IndexMap a{}; 
+        constexpr typename SymMtx<N, FT>::IndexMap b{};
+        auto q = typename SymMtx<N*(N+1)/2, FT>::Index{a.imap[continuous_index], a.jmap[continuous_index]};
+        return (a.imap[continuous_index] != a.jmap[continuous_index] ? 2 : 1) * (b.imap[q.i] != b.jmap[q.i] ? 2 : 1) * (b.imap[q.j] != b.jmap[q.j] ? 2 : 1);
     }
 
     template <typename DataType = FT>

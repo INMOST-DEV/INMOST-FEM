@@ -547,3 +547,59 @@ TEST(ElasticityTest, SymAutoDiff) {
     }};
     EXPECT_NEAR(sqrt((dPe - tensor_convert<Sym4Tensor3D<>>(dPa)).SquareFrobNorm()), 0, 100*sqrt(dPa.SquareFrobNorm()) * std::numeric_limits<double>::epsilon());
 }
+
+TEST(ElasticityTest,  SymAutoDiff_SpeedTest){
+    using namespace Ani;
+    struct PotentialCoefs{
+        double mu = 1;
+        double k1[3] = {1, 1, 1}, k2[3] = {1, 1, 1}, sigma[3] = {0, 0, 0};
+        std::array<double, 3> f[3]{std::array<double, 3>{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+        double kappa = 1;
+    };
+
+    auto get_test_potential = [](const PotentialCoefs& c, const Mtx3D<>& grU, unsigned char dif = 2)->double{
+        Param<> mu(c.mu);
+        std::array<Param<>, 3> k1{Param<>{c.k1[0]}, Param<>{c.k1[1]}, Param<>{c.k1[2]}};
+        std::array<Param<>, 3> k2{Param<>{c.k2[0]}, Param<>{c.k2[1]}, Param<>{c.k2[2]}};
+        std::array<Param<>, 3> sigma{Param<>{c.sigma[0]}, Param<>{c.sigma[1]}, Param<>{c.sigma[2]}};
+        Param<> kappa(c.kappa);
+        SymMtx3D<> E = Mech::grU_to_E(grU);
+
+        // auto I4f = Mech::I8fs<>{dif, E, c.f[0], c.f[0]}, I4s = Mech::I8fs<>{dif, E, c.f[1], c.f[1]}, I4n = Mech::I8fs<>{dif, E, c.f[2], c.f[2]}; 
+        // auto I8sn = Mech::I8fs<>{dif, E, c.f[1], c.f[2]}, I8sf = Mech::I8fs<>{dif, E, c.f[0], c.f[1]}, I8fn = Mech::I8fs<>{dif, E, c.f[0], c.f[2]};
+        
+        auto J = Mech::J<>{dif, E};
+        auto I1 = pow(J, -2.0/3) * Mech::I1<>{dif, E};
+        auto q = (I1 - 3);
+        auto psi_NHK = mu/2 * q;
+        ADVal<> psi_aniso;
+        for (std::size_t i = 0; i < 3; ++i){
+            auto If = pow(J, -2.0/3) * Mech::I8fs<>{dif, E, c.f[i], c.f[i]};
+            auto Ia = sigma[i] * q + (1 - sigma[i]) * (If - 1);
+            psi_aniso = psi_aniso +  k1[i] / (2*k2[i]) * (exp(k2[i] * sq(Ia)) - 1);
+        }
+        auto psi_bulk = kappa/4*(sq(J) - 1 - 2*log(J));
+
+        auto W = psi_NHK + psi_aniso + psi_bulk;
+
+        Mtx3D<> Pe = Mech::S_to_P(grU, W.D());
+        Sym4Tensor3D<> dPe = Mech::dS_to_dP(grU, W.D(), W.DD());
+        return sqrt(Pe.SquareFrobNorm()) + sqrt(dPe.SquareFrobNorm());
+    };
+
+    std::size_t N = 100000;
+    Mtx3D<> grU1;
+    PotentialCoefs pc;
+    auto start = std::chrono::steady_clock::now();
+    double res = 0;
+    for (std::size_t i = 0; i < N; ++i){ 
+        grU1(0,0) = 0.1/N*i;  grU1(0,1) = 0.1/N*i; 
+        res += get_test_potential(pc, grU1);   
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto diff = end - start;
+    auto sym_dif_speed = (std::chrono::duration <double, std::micro> (diff).count()/N);
+
+    std::cout << "res = " << res << " total_cycle(N = " << N << ") time = " << std::chrono::duration <double, std::milli> (diff).count() << "ms\n"
+        << "sym_dif_speed = " << sym_dif_speed << " us / eval\n" <<  std::endl;
+}

@@ -390,7 +390,12 @@ namespace Ani{
 
     
     template<std::size_t N, typename FT>
-    FT Tensor4Rank<N, FT>::SquareFrobNorm() const { return internal::SquareFrobNorm<Tensor4Rank<N, FT>, FT>(*this); }
+    FT Tensor4Rank<N, FT>::SquareFrobNorm() const { 
+        FT v = FT();
+        for (std::size_t i = 0; i < continuous_size(); ++i) 
+            v += m_dat[i] * m_dat[i];
+        return v;         
+    }
     template<std::size_t N, typename FT>
     FT Tensor4Rank<N, FT>::Dot(const Tensor4Rank<N, FT>& b) const { return internal::Dot<Tensor4Rank<N, FT>, FT>(*this, b); }
     template<std::size_t N, typename FT>
@@ -427,7 +432,14 @@ namespace Ani{
     }
 
     template<std::size_t N, typename FT>
-    FT SymTensor4Rank<N, FT>::SquareFrobNorm() const { return internal::SquareFrobNorm<SymTensor4Rank<N, FT>, FT>(*this); }
+    FT SymTensor4Rank<N, FT>::SquareFrobNorm() const { 
+        FT v = FT();
+        static const typename SymMtx<N*N, FT>::IndexMap a{};
+        for (std::size_t i = 0; i < continuous_size(); ++i)
+            v += (a.imap[i] != a.jmap[i] ? 2 : 1)*m_dat[i]*m_dat[i];
+            
+        return v; 
+    }
     template<std::size_t N, typename FT>
     FT SymTensor4Rank<N, FT>::Dot(const SymTensor4Rank<N, FT>& b) const { return internal::Dot<SymTensor4Rank<N, FT>, FT>(*this, b); }
     template<std::size_t N, typename FT>
