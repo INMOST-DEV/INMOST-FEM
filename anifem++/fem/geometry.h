@@ -13,6 +13,8 @@
 #include <stdexcept>
 #include <cmath>
 
+#include "fem_memory.h"
+
 namespace Ani{
     ///@return determinant of input matrix
     template<typename Scalar>

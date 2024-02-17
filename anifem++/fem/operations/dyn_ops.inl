@@ -135,7 +135,7 @@ namespace Ani{
     template<typename TetrasT>
     void fem3DapplyL(const TetrasT& XYZ, ArrayView<> XYL, const DenseMatrix<>& dofs,
                     const ApplyOpBase& applyOpU, DenseMatrix<>& A, DynMem<>& wmem){
-        auto req = fem3DapplyL_memory_requirements(XYL.size/4, XYZ.fusion);                
+        auto req = fem3DapplyL_memory_requirements(applyOpU, XYL.size/4, XYZ.fusion);                
         auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
         req = mem.m_mem;
         fem3DapplyL(XYZ, XYL, dofs, applyOpU, A, req);
@@ -143,7 +143,7 @@ namespace Ani{
     template<typename FuncTraits, typename Functor, typename TetrasT>
     void fem3DapplyL(const TetrasT& XYZ, ArrayView<> XYL, const DenseMatrix<>& dofs, const ApplyOpBase& applyOpU, uint Ddim1, 
                     const Functor& Dfnc, DenseMatrix<>& opU, DynMem<>& wmem, void *user_data){
-        auto req = fem3DapplyL_memory_requirements<FuncTraits>(Ddim1, opU, XYL.size/4, XYZ.fusion);
+        auto req = fem3DapplyL_memory_requirements<FuncTraits>(Ddim1, applyOpU, XYL.size/4, XYZ.fusion);
         auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
         req = mem.m_mem;
         fem3DapplyL<FuncTraits>(XYZ, XYL, dofs, applyOpU, Ddim1, Dfnc, opU, req, user_data);
@@ -151,15 +151,15 @@ namespace Ani{
     template<typename TetraScalarTp>
     void fem3DapplyX(const Tetra<TetraScalarTp>& XYZ, const ArrayView<const double> X, const DenseMatrix<>& dofs,
                     const ApplyOpBase& applyOpU, DenseMatrix<>& opA, DynMem<>& wmem){
-        auto req = fem3DapplyX_memory_requirements(X.size/3, XYZ.fusion);
+        auto req = fem3DapplyX_memory_requirements(applyOpU, X.size/3, XYZ.fusion);
         auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
         req = mem.m_mem;
-        fem3DapplyX(XYZ, X, dofs, applyOpU, opA, wmem);
+        fem3DapplyX(XYZ, X, dofs, applyOpU, opA, req);
     }
     template<typename FuncTraits, typename Functor, typename TetraScalarTp>
     void fem3DapplyX(const Tetra<TetraScalarTp>& XYZ, const ArrayView<const double> X, const DenseMatrix<>& dofs,
                     const ApplyOpBase& applyOpU, uint Ddim1, const Functor& Dfnc, DenseMatrix<>& opU, DynMem<>& wmem, void *user_data){
-        auto req = fem3DapplyX_memory_requirements<FuncTraits>(Ddim1, opU, X.size/3, XYZ.fusion);
+        auto req = fem3DapplyX_memory_requirements<FuncTraits>(Ddim1, applyOpU, X.size/3, XYZ.fusion);
         auto mem = wmem.alloc(req.dSize, req.iSize, req.mSize);
         req = mem.m_mem;
         fem3DapplyX<FuncTraits>(XYZ, X, dofs, applyOpU, Ddim1, Dfnc, opU, req, user_data);
