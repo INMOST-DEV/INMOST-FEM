@@ -5,6 +5,7 @@ if (WITH_INMOST)
         add_subdirectory(kinsol_interface)
     endif()
 endif()
+add_subdirectory(autodiff)
 
 add_library(AniFem++ INTERFACE)
 target_link_libraries(AniFem++ INTERFACE Fem)
