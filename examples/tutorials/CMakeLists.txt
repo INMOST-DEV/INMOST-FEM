@@ -27,3 +27,6 @@ target_link_libraries(unsteady_conv_dif AniFem++ excom)
 
 add_executable(lin_elast lin_elast.cpp prob_args.h prob_args.cpp)
 target_link_libraries(lin_elast AniFem++ excom)
+
+add_executable(nonlin_elast nonlin_elast.cpp prob_args.h prob_args.cpp)
+target_link_libraries(nonlin_elast AniFem++ excom)

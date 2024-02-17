@@ -735,6 +735,52 @@ $$\int_{\Omega}(\mathbb{K}\ \mathrm{grad}\ u) \cdot \mathrm{grad}\ \phi\ d^3\mat
 ```
 В файле [lin_elast.cpp](../../examples/tutorials/lin_elast.cpp) представлено решение этой задачи с использованием runtime интерфейса.
 
+## Стационарная нелинейная упругость: изгиб балки
+Данный пример демонстрирует работу с векторными КЭ пространствами и подход к КЭ дискретизации задач, содержащих несколько физических переменных. Данный пример является логичным продолжением примера с линейным материалом и состоит в переходе от линейной упругости к её аналогу с помощью гиперупругого потенциала Сан Венана-Кирхгофа.
+
+```math
+ \begin{aligned}
+   \mathrm{div}\ \mathbb{P}  + f &= 0\    in\  \Omega  \\
+          \mathbf{u}                      &= \mathbf{u}_0\  on\  \Gamma_D\\
+                  \mathbb{P} \cdot \mathbf{N} &= -p\ \mathrm{adj}\ \mathbb{F}^T \mathbf{N}\ on\  \Gamma_P\\  
+                  \mathbb{P} \cdot \mathbf{N} &= 0\    on\  \Gamma_0\\
+                  \mathbb{P} &= \mathbb{F} \cdot \mathbb{S} = \frac{\partial W} {\partial \mathbb{F}},\ W = \frac{\lambda}{2}(\mathrm{tr}\ \mathbb{E})^2 + \mu\ \mathrm{tr} (\mathbb{E}^2)\\ 
+   \mathbb{F}_{ij} &= \mathbb{I}_{ij} + \mathrm{grad}_j \mathbf{u}_i\\
+   \mathbb{S} &= \lambda\ \mathrm{tr}\ \mathbb{E}\ \mathbb{I} + 2 \mu \mathbb{E} \\
+   \mathbb{E} &= \frac{\mathbb{F}^T \cdot \mathbb{F}  - \mathbb{I} } {2} \\
+   \mathrm{adj}\ \mathbb{F}^T &= \frac{\partial J} {\partial \mathbb{F}},\ J = \mathrm{det}\ {\mathbb{F}}
+ \end{aligned}
+``` 
+
+где $\Omega = [0,10]\times[0,1]^2$, $\Gamma_D = \{0\}\times [0,1]^2$, $\Gamma_P = [0,10] \times [0, 1] \times\{0\}$, $\Gamma_0 = \partial \Omega \setminus (\Gamma_D \cup \Gamma_P)$; 
+- $\mu(x) = 3.0,\ \lambda(x) = 1.0$ - коэффициенты Ламе
+- $\mathbf{f}(x) = (0, 0, 0)^T$ - вектор плотности внешних массовых сил
+- $\mathbf{u}_0(x) = ( 0, 0, 0 )^T$ - начальное смещение
+- $p(x) = 0.001$ - давление, прикладываемое на нижную границу
+
+Слабая постановка имеет вид ($\mathbf{u} \leftrightarrow \mathbf{v}$):
+```math
+\mathcal{R}_{\mathbf{v}}(\mathbf{u}) = \int_\Omega \mathbb{P}^{ij}\nabla_j \mathbf{v}_i\ d^3\mathbf{x} + \int_{\partial \Omega_p} p \mathbf{N}_j (\mathrm{adj}\ \mathbb{F})^{ji} \mathbf{v}_i\ dS - \int_\Omega\mathbf{f}^i \mathbf{v}_i = 0\\
+```
+
+После дискретизации 
+```math
+\mathbf{u}^h = \sum\limits_{k = 1}^{K} u_k \mathbf{\phi}^{(k)},
+```
+имеем нелинейную алгебраическую систему: 
+```math
+\mathcal{R}^h_{k}(\mathbf{u}^h) = \int_\Omega \mathbb{P}^{ij}(\mathbf{u}^h) \nabla_j \mathbf{\phi}^{(k)}_i\ d^3\mathbf{x} + \int_{\partial \Omega_p} p \mathbf{N}_j \{\mathrm{adj}\ \mathbb{F}(\mathbf{u}^h)\}^{ji} \mathbf{\phi}^{(k)}_i\ dS - \int_\Omega\mathbf{f}^i \mathbf{\phi}^{(k)}_i = 0.
+```
+Якобиан системы имеет вид:
+```math
+J^h_{kl}(\mathbf{u}^h) = \int_\Omega \frac{\partial^2 W}{\partial \mathbb{F}_{ij} \partial \mathbb{F}_{qr}} \nabla_r \mathbf{\phi}^{(l)}_q \nabla_j \mathbf{\phi}^{(k)}_i d^3\mathbf{x} + \int_{\partial \Omega_p} p \frac{\partial^2 J} {\partial \mathbb{F}_{ij} \partial \mathbb{F}_{qr}} \nabla_r \mathbf{\phi}^{(l)}_q \mathbf{N}_j \mathbf{\phi}^{(k)}_i\ dS.
+```
+
+Решать полученную систему будем методом Ньютона:
+```math
+\mathbf{u}^h_{n+1} = \mathbf{u}^h_{n} - \{J^h(\mathbf{u}^h_{n})\}^{-1}\mathcal{R}^h(\mathbf{u}^h_{n})
+```
+
 
 ## Стационарное уравнение Стокса
 Данный пример демонстрирует работу с векторными КЭ пространствами и подход к КЭ дискретизации задач, содержащих несколько физических переменных.
