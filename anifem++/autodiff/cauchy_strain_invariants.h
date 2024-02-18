@@ -77,20 +77,33 @@ namespace Ani{
         template<typename FT = double>
         inline BiSym4Tensor3D<FT> C_J_ddE(const SymMtx3D<FT>& E);
 
-        /// @return I8fs(C) = f^T*C*s
+        /// @return I4fs(C) = f^T*C*s
         template<typename FT = double>
-        inline FT C_I8fs(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) { return (SymMtx3D<FT>::Identity()+2*E).Dot(PhysArr<3, FT>(f), PhysArr<3, FT>(s)); }
-        /// @return S_8fs = d (I8fs(C)) / d E_{ij} 
+        inline FT C_I4fs(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) { return (SymMtx3D<FT>::Identity()+2*E).Dot(PhysArr<3, FT>(f), PhysArr<3, FT>(s)); }
+        /// @return S_4fs = d (I4fs(C)) / d E_{ij} 
         template<typename FT = double>
-        inline SymMtx3D<FT> C_I8fs_dE(std::array<FT, 3> f, std::array<FT, 3> s);
+        inline SymMtx3D<FT> C_I4fs_dE(std::array<FT, 3> f, std::array<FT, 3> s);
         template<typename FT = double>
-        inline SymMtx3D<FT> C_I8fs_dE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) { (void) E; return C_I8fs_dE(f, s); }
+        inline SymMtx3D<FT> C_I4fs_dE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) { (void) E; return C_I4fs_dE(f, s); }
+        /// @return dS_4fs = d^2 (I4fs(C)) / (d E_{ij} d E_{kl}) 
         template<typename FT = double>
-        inline BiSym4Tensor3D<FT> C_I8fs_ddE() { return BiSym4Tensor3D<FT>(); }
+        inline BiSym4Tensor3D<FT> C_I4fs_ddE() { return BiSym4Tensor3D<FT>(); }
         template<typename FT = double>
-        inline BiSym4Tensor3D<FT> C_I8fs_ddE(std::array<FT, 3> f, std::array<FT, 3> s) { (void) f, (void) s; return C_I8fs_ddE(); }
+        inline BiSym4Tensor3D<FT> C_I4fs_ddE(std::array<FT, 3> f, std::array<FT, 3> s) { (void) f, (void) s; return C_I4fs_ddE(); }
         template<typename FT = double>
-        inline BiSym4Tensor3D<FT> C_I8fs_ddE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) { (void) E, (void) f, (void) s; return C_I8fs_ddE(); }
+        inline BiSym4Tensor3D<FT> C_I4fs_ddE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) { (void) E, (void) f, (void) s; return C_I4fs_ddE(); }
+    
+        /// @return I5fs(C) = f^T*C^2*s
+        template<typename FT = double>
+        inline FT C_I5fs(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s);
+        /// @return S_5fs(C) = d (I5fs(C)) / d E_{ij}
+        template<typename FT = double>
+        inline SymMtx3D<FT> C_I5fs_dE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s);
+        /// @return dS_5fs = d^2 (I5fs(C)) / (d E_{ij} d E_{kl}) 
+        template<typename FT = double>
+        inline BiSym4Tensor3D<FT> C_I5fs_ddE(std::array<FT, 3> f, std::array<FT, 3> s);
+        template<typename FT = double>
+        inline BiSym4Tensor3D<FT> C_I5fs_ddE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s){ (void) E; return C_I5fs_ddE(f, s); }
     }
 
 }

@@ -108,7 +108,7 @@ inline BiSym4Tensor3D<FT> C_J_ddE(const SymMtx3D<FT>& E) {
     return C_I3_ddE(E)/(2*Jv) - BiSym4Tensor3D<FT>::TensorSquare(t) / (Jv*Jv*Jv);
 }
 template<typename FT>
-inline SymMtx3D<FT> C_I8fs_dE(std::array<FT, 3> f, std::array<FT, 3> s) { 
+inline SymMtx3D<FT> C_I4fs_dE(std::array<FT, 3> f, std::array<FT, 3> s) { 
     SymMtx3D<FT> r;
     for (int i = 0; i < 3; ++i)
         r(i, i) = 2*f[i]*s[i];
@@ -116,6 +116,44 @@ inline SymMtx3D<FT> C_I8fs_dE(std::array<FT, 3> f, std::array<FT, 3> s) {
     for (int j = i+1; j < 3; ++j)
         r(i, j) = f[i]*s[j] + f[j]*s[i];
     return r;    
+}
+
+template<typename FT>
+inline FT C_I5fs(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) {
+    std::array<FT, 3> Ef = E.Mul(f), Es = E.Mul(s); 
+    return (f[0] + 2*Ef[0])*(s[0] + 2*Es[0]) + (f[1] + 2*Ef[1])*(s[1] + 2*Es[1]) + (f[2] + 2*Ef[2])*(s[2] + 2*Es[2]); 
+}
+template<typename FT>
+inline SymMtx3D<FT> C_I5fs_dE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s){
+    std::array<FT, 3> Ef = E.Mul(f), Es = E.Mul(s);
+    std::array<FT, 3> Cf, Cs;
+    for (std::size_t i = 0; i < 3; ++i) Cf[i] = f[i] + 2*Ef[i], Cs[i] = s[i] + 2*Es[i];
+    SymMtx3D<FT> r;
+    for (int i = 0; i < 3; ++i)
+    for (int j = i; j < 3; ++j)
+        r(i, j) = Cf[i]*s[j] + Cf[j]*s[i] + f[i]*Cs[j] + f[j]*Cs[i];
+    return r;    
+}
+template<typename FT>
+inline BiSym4Tensor3D<FT> C_I5fs_ddE(std::array<FT, 3> f, std::array<FT, 3> s){
+    SymMtx3D<FT> fs = SymMtx3D<FT>::TensorSymMul2(PhysArr<3, FT>(f), PhysArr<3, FT>(s));
+    BiSym4Tensor3D<FT> r;
+    r(0, 0, 0, 0) = 4 * fs(0, 0);
+    r(0, 0, 0, 1) = 2 * fs(0, 1);
+    r(0, 1, 0, 1) = fs(0, 0) + fs(1, 1);
+    r(0, 0, 0, 2) = 2 * fs(0, 2);
+    r(0, 1, 0, 2) = fs(1, 2);
+    r(0, 2, 0, 2) = fs(0, 0) + fs(2, 2);
+    r(0, 1, 1, 1) = 2 * fs(0, 1);
+    r(1, 1, 1, 1) = 4 * fs(1, 1);
+    r(0, 1, 1, 2) = fs(0, 2);
+    r(0, 2, 1, 2) = fs(0, 1);
+    r(1, 1, 1, 2) = 2 * fs(1, 2);
+    r(1, 2, 1, 2) = fs(1, 1) + fs(2, 2);
+    r(0, 2, 2, 2) = 2 * fs(0, 2);
+    r(1, 2, 2, 2) = 2 * fs(1, 2);
+    r(2, 2, 2, 2) = 4 * fs(2, 2);
+    return r;
 }
 
 }}

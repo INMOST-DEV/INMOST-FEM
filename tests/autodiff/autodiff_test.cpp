@@ -157,8 +157,9 @@ TEST(ElasticityTest, SymAutoDiff) {
         return oss.str();
     };
     auto test_invariants = [E, f, s, n, to_short_str, to_short_str1](unsigned char dif){
-        auto I4f = Mech::I8fs<>{dif, E, f, f}, I4s = Mech::I8fs<>{dif, E, s, s}, I4n = Mech::I8fs<>{dif, E, n, n}; 
-        auto I8sn = Mech::I8fs<>{dif, E, s, n}, I8sf = Mech::I8fs<>{dif, E, f, s}, I8fn = Mech::I8fs<>{dif, E, f, n};
+        auto I4f = Mech::I4fs<>{dif, E, f, f}, I4s = Mech::I4fs<>{dif, E, s, s}, I4n = Mech::I4fs<>{dif, E, n, n}; 
+        auto I4sn = Mech::I4fs<>{dif, E, s, n}, I4sf = Mech::I4fs<>{dif, E, f, s}, I4fn = Mech::I4fs<>{dif, E, f, n};
+        auto I5sf = Mech::I5fs<>{dif, E, f, s};
         auto I1 = Mech::I1<>{dif, E}; 
         auto I2 = Mech::I2<>{dif, E};
         auto I3 = Mech::I3<>{dif, E};
@@ -172,9 +173,10 @@ TEST(ElasticityTest, SymAutoDiff) {
         EXPECT_NEAR(I4f(), 5.0642857142857149, 100*std::numeric_limits<double>::epsilon());
         EXPECT_NEAR(I4s(), 0.92994505494505508, 100*std::numeric_limits<double>::epsilon());  
         EXPECT_NEAR(I4n(), 0.93076923076923090, 100*std::numeric_limits<double>::epsilon());
-        EXPECT_NEAR(I8sf(), 0.69357335249447383, 100*std::numeric_limits<double>::epsilon());  
-        EXPECT_NEAR(I8fn(), 0.55445448886250381, 100*std::numeric_limits<double>::epsilon());   
-        EXPECT_NEAR(I8sn(), 0.020352971499484673, 100*std::numeric_limits<double>::epsilon());
+        EXPECT_NEAR(I4sf(), 0.69357335249447383, 100*std::numeric_limits<double>::epsilon());  
+        EXPECT_NEAR(I4fn(), 0.55445448886250381, 100*std::numeric_limits<double>::epsilon());   
+        EXPECT_NEAR(I4sn(), 0.020352971499484673, 100*std::numeric_limits<double>::epsilon());
+        EXPECT_NEAR(I5sf(), 4.1687235266504956, 100*std::numeric_limits<double>::epsilon());
         EXPECT_NEAR(I1(), 6.925, 100*std::numeric_limits<double>::epsilon());
         EXPECT_NEAR(I2(), 9.499875, 100*std::numeric_limits<double>::epsilon());
         EXPECT_NEAR(I3(), 3.663396, 100*std::numeric_limits<double>::epsilon());
@@ -184,20 +186,28 @@ TEST(ElasticityTest, SymAutoDiff) {
             SymMtx3D<> dI4f(std::array<double, 6>{1.4285714285714288e-01, 2.8571428571428575e-01, 4.2857142857142860e-01, 
                                             5.7142857142857151e-01, 8.5714285714285721e-01, 1.2857142857142858e+00});
             SymMtx3D<> dI1 = SymMtx3D<>::Identity(2);   
-            SymMtx3D<> dI8sf(std::array<double, 6>{5.1507875363771272e-01, 4.7545731105019634e-01, 7.1318596657529454e-01, 
+            SymMtx3D<> dI4sf(std::array<double, 6>{5.1507875363771272e-01, 4.7545731105019634e-01, 7.1318596657529454e-01, 
                                                 -1.5848577035006547e-01, -2.3772865552509820e-01, -3.5659298328764732e-01});
+            SymMtx3D<> dI5sf(std::array<double, 6>{ 4.4746476186211606e+00, 3.2990794170495508e+00, 3.9756155492313923e+00, 
+                                                -6.4186736991776483e-01, -8.3422947368015699e-01, -1.0584868387255000e+00});
             SymMtx3D<> dI2(std::array<double, 6>{10.685, -2.12, -2.575, 8.87, -3.62, 8.145});
             SymMtx3D<> dI3(std::array<double, 6>{7.65325, -1.38655, -2.57455, 5.71285, -2.99915, 5.63365});
             SymMtx3D<> dJ(std::array<double, 6>{1.9992816091954024e+00, -3.6221264367816119e-01, -6.7255747126436760e-01, 
                                                 1.4923850574712652e+00, -7.8347701149425264e-01, 1.4716954022988502e+00});
             EXPECT_NEAR((I4f.D() - dI4f).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
-            EXPECT_NEAR((I8sf.D() - dI8sf).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
+            EXPECT_NEAR((I4sf.D() - dI4sf).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
+            EXPECT_NEAR((I5sf.D() - dI5sf).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I1.D() - dI1).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I2.D() - dI2).SquareFrobNorm(), 0, 100*dI2.SquareFrobNorm()*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I3.D() - dI3).SquareFrobNorm(), 0, 100*dI3.SquareFrobNorm()*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((J.D() - dJ).SquareFrobNorm(), 0, 100*dJ.SquareFrobNorm()*std::numeric_limits<double>::epsilon());
         }   
         if (dif >= 2){
+            BiSym4Tensor3D<> ddI5sf(std::array<double, 21>{2.0603150145508509e+00, 9.5091462210039268e-01, 3.5659298328764721e-01, 1.4263719331505891e+00, 
+                            -2.3772865552509820e-01, 1.5848577035006539e-01, 0.0000000000000000e+00, 9.5091462210039268e-01, 0.0000000000000000e+00, 
+                            -6.3394308140026190e-01, 0.0000000000000000e+00, 7.1318596657529454e-01, 4.7545731105019634e-01, -4.7545731105019640e-01, 
+                            -5.1507875363771283e-01, 0.0000000000000000e+00, 0.0000000000000000e+00, 1.4263719331505891e+00, 0.0000000000000000e+00, 
+                            -4.7545731105019640e-01, -1.4263719331505893e+00});
             BiSym4Tensor3D<> ddI2(std::array<double, 21>{0, 0, -2, 0, 0, -2, 4, 0, 0, 0, 0, 0, 0, 0, -2, 4, 0, 0, 4, 0, 0});
             BiSym4Tensor3D<> ddI3(std::array<double, 21>{0, 0, -5.705, 0, 3.62, -4.98, 11.41, 0, -5.15, 0, -7.24, 2.575, 2.12, 0, -3.165, 9.96, -4.24, 0, 6.33, 0, 0});
             BiSym4Tensor3D<> ddJ(std::array<double, 21>{ -2.0883630892721823e+00, 3.7835165993928688e-01, -1.5588808773460410e+00, 7.0252444275120962e-01, 
@@ -206,7 +216,8 @@ TEST(ElasticityTest, SymAutoDiff) {
                             -1.1475110906687385e+00, 1.0646115192510333e+00, -8.2911876574939281e-01, 5.1713674934248233e-01, 5.0609392500524286e-01, 
                             6.0242398935367569e-01, -1.1316025899412616e+00});
             EXPECT_NEAR((I4f.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
-            EXPECT_NEAR((I8sf.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
+            EXPECT_NEAR((I4sf.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
+            EXPECT_NEAR((I5sf.DD() - ddI5sf).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I1.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I2.DD() - ddI2).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I3.DD() - ddI3).SquareFrobNorm(), 0, 100*ddI3.SquareFrobNorm()*std::numeric_limits<double>::epsilon());
@@ -492,12 +503,12 @@ TEST(ElasticityTest, SymAutoDiff) {
     double mu = 1e2, bf = 2, bt = 7, bfs = 1;
     auto get_fung_potential = [&mu_ = mu, &bf_ = bf, &bt_ = bt, &bfs_ = bfs, &f, &s, &n](const SymMtx3D<>& E, unsigned char dif){
         Param<> mu(mu_), bf(bf_), bt(bt_), bfs(bfs_);
-        auto I4f = Mech::I8fs<>{dif, E, f, f}, I4s = Mech::I8fs<>{dif, E, s, s}, I4n = Mech::I8fs<>{dif, E, n, n}; 
-        auto I8sn = Mech::I8fs<>{dif, E, s, n}, I8sf = Mech::I8fs<>{dif, E, f, s}, I8fn = Mech::I8fs<>{dif, E, f, n};
+        auto I4f = Mech::I4fs<>{dif, E, f, f}, I4s = Mech::I4fs<>{dif, E, s, s}, I4n = Mech::I4fs<>{dif, E, n, n}; 
+        auto I4sn = Mech::I4fs<>{dif, E, s, n}, I4sf = Mech::I4fs<>{dif, E, f, s}, I4fn = Mech::I4fs<>{dif, E, f, n};
 
         auto Lf = sq(I4f - 1.);
-        auto Lt = sq(I4s - 1.) + sq(I4n - 1.) + 2 * sq(I8sn);
-        auto Lfs = 2*(sq(I8sf) + sq(I8fn));
+        auto Lt = sq(I4s - 1.) + sq(I4n - 1.) + 2 * sq(I4sn);
+        auto Lfs = 2*(sq(I4sf) + sq(I4fn));
         auto Q = (bf*Lf + bt*Lt + bfs*Lfs)/4;
         auto W = mu/2*(exp(Q) - 1);
         return W;
@@ -565,8 +576,8 @@ TEST(ElasticityTest,  SymAutoDiff_SpeedTest){
         Param<> kappa(c.kappa);
         SymMtx3D<> E = Mech::grU_to_E(grU);
 
-        // auto I4f = Mech::I8fs<>{dif, E, c.f[0], c.f[0]}, I4s = Mech::I8fs<>{dif, E, c.f[1], c.f[1]}, I4n = Mech::I8fs<>{dif, E, c.f[2], c.f[2]}; 
-        // auto I8sn = Mech::I8fs<>{dif, E, c.f[1], c.f[2]}, I8sf = Mech::I8fs<>{dif, E, c.f[0], c.f[1]}, I8fn = Mech::I8fs<>{dif, E, c.f[0], c.f[2]};
+        // auto I4f = Mech::I4fs<>{dif, E, c.f[0], c.f[0]}, I4s = Mech::I4fs<>{dif, E, c.f[1], c.f[1]}, I4n = Mech::I4fs<>{dif, E, c.f[2], c.f[2]}; 
+        // auto I4sn = Mech::I4fs<>{dif, E, c.f[1], c.f[2]}, I4sf = Mech::I4fs<>{dif, E, c.f[0], c.f[1]}, I4fn = Mech::I4fs<>{dif, E, c.f[0], c.f[2]};
         
         auto J = Mech::J<>{dif, E};
         auto I1 = pow(J, -2.0/3) * Mech::I1<>{dif, E};
@@ -574,7 +585,7 @@ TEST(ElasticityTest,  SymAutoDiff_SpeedTest){
         auto psi_NHK = mu/2 * q;
         ADVal<> psi_aniso;
         for (std::size_t i = 0; i < 3; ++i){
-            auto If = pow(J, -2.0/3) * Mech::I8fs<>{dif, E, c.f[i], c.f[i]};
+            auto If = pow(J, -2.0/3) * Mech::I4fs<>{dif, E, c.f[i], c.f[i]};
             auto Ia = sigma[i] * q + (1 - sigma[i]) * (If - 1);
             psi_aniso = psi_aniso +  k1[i] / (2*k2[i]) * (exp(k2[i] * sq(Ia)) - 1);
         }
