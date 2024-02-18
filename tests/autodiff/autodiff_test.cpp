@@ -157,6 +157,7 @@ TEST(ElasticityTest, SymAutoDiff) {
         return oss.str();
     };
     auto test_invariants = [E, f, s, n, to_short_str, to_short_str1](unsigned char dif){
+        auto I0sf = Mech::I0fs<>{dif, f, s}, I0ff = Mech::I0fs<>{dif, f, f};
         auto I4f = Mech::I4fs<>{dif, E, f, f}, I4s = Mech::I4fs<>{dif, E, s, s}, I4n = Mech::I4fs<>{dif, E, n, n}; 
         auto I4sn = Mech::I4fs<>{dif, E, s, n}, I4sf = Mech::I4fs<>{dif, E, f, s}, I4fn = Mech::I4fs<>{dif, E, f, n};
         auto I5sf = Mech::I5fs<>{dif, E, f, s};
@@ -170,6 +171,8 @@ TEST(ElasticityTest, SymAutoDiff) {
         // BiSym4Tensor3D<> ddV = V_.DD();
         // std::cout << std::scientific << std::setprecision(16) 
         //           << "V = " << V << "\ndV = \n" << to_short_str(dV) << "\nddV = \n" << to_short_str1(ddV) << "\n" << std::endl;
+        EXPECT_NEAR(I0sf(), 0, 100*std::numeric_limits<double>::epsilon());
+        EXPECT_NEAR(I0ff(), 1, 100*std::numeric_limits<double>::epsilon());
         EXPECT_NEAR(I4f(), 5.0642857142857149, 100*std::numeric_limits<double>::epsilon());
         EXPECT_NEAR(I4s(), 0.92994505494505508, 100*std::numeric_limits<double>::epsilon());  
         EXPECT_NEAR(I4n(), 0.93076923076923090, 100*std::numeric_limits<double>::epsilon());
@@ -194,6 +197,8 @@ TEST(ElasticityTest, SymAutoDiff) {
             SymMtx3D<> dI3(std::array<double, 6>{7.65325, -1.38655, -2.57455, 5.71285, -2.99915, 5.63365});
             SymMtx3D<> dJ(std::array<double, 6>{1.9992816091954024e+00, -3.6221264367816119e-01, -6.7255747126436760e-01, 
                                                 1.4923850574712652e+00, -7.8347701149425264e-01, 1.4716954022988502e+00});
+            EXPECT_NEAR((I0ff.D()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
+            EXPECT_NEAR((I0sf.D()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I4f.D() - dI4f).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I4sf.D() - dI4sf).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I5sf.D() - dI5sf).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
@@ -215,6 +220,8 @@ TEST(ElasticityTest, SymAutoDiff) {
                             -1.1636432391658880e+00, -1.0729408671327922e+00, 5.2440685496635386e-01, 2.7850923843033504e-01, 6.1089309552051452e-01, 
                             -1.1475110906687385e+00, 1.0646115192510333e+00, -8.2911876574939281e-01, 5.1713674934248233e-01, 5.0609392500524286e-01, 
                             6.0242398935367569e-01, -1.1316025899412616e+00});
+            EXPECT_NEAR((I0ff.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
+            EXPECT_NEAR((I0sf.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I4f.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I4sf.DD()).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());
             EXPECT_NEAR((I5sf.DD() - ddI5sf).SquareFrobNorm(), 0, 100*std::numeric_limits<double>::epsilon());

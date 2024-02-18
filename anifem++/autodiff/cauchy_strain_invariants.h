@@ -104,6 +104,22 @@ namespace Ani{
         inline BiSym4Tensor3D<FT> C_I5fs_ddE(std::array<FT, 3> f, std::array<FT, 3> s);
         template<typename FT = double>
         inline BiSym4Tensor3D<FT> C_I5fs_ddE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s){ (void) E; return C_I5fs_ddE(f, s); }
+
+        /// @return I0fs(C) = f^T*s
+        template<typename FT = double>
+        inline FT C_I0fs(std::array<FT, 3> f, std::array<FT, 3> s) { return f[0]*s[0] + f[1]*s[1] + f[2]*s[2]; }
+        template<typename FT = double>
+        inline FT C_I0fs(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s){ (void) E; return C_I0fs(f, s); }
+        /// @return S_I0fs(C) = 0
+        template<typename FT = double>
+        inline SymMtx3D<FT> C_I0fs_dE() { return SymMtx3D<FT>(); }
+        template<typename FT = double>
+        inline SymMtx3D<FT> C_I0fs_dE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s){(void) E, (void) f, (void) s; return SymMtx3D<FT>(); }
+        /// @return dS_I0fs(C) = 0
+        template<typename FT = double>
+        inline BiSym4Tensor3D<FT> C_I0fs_ddE() { return BiSym4Tensor3D<FT>(); }
+        template<typename FT = double>
+        inline BiSym4Tensor3D<FT> C_I0fs_ddE(const SymMtx3D<FT>& E, std::array<FT, 3> f, std::array<FT, 3> s) { (void) E, (void) f, (void) s; return BiSym4Tensor3D<FT>(); }
     }
 
 }

@@ -13,6 +13,31 @@
 namespace Ani{
 namespace Mech{
 
+    /// Autodifferentiable variable for I0fs = f^T*s
+    template<typename FT = double>
+    struct I0fs: public ADExpr{
+        using State = ADState<true, false, false>;
+        using Storage = PhysSymTensorStorageSet<3, FT>;
+        using VT = typename Storage::ValueType;
+        using GT = typename Storage::GradientType;
+        using HT = typename Storage::HessianType;
+
+        FT m_v = FT(0);
+        unsigned char m_dif = -1;
+
+        void Init(int numdif, std::array<FT, 3> f, std::array<FT, 3> s){
+            m_v = C_I0fs<FT>(f, s);
+            m_dif = numdif;
+        }
+
+        I0fs() = default;
+        I0fs(int numdif, std::array<FT, 3> f, std::array<FT, 3> s){ Init(numdif, f, s); }
+
+        FT operator()() const { return m_v; }
+        SymMtx3D<FT> D() const { return C_I0fs_dE<FT>(); }
+        BiSym4Tensor3D<FT> DD() const { return C_I0fs_ddE<FT>(); }
+    };
+
     /// Autodifferentiable variable for I1(C) = tr(C)
     template<typename FT = double>
     struct I1: public ADExpr{
