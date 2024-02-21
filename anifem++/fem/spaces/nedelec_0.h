@@ -199,7 +199,7 @@ namespace Ani{
                 t[k] = X[1][k] - X[0][k];
                 t_nrm += t[k]*t[k];
             }
-            t_nrm = sqrt(t_nrm);
+            t_nrm = std::sqrt(t_nrm);
             for (int k = 0; k < 3; ++k)
                 t[k] /= t_nrm;
             

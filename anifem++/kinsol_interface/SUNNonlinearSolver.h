@@ -332,6 +332,7 @@ public:
     /// @warning MAA should be setted before call Init() and should be less than MaxIters
     static std::vector<ParamDiscr> GetAvaliableParametrs();
     std::string GetReason();
+    int GetReasonFlag() const { return reason_flag; } ///< on success return >= 0
     long GetNumFuncEvals(){      long res =  0; KINGetNumFuncEvals(kin, &res);       return res; }
     long GetNumNolinSolvIters(){ long res =  0; KINGetNumNonlinSolvIters(kin, &res); return res; }
     long GetNumBetaCondFails(){  long res =  0; KINGetNumBetaCondFails(kin, &res);   return res; }
