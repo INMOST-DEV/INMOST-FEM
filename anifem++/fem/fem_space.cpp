@@ -446,11 +446,13 @@ namespace Ani{
     }
     PlainMemoryX<> VectorFemSpace::interpolateByDOFs_mem_req(uint max_quad_order) const {
         auto vdim = m_order.target<DofT::VectorDofMap>()->m_dim;
+        auto ldim = m_base->dim();
         PlainMemoryX<> res;
         for (auto it = m_base->m_order.begin(); it != m_base->m_order.end(); ++it){
             auto lres = m_base->interpolateOnDOF_mem_req(it->gid, vdim, max_quad_order);
             res.extend_size(lres);
         }
+        res.dSize += vdim*ldim;
         res.mSize += (sizeof(ArrayView<>)*vdim) / sizeof(DenseMatrix<>) + 1 + std::max(1UL, sizeof(ArrayView<>)/sizeof(DenseMatrix<>));
         return res; 
     }

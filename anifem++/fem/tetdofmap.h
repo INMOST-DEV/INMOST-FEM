@@ -531,6 +531,8 @@ namespace Ani{
             /// ext_dims = 2, 1 defines Complex -> 2-Vector[] -> 1-Unite[1]=Unite
             inline NestedDofMap GetNestedDofMap(const int* ext_dims = nullptr, int ndims = 0) const { return (ndims > 0) ? m_invoker->GetNestedDofMap(ext_dims, ndims) : (ndims == 0 ? NestedDofMap(m_invoker) : NestedDofMap()); }
             inline NestedDofMap GetNestedDofMap(const std::initializer_list<int>& ext_dims) const { return GetNestedDofMap(ext_dims.begin(), ext_dims.size()); }
+            inline NestedDofMapView GetNestedDofMapView(const int* ext_dims = nullptr, int ndims = 0) const { return (ndims > 0) ? m_invoker->GetNestedDofMapView(ext_dims, ndims) : (ndims == 0 ? NestedDofMapView(m_invoker.get()) : NestedDofMapView()); }
+            inline NestedDofMapView GetNestedDofMapView(const std::initializer_list<int>& ext_dims) const { return GetNestedDofMapView(ext_dims.begin(), ext_dims.size()); }
             /// Return stored subspace. Parameters same as for GetNestedComponent
             /// @see GetNestedComponent
             inline const DofMap GetSubDofMap(const int* ext_dims, int ndims) const { return (ndims > 0) ? DofMap(m_invoker->GetSubDofMap(ext_dims, ndims)) : (ndims == 0 ? *this : DofMap()); }
