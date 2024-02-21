@@ -53,7 +53,8 @@ int main(int argc, char* argv[]){
     uint unf = UFem.dofMap().NumDofOnTet();
     auto& dofmap = UFem.dofMap();
     auto mask = GeomMaskToInmostElementType(dofmap.GetGeomMask()) | FACE;
-    const int INTERNAL_PART = 0, FREE_BND = 1, DIRICHLET_BND = 2, PRESSURE_BND = 4;
+    const int INTERNAL_PART = 0, FREE_BND = 1, PRESSURE_BND = 2, FIX_X = 4, FIX_Y = 8, FIX_Z = 16;
+    const bool fix_only_part = false;
     
     // Set boundary labels on all boundaries
     Tag BndLabel = m->CreateTag("bnd_label", DATA_INTEGER, mask, NONE, 1);
@@ -63,16 +64,36 @@ int main(int argc, char* argv[]){
     for (auto it = m->BeginFace(); it != m->EndFace(); ++it) if (it->GetMarker(bmrk)) {
         std::array<double, 3> c;
         it->Centroid(c.data());
-        int lbl = FREE_BND;
-        if (abs(c[2] - 0) < 10*std::numeric_limits<double>::epsilon()) lbl = PRESSURE_BND;
-        if (abs(c[0] - 0) < 10*std::numeric_limits<double>::epsilon()) lbl = DIRICHLET_BND;
-        auto set_label = [BndLabel, lbl](const auto& elems){
-            for (unsigned ni = 0; ni < elems.size(); ni++)
+        int face_lbl = FREE_BND;
+        double mesh_h = 1.0/p.axis_sizes;
+        if (abs(c[2] - 0) < 10*std::numeric_limits<double>::epsilon()) face_lbl = PRESSURE_BND;
+        if (abs(c[0] - 0) < 10*std::numeric_limits<double>::epsilon()) {
+            if (fix_only_part) {
+                face_lbl = FIX_X;
+                if (abs(c[1] - 0.5) < 0.26 * mesh_h && abs(c[2] - 0.5) < 0.26 * mesh_h) 
+                    face_lbl |= (FIX_Y | FIX_Z);
+            } else
+                face_lbl = (FIX_X | FIX_Y | FIX_Z);
+        }
+        auto set_label = [BndLabel, face_lbl, mesh_h, fix_only_part](const auto& elems){
+            for (unsigned ni = 0; ni < elems.size(); ni++){
+                int lbl  = face_lbl;
+                if (fix_only_part && (face_lbl & FIX_X)){
+                    std::array<double, 3> ec;
+                    elems[ni].Centroid(ec.data());
+                    if (abs(ec[1] - 0.5) < 0.01 * mesh_h && abs(ec[2] - 0.5) < 0.01 * mesh_h)
+                        lbl |= (FIX_Y | FIX_Z);
+                    if (abs(ec[1] - 0.5) < 0.51 * mesh_h && abs(ec[2] - 0) < 10*std::numeric_limits<double>::epsilon()) 
+                        lbl |= FIX_Y;
+                    if (abs(ec[1] - 0) < 10*std::numeric_limits<double>::epsilon() && abs(ec[2] - 0.5) < 0.51 * mesh_h) 
+                        lbl |= FIX_Z;
+                }
                 elems[ni].Integer(BndLabel) |= lbl;
+            }
         };
         if (mask & NODE) set_label(it->getNodes());
         if (mask & EDGE) set_label(it->getEdges());
-        if (mask & FACE) set_label(it->getFaces());
+        if (mask & FACE) it->Integer(BndLabel) |= face_lbl;
     }
     m->ReleaseMarker(bmrk);
 
@@ -182,14 +203,17 @@ int main(int argc, char* argv[]){
         }
 
         // choose boundary parts of the tetrahedron 
-        DofT::TetGeomSparsity sp = dat.lbl.getSparsity(DIRICHLET_BND);
-
-        //set dirichlet condition
-        if (!sp.empty()){
-            auto mem = fem_alloc->alloc(unf, 0, 0);
-            ArrayView<> dof_values(mem.getPlainMemory().ddata, mem.getPlainMemory().dSize);
-            UFem.interpolateByDOFs(XYZ, U_0, dof_values, sp, adapt_alloc, user_data);
-            applyDirByDofs(*(UFem.dofMap().target<>()), A, F, sp, ArrayView<const double>(dof_values.data, dof_values.size));
+        const std::array<const int, 3> DIR_LABELS = {FIX_X, FIX_Y, FIX_Z};
+        auto mem = fem_alloc->alloc(unf, 0, 0);
+        ArrayView<> dof_values(mem.getPlainMemory().ddata, mem.getPlainMemory().dSize);
+        for (int d = 0; d < 3; ++d){
+            auto sp = dat.lbl.getSparsity(DIR_LABELS[d]);
+            //set dirichlet condition
+            if (!sp.empty()){
+                DofT::NestedDofMapView crdDofMap = UFem.dofMap().GetNestedDofMapView({d});
+                UFem.interpolateByDOFs(XYZ, U_0, dof_values, sp, crdDofMap, adapt_alloc, user_data);
+                applyDirByDofs(crdDofMap, A, F, sp, ArrayView<const double>(dof_values.data, dof_values.size));
+            }
         }  
     };
     //define function for gathering data from every tetrahedron to send them to elemental assembler
