@@ -339,6 +339,11 @@ int main(int argc, char* argv[]){
     Sparse::Vector  x( "x" , i0, i1, m->GetCommunicator()), 
                     dx("dx", i0, i1, m->GetCommunicator()), 
                     b( "b" , i0, i1, m->GetCommunicator());
+    discr.AssembleTemplate(A);  //< preallocate memory for matrix (to accelerate matrix assembling), this call is optional
+    // set options to use preallocated matrix state (to accelerate matrix assembling)
+    Ani::AssmOpts opts = Ani::AssmOpts().SetIsMtxIncludeTemplate(true)
+                                        .SetUseOrderedInsert(true)
+                                        .SetIsMtxSorted(true); //< setting this parameters is optional
 
     //setup linear solver
     Solver lin_solver(p.lin_sol_nm, p.lin_sol_prefix);
@@ -347,10 +352,10 @@ int main(int argc, char* argv[]){
         std::fill(b.Begin(), b.End(), 0.0);
         return discr.AssembleRHS(b);
     };
-    auto assemble_J = [&discr, &u](const Sparse::Vector& x, Sparse::Matrix &A) -> int{
+    auto assemble_J = [&discr, &u, opts](const Sparse::Vector& x, Sparse::Matrix &A) -> int{
         discr.SaveSolution(x, u);
         std::for_each(A.Begin(), A.End(), [](INMOST::Sparse::Row& row){ for (auto vit = row.Begin(); vit != row.End(); ++vit) vit->second = 0.0; });
-        return discr.AssembleMatrix(A);
+        return discr.AssembleMatrix(A, opts);
     };
     auto vec_norm = [m](const Sparse::Vector& x)->double{
         double lsum = 0, gsum = 0;
@@ -372,6 +377,7 @@ int main(int argc, char* argv[]){
     };
 
     {
+        TimerWrap m_timer_total; m_timer_total.reset();
         assemble_R(x, b);
         double anrm = vec_norm(b), rnrm = 1;
         double anrm0 = anrm;
@@ -391,6 +397,8 @@ int main(int argc, char* argv[]){
             ni++;
             if (pRank == 0) std::cout << prob_name << ":\n\tnit = " << ni << ": newton residual = " << anrm << " ( rel = " << rnrm << " )" <<  std::endl;
         }
+        double total_sol_time =  m_timer_total.elapsed();
+        if (pRank == 0) std::cout << "Total solution time: " << total_sol_time << "s" << std::endl;
     }
 
     //copy result to the tag and save solution

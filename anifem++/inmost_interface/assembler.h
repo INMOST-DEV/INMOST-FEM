@@ -207,6 +207,28 @@ namespace internals{
     };
 }
 
+struct AssmOpts{
+    void*  user_data = nullptr;             ///< is user supplied data to be postponed to problem handler, may be NULL.
+    double drop_val = 1e-100;               ///< set to zero elements of local matrix/rhs if they less than this value
+
+    bool   is_mtx_sorted = false;           ///< is elements in matrix rows sorted by it's column indexes
+    bool   is_mtx_include_template = false; ///< is matrix contains all elements which will be modified
+    
+    /// should we prefer sorted state of rows and use algorithms for ordered ranges to add/insert elements 
+    /// instead unordered rows and line search algorihms?
+    /// @note use_ordered_insert = true prefered when matrix have a lot of elements in row 
+    bool   use_ordered_insert = false;      
+
+    AssmOpts() = default;
+    AssmOpts(void* user_data): user_data{user_data} {}
+    AssmOpts(void* user_data, double drop_val): user_data{user_data}, drop_val{drop_val} {}
+
+    AssmOpts& SetUserData(void* _user_data){ return user_data = _user_data, *this; }
+    AssmOpts& SetDropVal(double drp_val){ return drop_val = drp_val, *this; }
+    AssmOpts& SetIsMtxSorted(bool is_sorted) { return is_mtx_sorted = is_sorted, *this; }
+    AssmOpts& SetIsMtxIncludeTemplate(bool is_templated) { return is_mtx_include_template = is_templated, *this; }
+    AssmOpts& SetUseOrderedInsert(bool use) { return use_ordered_insert = use, *this; }
+};
 template<typename Traits = DefaultAssemblerTraits>
 class AssemblerT{
 #ifndef NO_ASSEMBLER_TIMERS
@@ -358,9 +380,10 @@ public:
     /// Copy variable with number iVar from var_tag_from to var_tag_to
     void CopyVar(int iVar, const INMOST::Tag var_tag_from, INMOST::Tag var_tag_to) const { m_enum.CopyVarByEnumeration(iVar, var_tag_from, var_tag_to); }
 
-    int Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse::Vector &rhs, void* user_data = nullptr, double drp_val = 1e-100);
-    int AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* user_data = nullptr, double drp_val = 1e-100);
-    int AssembleRHS(INMOST::Sparse::Vector &rhs, void* user_data = nullptr, double drp_val = 1e-100);
+    int Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse::Vector &rhs, const AssmOpts& opts = AssmOpts());
+    int AssembleMatrix(INMOST::Sparse::Matrix &matrix, const AssmOpts& opts = AssmOpts());
+    int AssembleRHS(INMOST::Sparse::Vector &rhs, const AssmOpts& opts = AssmOpts());
+    int AssembleTemplate(INMOST::Sparse::Matrix &matrix);
 
     /// Begin index for sparse matrix and vector
     long getBegInd() const { return m_enum.getBegInd();}

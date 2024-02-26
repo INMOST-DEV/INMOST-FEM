@@ -111,6 +111,29 @@ namespace internals{
         }
         out << std::endl;
     }
+    static inline void set_elements_on_matrix_diagonal(INMOST::Sparse::Matrix& matrix, const AssmOpts& opts){
+        if (!opts.is_mtx_include_template){
+            auto beg = matrix.GetFirstIndex(), last = matrix.GetLastIndex();
+            if (!opts.is_mtx_sorted){
+                for(auto i = beg; i < last; i++) if (matrix[i].get_safe(i) == 0.0)
+                    matrix[i][i] = 0.0;
+            } else {
+                for(auto i = beg; i < last; i++){
+                    auto it = std::lower_bound(matrix[i].Begin(), matrix[i].End(), i, [](const auto& a, INMOST_DATA_ENUM_TYPE b){ return a.first < b; });
+                    if (it == matrix[i].End()) matrix[i].Push(i, 0.0);
+                    else if (it->first != i) {
+                        auto k = std::distance(matrix[i].Begin(), it);
+                        matrix[i].Resize(matrix[i].Size() + 1);
+                        for (int l = 0; l < matrix[i].Size() - k - 1; ++l){
+                            auto from = matrix[i].Size() - 1 - l;
+                            matrix[i].GetIndex(from) = matrix[i].GetIndex(from-1); matrix[i].GetValue(from) = matrix[i].GetValue(from-1);
+                        }
+                        matrix[i].GetIndex(k) = i; matrix[i].GetValue(k) = 0;
+                    } 
+                }
+            }        
+        }
+    }
 }
 
 template <typename Traits>
@@ -281,15 +304,14 @@ int AssemblerT<Traits>::_return_assembled_status(int nthreads){
 ///This function assembles matrix and rhs of FE problem previously setted by PrepareProblem(...) function
 /// @param[in,out] matrix is the global matrix to which the assembled matrix will be added, i.e. matrix <- matrix + assembled_matrix
 /// @param[in,out] rhs is the global right-hand side to which the assembled RHS will be added, i.e. rhs <- rhs + assembled_rhs
-/// @param[in] user_data is user supplied data to be postponed to problem handler, may be NULL.
-/// @param[in] drp_val - if during computation of local matrix/rhs some of their elements will be less
-///                than drp_val in absolute value then they will be set to zero and ignored in assembling global matrix.
+/// @param[in] opts is user specified options for assembler and user supplied data to be postponed to problem handler
+/// @note if opts.use_ordered_insert == true then assembled matrix will have sorted rows
 /// @return  0 if assembling successful else some error_code (number < 0)
 ///             ATTENTION: In case of unsuccessful completion of this function matrix and rhs has wrong elements!!!:
 ///         -1 if some local matrix or rhs had NaN.
 ///         -2 if some element is not tetrahedral or has broken component connectivity cell - faces - edges - nodes
 template <typename Traits>
-int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse::Vector &rhs, void* user_data, double drp_val){
+int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse::Vector &rhs, const AssmOpts& opts){
     reset_timers();
     if (!mat_rhs_func && (!mat_func || !rhs_func))
         throw std::runtime_error("System local evaluator is not specified");
@@ -300,8 +322,16 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
     m_helpers.resize(nthreads, m_helpers[0]);
     rhs.SetInterval(getBegInd(), getEndInd());
     matrix.SetInterval(getBegInd(),getEndInd());
-    for(auto i = getBegInd(); i < getEndInd(); i++) if (matrix[i].get_safe(i) == 0.0)
-        matrix[i][i] = 0.0;
+    internals::set_elements_on_matrix_diagonal(matrix, opts);
+    if (opts.use_ordered_insert && !opts.is_mtx_sorted)
+        ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, 
+            [&A = matrix](INMOST_DATA_ENUM_TYPE lid, int nthread){ (void) nthread; std::sort(A[lid].Begin(), A[lid].End()); }, 
+            static_cast<INMOST_DATA_ENUM_TYPE>(getBegInd()), 
+            static_cast<INMOST_DATA_ENUM_TYPE>(getEndInd())
+        );    
+    std::vector<int> row_index_buffers(nRows*nthreads);
+    std::vector<INMOST::Sparse::Row> swap_rows(nthreads);
+
     INMOST::Sparse::LockService L;
     if (nthreads > 1) L.SetInterval(getBegInd(), getEndInd());    
     auto func_internal_mem_ids = func.setup_and_alloc_memory_range(nthreads);
@@ -312,10 +342,11 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
     TIMER_SCOPE( for (int i = 0; i < nthreads; ++i) m_wm[i].m_timers.reset(); )
     TIMER_SCOPE( m_timers.m_time_init_assemble_dat += m_timers.m_timer.elapsed_and_reset(); )
     
-    auto cycle_body_func = [&func, nRows, reord_nds, prep_ef, comp_node_perm, &rhs, &matrix,  &L, nthreads, drp_val, this](INMOST::Storage::integer lid, int nthread, void* user_data) mutable {
+    auto cycle_body_func = [&row_index_buffers, &swap_rows, use_ordered_insert = opts.use_ordered_insert, is_mtx_include_template = opts.is_mtx_include_template,
+                            &func, nRows, reord_nds, prep_ef, comp_node_perm, &rhs, &matrix,  &L, nthreads, drp_val = opts.drop_val, this](INMOST::Storage::integer lid, int nthread, void* user_data) mutable {
         auto& m_w = m_wm[nthread];
-        if (m_w.status < 0) 
-            return;
+        int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
+        if (m_w.status < 0) return;
         INMOST::Cell cell = m_mesh->CellByLocalID(lid);
         if (!cell.isValid() || cell.Hidden()) return;
         collectConnectivityInfo(cell, m_w.nodes, m_w.edges, m_w.faces, reord_nds, prep_ef);
@@ -354,6 +385,11 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
         //         //<< "F:\n" << DenseMatrix<>(m_w.m_F.data(), 1, nRows) 
         // std::cout << "IR:\n" << DenseMatrix<long>(m_w.m_indexesR.data(), 1, nRows)
         //         << "IC:\n" << DenseMatrix<long>(m_w.m_indexesC.data(), 1, nRows) << std::endl;  
+        if (use_ordered_insert){
+            for(int j = 0; j < nRows; j++) row_index_buffer[j] = j;
+            std::sort(row_index_buffer, row_index_buffer + nRows, [&C = m_w.m_indexesC](auto i, auto j){ return internals::assemble_index_decode(C[i]).id < internals::assemble_index_decode(C[j]).id; });
+        }
+
         for(int i = 0; i < nRows; i++){
             if(m_w.m_indexesR[i] != internals::CODE_UNDEF){//cols
                 auto rid = internals::assemble_index_decode(m_w.m_indexesR[i]);
@@ -373,7 +409,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
                                                                     m_enum.getEndElemID(), m_enum.getMatrixSize(), m_enum.getBegInd(), m_enum.getEndInd(), nRows, i);
                         abort();
                     }
-                    if(m_w.m_Ab[j*nRows +i] && fabs(m_w.m_A[j*nRows +i]) > drp_val) {
+                    if(!use_ordered_insert && m_w.m_Ab[j*nRows + i] && fabs(m_w.m_A[j*nRows + i]) > drp_val) {
                         matrix[rid.id][cid.id] += rid.sign*cid.sign*m_w.m_A[j * nRows + i];
                     }
                     if(m_w.m_Ab[j*nRows +i] && !std::isfinite(m_w.m_A[j*nRows +i])){
@@ -381,6 +417,53 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
                         if (nthreads > 1) L.UnLock(rid.id);
                         m_w.status = -1;
                         return;
+                    }
+                }
+                if (use_ordered_insert){
+                    if (is_mtx_include_template){
+                        auto it = matrix[rid.id].Begin(), iend = matrix[rid.id].End();
+                        for (int j = 0; j < nRows; ++j)  if (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) {
+                            auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                            INMOST_DATA_REAL_TYPE val = rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            INMOST_DATA_ENUM_TYPE ind_q = it->first, ind_loc = cid.id;
+                            auto cur_end = ((ind_loc - ind_q) > std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
+                            it = std::lower_bound(it, cur_end, ind_loc, [](const auto& a, INMOST_DATA_ENUM_TYPE b){ return a.first < b; });
+                            assert(it != cur_end && "Matrix doesn't include full template");
+                            it->second += val;
+                        }
+                    } else {
+                        INMOST::Sparse::Row& swap_row = swap_rows[nthread];
+                        swap_row.Resize(nRows + matrix[rid.id].Size());
+                        auto& qrow = matrix[rid.id];
+                        int j = 0, ii = 0, q = 0;
+                        int j_end = nRows, ii_end = qrow.Size();
+                        while (ii < ii_end && j < j_end){
+                            auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                            INMOST_DATA_ENUM_TYPE ind_q = qrow.GetIndex(ii), ind_loc = cid.id;
+                            INMOST_DATA_ENUM_TYPE ind = (ind_q < ind_loc) ? ind_q : ind_loc;
+                            INMOST_DATA_REAL_TYPE val = (ind_q <= ind_loc) ? qrow.GetValue(ii) : rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            if (ind_q == ind_loc && m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) 
+                                val += rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            if (ind_q <= ind_loc || (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) ){
+                                swap_row.GetIndex(q) = ind;
+                                swap_row.GetValue(q) = val;
+                                ++q;
+                            }
+                            ii += (ind_q <= ind_loc) ? 1 : 0;
+                            j += (ind_q >= ind_loc) ? 1 : 0;    
+                        }
+                        if (ii < ii_end){
+                            std::copy(qrow.Begin() + ii, qrow.End(), swap_row.Begin() + q);
+                            q += ii_end - ii;
+                        }
+                        for(; j < j_end; ++j) if (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val){
+                            auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                            swap_row.GetIndex(q) = cid.id;
+                            swap_row.GetValue(q) = rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            ++q;
+                        }
+                        swap_row.Resize(q);
+                        qrow.Swap(swap_row);
                     }
                 }
                 if (nthreads > 1) L.UnLock(rid.id);
@@ -393,7 +476,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
         }    
         TIMER_SCOPE(  m_w.m_timers.m_time_set_elemental_res += m_w.m_timers.m_timer.elapsed_and_reset(); )     
     };
-    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, cycle_body_func, m_mesh->FirstLocalID(INMOST::CELL), m_mesh->CellLastLocalID(), user_data);
+    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, cycle_body_func, m_mesh->FirstLocalID(INMOST::CELL), m_mesh->CellLastLocalID(), opts.user_data);
     func.release_memory_range(func_internal_mem_ids);
 
     return _return_assembled_status(nthreads); 
@@ -401,16 +484,13 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
 
 ///This function assembles rhs of FE problem previously setted by PrepareProblem(...) function
 /// @param[in,out] rhs is the global right-hand side to which the assembled RHS will be added, i.e. rhs <- rhs + assembled_rhs
-/// @param[in] user_data is user supplied data to be postponed to problem handler, may be NULL.
-/// @param[in] drp_val - if during computation of local matrix/rhs some of their elements will be less
-///                than drp_val in absolute value then they will be set to zero and ignored in assembling global matrix.
+/// @param[in] opts is user specified options for assembler and user supplied data to be postponed to problem handler
 /// @return  0 if assembling successful else some error_code (number < 0)
 ///             ATTENTION: In case of unsuccessful completion of this function matrix and rhs has wrong elements!!!:
 ///         -1 if some local matrix or rhs had NaN.
 ///         -2 if some element is not tetrahedral or has broken component connectivity cell - faces - edges - nodes
 template <typename Traits>
-int AssemblerT<Traits>::AssembleRHS(INMOST::Sparse::Vector &rhs, void* user_data, double drp_val){   
-    (void) drp_val;
+int AssemblerT<Traits>::AssembleRHS(INMOST::Sparse::Vector &rhs, const AssmOpts& opts){   
     reset_timers();
     if (!rhs_func){
         if (mat_rhs_func)
@@ -488,23 +568,136 @@ int AssemblerT<Traits>::AssembleRHS(INMOST::Sparse::Vector &rhs, void* user_data
         }    
         TIMER_SCOPE(  m_w.m_timers.m_time_set_elemental_res += m_w.m_timers.m_timer.elapsed_and_reset(); )     
     };
-    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, cycle_body_func, m_mesh->FirstLocalID(INMOST::CELL), m_mesh->CellLastLocalID(), user_data);
+    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, cycle_body_func, m_mesh->FirstLocalID(INMOST::CELL), m_mesh->CellLastLocalID(), opts.user_data);
     func.release_memory_range(func_internal_mem_ids);
     
     return _return_assembled_status(nthreads);
 }
 
+///@brief This function adds a zero matrix of structural nonzeros to the current matrix. This function leaves the elements of each row sorted in ascending order of the column number
+/// @details The meaning of this function is related to the sparse matrix storage format. 
+/// This function adds elements to the input matrix corresponding to the positions of structural non-zeros in the global finite element matrix. 
+/// @note The zero matrix of structural nonzeros is a matrix with elements in those positions where, 
+/// in general, there may be a nonzero number when assembling the FE matrix with a given local assembler on a given mesh.
+/// @param matrix is the global matrix to which the structured nonzero matrix will be added, i.e. matrix <- matrix + template_matrix
+/// @return 0 if assembling successful else -1
+template <typename Traits>
+int AssemblerT<Traits>::AssembleTemplate(INMOST::Sparse::Matrix &matrix){
+    reset_timers();
+    if (!mat_func && !mat_rhs_func)
+        throw std::runtime_error("Matrix local evaluator is not specified");
+    auto func = generate_mat_func();
+    int nRows = m_info.TrialFuncs().NumDofOnTet();
+    int nthreads = ThreadPar::get_num_threads<Traits::MatFuncT::parallel_type>(m_assm_traits.num_threads);
+    resize_work_memory(nthreads);
+    m_helpers.resize(nthreads, m_helpers[0]);
+    std::vector<int> row_index_buffers(nRows*nthreads);
+    std::vector<INMOST::Sparse::Row> swap_rows(nthreads);
+    matrix.SetInterval(getBegInd(),getEndInd());
+    for(auto i = getBegInd(); i < getEndInd(); i++) if (matrix[i].get_safe(i) == 0.0)
+        matrix[i][i] = 0.0;
+    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, 
+        [&A = matrix](INMOST_DATA_ENUM_TYPE lid, int nthread){ (void) nthread; std::sort(A[lid].Begin(), A[lid].End(), [](const auto& a, const auto& b){ return a.first < b.first; }); }, 
+        static_cast<INMOST_DATA_ENUM_TYPE>(getBegInd()), 
+        static_cast<INMOST_DATA_ENUM_TYPE>(getEndInd())
+    );    
+    INMOST::Sparse::LockService L;
+    if (nthreads > 1) L.SetInterval(getBegInd(), getEndInd());    
+    auto func_internal_mem_ids = func.setup_and_alloc_memory_range(nthreads);
+    const bool reord_nds = m_assm_traits.reorder_nodes;
+    const bool prep_ef = (m_assm_traits.prepare_edges || m_assm_traits.prepare_faces) || (m_info.TestFuncs().GetGeomMask() & (DofT::EDGE|DofT::FACE));
+    const bool comp_node_perm = !m_enum.areVarsTriviallySymmetric() || (m_info.TestFuncs().GetGeomMask() & (DofT::EDGE_ORIENT|DofT::FACE_ORIENT));
+    for (int i = 0; i < nthreads; ++i) m_wm[i].status = 0;
+    TIMER_SCOPE( for (int i = 0; i < nthreads; ++i) m_wm[i].m_timers.reset(); )
+    TIMER_SCOPE( m_timers.m_time_init_assemble_dat += m_timers.m_timer.elapsed_and_reset(); )
+
+    auto cycle_body_func = [&func, nRows, reord_nds, prep_ef, comp_node_perm, &row_index_buffers, &swap_rows, &matrix, &L, nthreads, this](INMOST::Storage::integer lid, int nthread){
+        auto& m_w = m_wm[nthread];
+        int* row_index_buffer = row_index_buffers.data() + nRows * nthread;
+        INMOST::Sparse::Row& swap_row = swap_rows[nthread];
+        if (m_w.status < 0) return;
+        INMOST::Cell cell = m_mesh->CellByLocalID(lid);
+        if (!cell.isValid() || cell.Hidden()) return;
+        collectConnectivityInfo(cell, m_w.nodes, m_w.edges, m_w.faces, reord_nds, prep_ef);
+        TIMER_SCOPE( m_w.m_timers.m_time_init_assemble_dat += m_w.m_timers.m_timer.elapsed_and_reset(); )
+        std::array<unsigned char, 4> canonical_node_indexes{0, 1, 2, 3};
+        if (comp_node_perm){
+            std::array<long, 4> gni;
+            for (int i = 0; i < 4; ++i)
+                gni[i] = m_enum.GNodeIndex(m_w.nodes[i]);
+            canonical_node_indexes = createOrderPermutation(gni.data());    
+        }
+        bool has_active = fill_assemble_templates(m_w.nodes, m_w.edges, m_w.faces, cell, m_w.m_indexesC, m_w.m_indexesR, canonical_node_indexes.data(), m_helpers[nthread].same_template);
+        if (!has_active) return;
+
+        auto tp1 = func.out_nnz(0) == func.out_size1(0)*func.out_size2(0) ? MatSparsityView<Int>::DENSE : MatSparsityView<Int>::SPARSE_CSC;
+        MatSparsityView<Int> sp_view(tp1, func.out_nnz(0), func.out_size1(0), func.out_size2(0), m_fd.colindA.data(), m_fd.rowA.data());
+        sp_view.template fillTemplate<decltype(m_w.m_Ab.begin()), bool>(m_w.m_Ab.begin()); 
+
+        for(int j = 0; j < nRows; j++) row_index_buffer[j] = j;
+        std::sort(row_index_buffer, row_index_buffer+nRows, [&C = m_w.m_indexesC](auto i, auto j){ return internals::assemble_index_decode(C[i]).id < internals::assemble_index_decode(C[j]).id; });
+        TIMER_SCOPE( m_w.m_timers.m_time_fill_map_template += m_w.m_timers.m_timer.elapsed_and_reset(); ) 
+        
+        for(int i = 0; i < nRows; i++){
+            if(m_w.m_indexesR[i] != internals::CODE_UNDEF){//cols
+                auto rid = internals::assemble_index_decode(m_w.m_indexesR[i]);
+        #ifndef NDEBUG
+                if( rid.id < getBegInd() || rid.id >= getEndInd()){
+                    std::cout<<"wrong index C " << rid.id << " " << getBegInd() << " " << getEndInd() << " " << i << std::endl;
+                    abort();
+                }
+        #endif
+                swap_row.Resize(nRows + matrix[rid.id].Size());
+                if (nthreads > 1) L.Lock(rid.id);
+                auto& qrow = matrix[rid.id];
+                int j = 0, ii = 0, q = 0;
+                int j_end = nRows, ii_end = qrow.Size();
+                while (ii < ii_end && j < j_end){
+                    auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                    INMOST_DATA_ENUM_TYPE ind_q = qrow.GetIndex(ii), ind_loc = cid.id;
+                    INMOST_DATA_ENUM_TYPE ind = (ind_q < ind_loc) ? ind_q : ind_loc;
+                    INMOST_DATA_REAL_TYPE val = (ind_q <= ind_loc) ? qrow.GetValue(ii) : 0.0;
+                    if (ind_q <= ind_loc || m_w.m_Ab[row_index_buffer[j]*nRows + i]){
+                        swap_row.GetIndex(q) = ind;
+                        swap_row.GetValue(q) = val;
+                        ++q;
+                    }
+                    ii += (ind_q <= ind_loc) ? 1 : 0;
+                    j += (ind_q >= ind_loc) ? 1 : 0;    
+                }
+                if (ii < ii_end){
+                    std::copy(qrow.Begin() + ii, qrow.End(), swap_row.Begin() + q);
+                    q += ii_end - ii;
+                }
+                for(; j < j_end; ++j) if (m_w.m_Ab[row_index_buffer[j]*nRows + i]){
+                    auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                    swap_row.GetIndex(q) = cid.id;
+                    swap_row.GetValue(q) = 0;
+                    ++q;
+                }
+                swap_row.Resize(q);
+                qrow.Swap(swap_row);
+                if (nthreads > 1) L.UnLock(rid.id);
+            }
+        }    
+        TIMER_SCOPE(  m_w.m_timers.m_time_set_elemental_res += m_w.m_timers.m_timer.elapsed_and_reset(); )
+    };
+
+    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, cycle_body_func, m_mesh->FirstLocalID(INMOST::CELL), m_mesh->CellLastLocalID());
+    func.release_memory_range(func_internal_mem_ids);
+
+    return _return_assembled_status(nthreads);
+}
+
 ///This function assembles matrix of FE problem previously setted by PrepareProblem(...) function
 /// @param[in,out] matrix is the global matrix to which the assembled matrix will be added, i.e. matrix <- matrix + assembled_matrix
-/// @param[in] user_data is user supplied data to be postponed to problem handler, may be NULL.
-/// @param[in] drp_val - if during computation of local matrix/rhs some of their elements will be less
-///                than drp_val in absolute value then they will be set to zero and ignored in assembling global matrix.
+/// @param[in] opts is user specified options for assembler and user supplied data to be postponed to problem handler
 /// @return  0 if assembling successful else some error_code (number < 0)
 ///             ATTENTION: In case of unsuccessful completion of this function matrix and rhs has wrong elements!!!:
 ///         -1 if some local matrix or rhs had NaN.
 ///         -2 if some element is not tetrahedral or has broken component connectivity cell - faces - edges - nodes
 template <typename Traits>
-int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* user_data, double drp_val){
+int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const AssmOpts& opts){
     reset_timers();
     if (!mat_func){
         if (mat_rhs_func)
@@ -518,8 +711,15 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
     resize_work_memory(nthreads);
     m_helpers.resize(nthreads, m_helpers[0]);
     matrix.SetInterval(getBegInd(),getEndInd());
-    for(auto i = getBegInd(); i < getEndInd(); i++) if (matrix[i].get_safe(i) == 0.0)
-        matrix[i][i] = 0.0;
+    internals::set_elements_on_matrix_diagonal(matrix, opts);
+    if (opts.use_ordered_insert && !opts.is_mtx_sorted)
+        ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, 
+            [&A = matrix](INMOST_DATA_ENUM_TYPE lid, int nthread){ (void) nthread; std::sort(A[lid].Begin(), A[lid].End()); }, 
+            static_cast<INMOST_DATA_ENUM_TYPE>(getBegInd()), 
+            static_cast<INMOST_DATA_ENUM_TYPE>(getEndInd())
+        );    
+    std::vector<int> row_index_buffers(nRows*nthreads);
+    std::vector<INMOST::Sparse::Row> swap_rows(nthreads);
     INMOST::Sparse::LockService L;
     if (nthreads > 1) L.SetInterval(getBegInd(), getEndInd());    
     auto func_internal_mem_ids = func.setup_and_alloc_memory_range(nthreads);
@@ -530,10 +730,11 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
     TIMER_SCOPE( for (int i = 0; i < nthreads; ++i) m_wm[i].m_timers.reset(); )
     TIMER_SCOPE( m_timers.m_time_init_assemble_dat += m_timers.m_timer.elapsed_and_reset(); )
     
-    auto cycle_body_func = [&func, nRows, reord_nds, prep_ef, comp_node_perm, &matrix,  &L, nthreads, drp_val, this](INMOST::Storage::integer lid, int nthread, void* user_data){
+    auto cycle_body_func = [&row_index_buffers, &swap_rows, use_ordered_insert = opts.use_ordered_insert, is_mtx_include_template = opts.is_mtx_include_template,
+                            &func, nRows, reord_nds, prep_ef, comp_node_perm, &matrix,  &L, nthreads, drp_val = opts.drop_val, this](INMOST::Storage::integer lid, int nthread, void* user_data){
         auto& m_w = m_wm[nthread];
-        if (m_w.status < 0) 
-            return;
+        int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
+        if (m_w.status < 0) return;
         INMOST::Cell cell = m_mesh->CellByLocalID(lid);
         if (!cell.isValid() || cell.Hidden()) return;
         collectConnectivityInfo(cell, m_w.nodes, m_w.edges, m_w.faces, reord_nds, prep_ef);
@@ -562,7 +763,11 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
         m_prob_handler(dat);
         func.defragment_memory(nthread);
         m_w.pool.defragment();
-        TIMER_SCOPE(  m_w.m_timers.m_time_proc_user_handler += m_w.m_timers.m_timer.elapsed_and_reset(); )  
+        TIMER_SCOPE(  m_w.m_timers.m_time_proc_user_handler += m_w.m_timers.m_timer.elapsed_and_reset(); ) 
+        if (use_ordered_insert){
+            for(int j = 0; j < nRows; j++) row_index_buffer[j] = j;
+            std::sort(row_index_buffer, row_index_buffer + nRows, [&C = m_w.m_indexesC](auto i, auto j){ return internals::assemble_index_decode(C[i]).id < internals::assemble_index_decode(C[j]).id; });
+        } 
         for(int i = 0; i < nRows; i++){
             if(m_w.m_indexesR[i] != internals::CODE_UNDEF){//cols
                 auto rid = internals::assemble_index_decode(m_w.m_indexesR[i]);
@@ -581,7 +786,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
                                                                     m_enum.getEndElemID(), m_enum.getMatrixSize(), m_enum.getBegInd(), m_enum.getEndInd(), nRows, i);
                         abort();
                     }
-                    if(m_w.m_Ab[j*nRows +i] && fabs(m_w.m_A[j*nRows +i]) > drp_val) {
+                    if(!use_ordered_insert && m_w.m_Ab[j*nRows +i] && fabs(m_w.m_A[j*nRows +i]) > drp_val) {
                         matrix[rid.id][cid.id] += rid.sign*cid.sign*m_w.m_A[j * nRows + i];
                     }
                     if(m_w.m_Ab[j*nRows +i] && !std::isfinite(m_w.m_A[j*nRows +i])){
@@ -591,12 +796,59 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, void* use
                         return;
                     }
                 }
+                if (use_ordered_insert){
+                    if (is_mtx_include_template){
+                        auto it = matrix[rid.id].Begin(), iend = matrix[rid.id].End();
+                        for (int j = 0; j < nRows; ++j)  if (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) {
+                            auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                            INMOST_DATA_REAL_TYPE val = rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            INMOST_DATA_ENUM_TYPE ind_q = it->first, ind_loc = cid.id;
+                            auto cur_end = ((ind_loc - ind_q) > std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
+                            it = std::lower_bound(it, cur_end, ind_loc, [](const auto& a, INMOST_DATA_ENUM_TYPE b){ return a.first < b; });
+                            assert(it != cur_end && "Matrix doesn't include full template");
+                            it->second += val;
+                        }
+                    } else {
+                        INMOST::Sparse::Row& swap_row = swap_rows[nthread];
+                        swap_row.Resize(nRows + matrix[rid.id].Size());
+                        auto& qrow = matrix[rid.id];
+                        int j = 0, ii = 0, q = 0;
+                        int j_end = nRows, ii_end = qrow.Size();
+                        while (ii < ii_end && j < j_end){
+                            auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                            INMOST_DATA_ENUM_TYPE ind_q = qrow.GetIndex(ii), ind_loc = cid.id;
+                            INMOST_DATA_ENUM_TYPE ind = (ind_q < ind_loc) ? ind_q : ind_loc;
+                            INMOST_DATA_REAL_TYPE val = (ind_q <= ind_loc) ? qrow.GetValue(ii) : rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            if (ind_q == ind_loc && m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) 
+                                val += rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            if (ind_q <= ind_loc || (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) ){
+                                swap_row.GetIndex(q) = ind;
+                                swap_row.GetValue(q) = val;
+                                ++q;
+                            }
+                            ii += (ind_q <= ind_loc) ? 1 : 0;
+                            j += (ind_q >= ind_loc) ? 1 : 0;    
+                        }
+                        if (ii < ii_end){
+                            std::copy(qrow.Begin() + ii, qrow.End(), swap_row.Begin() + q);
+                            q += ii_end - ii;
+                        }
+                        for(; j < j_end; ++j) if (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val){
+                            auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
+                            swap_row.GetIndex(q) = cid.id;
+                            swap_row.GetValue(q) = rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
+                            ++q;
+                        }
+                        swap_row.Resize(q);
+                        qrow.Swap(swap_row);
+                    }
+                }
                 if (nthreads > 1) L.UnLock(rid.id);
             }
         }    
         TIMER_SCOPE(  m_w.m_timers.m_time_set_elemental_res += m_w.m_timers.m_timer.elapsed_and_reset(); )     
     };
-    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, cycle_body_func, m_mesh->FirstLocalID(INMOST::CELL), m_mesh->CellLastLocalID(), user_data);
+    ThreadPar::parallel_for<Traits::MatFuncT::parallel_type>(nthreads, cycle_body_func, m_mesh->FirstLocalID(INMOST::CELL), m_mesh->CellLastLocalID(), opts.user_data);
     func.release_memory_range(func_internal_mem_ids);
 
     return _return_assembled_status(nthreads); 
