@@ -216,6 +216,14 @@ namespace Ani{
         };
         template<std::size_t N, typename FT>
         struct Tensor_convert<PhysArr<N*(N+1)/2 * (N*(N+1)/2 + 1)/2, FT>, BiSymTensor4Rank<N, FT>, typename std::enable_if<(N>1)>::type>: public Tensor_convert<BiSymTensor4Rank<N, FT>, PhysArr<N*(N+1)/2 * (N*(N+1)/2 + 1)/2, FT>> {};
+
+        template<std::size_t N, typename FT>
+        struct Tensor_convert<BiSymTensor4Rank<N, FT>, SymMtx<N*(N+1)/2, FT>>{
+            static BiSymTensor4Rank<N, FT> convert(const SymMtx<N*(N+1)/2, FT>& v){ return BiSymTensor4Rank<N, FT>(v.m_dat); }
+            static SymMtx<N*(N+1)/2, FT> convert(const BiSymTensor4Rank<N, FT>& v){ return SymMtx<N*(N+1)/2, FT>(v.m_dat); }
+        };
+        template<std::size_t N, typename FT>
+        struct Tensor_convert<SymMtx<N*(N+1)/2, FT>, BiSymTensor4Rank<N, FT>>: public Tensor_convert<BiSymTensor4Rank<N, FT>, SymMtx<N*(N+1)/2, FT>> {};
     }
     template<typename TYPE_TO, typename TYPE_FROM>
     TYPE_TO tensor_convert(const TYPE_FROM& v) { return internal::Tensor_convert<TYPE_FROM, TYPE_TO>::convert(v); }

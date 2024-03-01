@@ -51,6 +51,9 @@ using PhysSymTensorStorageSet = ADStorageSet<FT, SymMtx<N, FT>, BiSymTensor4Rank
 template<std::size_t N, typename FT = double>
 using PhysTensorStorageSet = ADStorageSet<FT, PhysMtx<N, FT>, SymTensor4Rank<N, FT>>;
 
+template<std::size_t N, typename FT = double>
+using PhysArrStorageSet = ADStorageSet<FT, PhysArr<N, FT>, SymMtx<N, FT>>;
+
 template<typename StateT = ADState<true, true, true>, typename StorageT = PhysSymTensorStorageSet<3, double> >
 struct ADVal: public ADExpr{
     using State = StateT;
@@ -65,6 +68,7 @@ struct ADVal: public ADExpr{
     unsigned char m_dif = -1;
 
     ADVal() = default;
+    explicit ADVal(VT val): m_v{std::move(val)} {}
     ADVal(int numdif, VT val, GT d, HT dd): m_dd{std::move(dd)}, m_d{std::move(d)}, m_v{std::move(val)}, m_dif{static_cast<unsigned char>(numdif)}  {}
 
     VT operator()() const { return m_v; }
@@ -77,6 +81,11 @@ struct ADVal: public ADExpr{
         if (numdif >= 2) m_dd = std::move(dd);
         m_dif = numdif;
     }
+
+    inline ADVal<StateT, StorageT>& operator+=(const ADVal<StateT, StorageT>& v);
+    inline ADVal<StateT, StorageT>& operator-=(const ADVal<StateT, StorageT>& v);
+    inline ADVal<StateT, StorageT>& operator*=(const ADVal<StateT, StorageT>& v);
+    inline ADVal<StateT, StorageT>& operator/=(const ADVal<StateT, StorageT>& v);
 };
 
 template<typename StorageT = PhysSymTensorStorageSet<3, double> >
@@ -97,6 +106,36 @@ struct Param: public ADExpr{
     VT operator()() const { return m_v; }
     GT D() const { return GT(); }
     HT DD() const { return HT(); }
+};
+
+template<typename StorageT = PhysSymTensorStorageSet<3, double> >
+struct Var: public ADExpr{
+    using State = ADState<true, true, false>;
+    using Storage = StorageT;
+    using VT = typename Storage::ValueType;
+    using GT = typename Storage::GradientType;
+    using HT = typename Storage::HessianType;
+
+    VT m_v = 0;
+    std::size_t m_ivar = 0;
+    unsigned char m_dif = 1;
+
+    Var() = default;
+    Var(std::size_t ivar, VT val, int numdif): m_v{std::move(val)}, m_ivar{ivar}, m_dif{static_cast<unsigned char>(numdif)} {}
+    void Init(std::size_t ivar, VT val, int numdif){ m_v = std::move(val); m_ivar = ivar; m_dif = numdif; }
+
+    VT operator()() const { return m_v; }
+    GT D() const { GT r{}; r[m_ivar] = 1; return r; }
+    HT DD() const { return HT(); }
+};
+
+template<std::size_t N, typename FT = double>
+struct VarPool{
+    using Storage = PhysArrStorageSet<N, FT>;
+    template<typename StateT = ADState<true, true, true>>
+    using ADVal = Ani::ADVal<StateT, Storage>;
+    using Param = Ani::Param<Storage>;
+    using Var = Ani::Var<Storage>;
 };
 
 template<typename EX1, typename EX2, typename std::enable_if<std::is_same<typename EX1::Storage, typename EX2::Storage>::value>::type* = nullptr>

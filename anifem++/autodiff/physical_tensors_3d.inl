@@ -426,15 +426,18 @@ struct BiSymTensor4Rank<3, FT>{
     };
     static Index index(unsigned char continuous_index){
         static const Index ids[] = {
-            Index{0, 0, 0, 0}, 
-            Index{0, 0, 0, 1}, Index{0, 1, 0, 1}, 
-            Index{0, 0, 0, 2}, Index{0, 1, 0, 2}, Index{0, 2, 0, 2}, 
-            Index{0, 0, 1, 1}, Index{0, 1, 1, 1}, Index{0, 2, 1, 1}, Index{1, 1, 1, 1}, 
-            Index{0, 0, 1, 2}, Index{0, 1, 1, 2}, Index{0, 2, 1, 2}, Index{1, 1, 1, 2}, Index{1, 2, 1, 2}, 
-            Index{0, 0, 2, 2}, Index{0, 1, 2, 2}, Index{0, 2, 2, 2}, Index{1, 1, 2, 2}, Index{1, 2, 2, 2}, Index{2, 2, 2, 2}};
+            Index{0, 0, 0, 0}, Index{0, 0, 0, 1}, Index{0, 0, 0, 2}, Index{0, 0, 1, 1}, Index{0, 0, 1, 2}, Index{0, 0, 2, 2},
+                               Index{0, 1, 0, 1}, Index{0, 1, 0, 2}, Index{0, 1, 1, 1}, Index{0, 1, 1, 2}, Index{0, 1, 2, 2},
+                                                  Index{0, 2, 0, 2}, Index{0, 2, 1, 1}, Index{0, 2, 1, 2}, Index{0, 2, 2, 2},
+                                                                     Index{1, 1, 1, 1}, Index{1, 1, 1, 2}, Index{1, 1, 2, 2},
+                                                                                        Index{1, 2, 1, 2}, Index{1, 2, 2, 2},
+                                                                                                           Index{2, 2, 2, 2}
+            };
         return ids[continuous_index];
     }
-    static std::size_t continuous_index(Index id){ unsigned char I = id.i + id.j + (id.i!=0 ? 1 : 0), J = id.k + id.l + (id.k!=0 ? 1 : 0); return J*(J+1)/2 + I; }
+    static std::size_t continuous_index(Index id){ 
+        unsigned char I = id.i + id.j + (id.i!=0 ? 1 : 0), J = id.k + id.l + (id.k!=0 ? 1 : 0); return (2*6-1-I)*I/2 + J;
+    }
 
     std::array<FT, 21> m_dat = {0};
 
@@ -445,12 +448,12 @@ struct BiSymTensor4Rank<3, FT>{
     constexpr std::size_t continuous_size() const { return 21; }
     constexpr std::size_t index_duplication(std::size_t continuous_index) const { 
         constexpr const unsigned char dup[] = {
-            1,
-            4, 4, 
-            4, 8, 4,
-            2, 4, 4, 1,
-            4, 8, 8, 4, 4,
-            2, 4, 4, 2, 4, 1
+            1, 4, 4, 2, 4, 2,
+               4, 8, 4, 8, 4,
+                  4, 4, 8, 4,
+                     1, 4, 2,
+                        4, 4,
+                           1
         };
         return dup[continuous_index];
     }

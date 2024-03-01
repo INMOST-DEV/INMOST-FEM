@@ -24,6 +24,20 @@ struct PhysArr: public std::array<FT, N>{
     constexpr std::size_t continuous_size() const { return N; }
     constexpr std::size_t index_duplication(std::size_t continuous_index) const { (void) continuous_index; return 1; }
 
+    inline FT& operator()(std::array<std::size_t, 1> i) { return std::array<FT, N>::operator[](i[0]); }
+    inline FT operator()(std::array<std::size_t, 1> i) const { return std::array<FT, N>::operator[](i[0]); }
+
+    inline PhysArr<N, FT>& operator+=(const PhysArr<N, FT>& a){ std::array<FT, N>& x = *this; for (std::size_t i = 0; i < continuous_size(); ++i) x[i] += a[i]; return *this; }
+    inline PhysArr<N, FT>& operator-=(const PhysArr<N, FT>& a){ std::array<FT, N>& x = *this; for (std::size_t i = 0; i < continuous_size(); ++i) x[i] -= a[i]; return *this; }
+    inline PhysArr<N, FT> operator+(const PhysArr<N, FT>& a) const { PhysArr<N, FT> r(*this); return (r += a);}
+    inline PhysArr<N, FT> operator-(const PhysArr<N, FT>& a) const { PhysArr<N, FT> r(*this); return (r -= a);}
+    inline PhysArr<N, FT> operator-() const { const std::array<FT, N>& x = *this; PhysArr<N, FT> r; for (std::size_t i = 0; i < continuous_size(); ++i) r[i] = -x(i); return r;}
+    inline PhysArr<N, FT>& operator*=(FT a){ std::array<FT, N>& x = *this; for (std::size_t i = 0; i < continuous_size(); ++i) x[i] *= a; return *this; }
+    inline PhysArr<N, FT>& operator/=(FT a){ std::array<FT, N>& x = *this; for (std::size_t i = 0; i < continuous_size(); ++i) x[i] /= a; return *this; }
+    inline PhysArr<N, FT> operator*(FT a) const { PhysArr<N, FT> r(*this); return (r *= a);}
+    friend PhysArr<N, FT> operator*(FT c, const PhysArr<N, FT>& a){ return a.operator*(c); }
+    inline PhysArr<N, FT> operator/(FT a) const { PhysArr<N, FT> r(*this); return (r /= a); }
+
     inline FT SquareFrobNorm() const;
 };
 
@@ -118,8 +132,8 @@ struct SymMtx{
     inline FT& operator[](std::size_t i){ return m_dat[i]; }
     inline FT operator[](std::size_t i) const { return m_dat[i]; } 
     
-    inline FT& operator()(std::size_t i, std::size_t j) { return m_dat[Index(i, j)]; }
-    inline FT operator()(std::size_t i, std::size_t j) const { return m_dat[Index(i, j)]; }
+    inline FT& operator()(std::size_t i, std::size_t j) { return operator[](Index(i, j)); }
+    inline FT operator()(std::size_t i, std::size_t j) const { return operator[](Index(i, j)); }
     inline FT& operator()(std::array<std::size_t, 1> i, std::array<std::size_t, 1> j) { return operator()(i[0], j[0]); }
     inline FT operator()(std::array<std::size_t, 1> i, std::array<std::size_t, 1> j) const { return operator()(i[0], j[0]); }
     inline FT& operator()(std::array<std::size_t, 2> i) { return operator()(i[0], i[1]); }

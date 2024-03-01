@@ -444,6 +444,24 @@ UnionVal<EX1, EX2> max(EX1 a, EX2 b){
 
 
 #undef  CONSTIF
+
+template<typename StateT, typename StorageT>
+inline ADVal<StateT, StorageT>& ADVal<StateT, StorageT>::operator+=(const ADVal<StateT, StorageT>& v){ 
+    return *this = Ani::operator+<ADVal<StateT, StorageT>>(*this, v); 
+}
+template<typename StateT, typename StorageT>
+inline ADVal<StateT, StorageT>& ADVal<StateT, StorageT>::operator-=(const ADVal<StateT, StorageT>& v) { 
+    return *this = Ani::operator-<ADVal<StateT, StorageT>>(*this, v); 
+}
+template<typename StateT, typename StorageT>
+inline ADVal<StateT, StorageT>& ADVal<StateT, StorageT>::operator*=(const ADVal<StateT, StorageT>& v){ 
+    return *this = Ani::operator*<ADVal<StateT, StorageT>>(*this, v); 
+}
+template<typename StateT, typename StorageT>
+inline ADVal<StateT, StorageT>& ADVal<StateT, StorageT>::operator/=(const ADVal<StateT, StorageT>& v){ 
+    return *this = Ani::operator/<ADVal<StateT, StorageT>>(*this, v); 
+}
+
 }
 
 #endif  //ANIFEM_AUTODIFF_INL
