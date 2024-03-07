@@ -431,7 +431,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
                             auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
                             INMOST_DATA_REAL_TYPE val = rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
                             INMOST_DATA_ENUM_TYPE ind_q = it->first, ind_loc = cid.id;
-                            auto cur_end = ((ind_loc - ind_q) > std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
+                            auto cur_end = ((ind_loc - ind_q) >= std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
                             it = std::lower_bound(it, cur_end, ind_loc, [](const auto& a, INMOST_DATA_ENUM_TYPE b){ return a.first < b; });
                             assert(it != cur_end && it->first == ind_loc && "Matrix doesn't include full template");
                             it->second += val;
@@ -813,7 +813,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
                             auto cid = internals::assemble_index_decode(m_w.m_indexesC[row_index_buffer[j]]);
                             INMOST_DATA_REAL_TYPE val = rid.sign*cid.sign*m_w.m_A[row_index_buffer[j]*nRows + i];
                             INMOST_DATA_ENUM_TYPE ind_q = it->first, ind_loc = cid.id;
-                            auto cur_end = ((ind_loc - ind_q) > std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
+                            auto cur_end = ((ind_loc - ind_q) >= std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
                             it = std::lower_bound(it, cur_end, ind_loc, [](const auto& a, INMOST_DATA_ENUM_TYPE b){ return a.first < b; });
                             assert(it != cur_end && it->first == ind_loc &&  "Matrix doesn't include full template");
                             it->second += val;
