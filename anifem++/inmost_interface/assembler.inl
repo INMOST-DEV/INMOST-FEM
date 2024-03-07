@@ -329,8 +329,12 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
             static_cast<INMOST_DATA_ENUM_TYPE>(getBegInd()), 
             static_cast<INMOST_DATA_ENUM_TYPE>(getEndInd())
         );    
-    std::vector<int> row_index_buffers(nRows*nthreads);
-    std::vector<INMOST::Sparse::Row> swap_rows(nthreads);
+    std::vector<int> row_index_buffers;
+    std::vector<INMOST::Sparse::Row> swap_rows;
+    if (opts.use_ordered_insert){
+        row_index_buffers.resize(nRows*nthreads);
+        swap_rows.resize(nthreads);
+    }
 
     INMOST::Sparse::LockService L;
     if (nthreads > 1) L.SetInterval(getBegInd(), getEndInd());    
@@ -345,7 +349,6 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
     auto cycle_body_func = [&row_index_buffers, &swap_rows, use_ordered_insert = opts.use_ordered_insert, is_mtx_include_template = opts.is_mtx_include_template,
                             &func, nRows, reord_nds, prep_ef, comp_node_perm, &rhs, &matrix,  &L, nthreads, drp_val = opts.drop_val, this](INMOST::Storage::integer lid, int nthread, void* user_data) mutable {
         auto& m_w = m_wm[nthread];
-        int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
         if (m_w.status < 0) return;
         INMOST::Cell cell = m_mesh->CellByLocalID(lid);
         if (!cell.isValid() || cell.Hidden()) return;
@@ -386,6 +389,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
         // std::cout << "IR:\n" << DenseMatrix<long>(m_w.m_indexesR.data(), 1, nRows)
         //         << "IC:\n" << DenseMatrix<long>(m_w.m_indexesC.data(), 1, nRows) << std::endl;  
         if (use_ordered_insert){
+            int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
             for(int j = 0; j < nRows; j++) row_index_buffer[j] = j;
             std::sort(row_index_buffer, row_index_buffer + nRows, [&C = m_w.m_indexesC](auto i, auto j){ return internals::assemble_index_decode(C[i]).id < internals::assemble_index_decode(C[j]).id; });
         }
@@ -420,6 +424,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
                     }
                 }
                 if (use_ordered_insert){
+                    int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
                     if (is_mtx_include_template){
                         auto it = matrix[rid.id].Begin(), iend = matrix[rid.id].End();
                         for (int j = 0; j < nRows; ++j)  if (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) {
@@ -428,7 +433,7 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
                             INMOST_DATA_ENUM_TYPE ind_q = it->first, ind_loc = cid.id;
                             auto cur_end = ((ind_loc - ind_q) > std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
                             it = std::lower_bound(it, cur_end, ind_loc, [](const auto& a, INMOST_DATA_ENUM_TYPE b){ return a.first < b; });
-                            assert(it != cur_end && "Matrix doesn't include full template");
+                            assert(it != cur_end && it->first == ind_loc && "Matrix doesn't include full template");
                             it->second += val;
                         }
                     } else {
@@ -718,8 +723,12 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
             static_cast<INMOST_DATA_ENUM_TYPE>(getBegInd()), 
             static_cast<INMOST_DATA_ENUM_TYPE>(getEndInd())
         );    
-    std::vector<int> row_index_buffers(nRows*nthreads);
-    std::vector<INMOST::Sparse::Row> swap_rows(nthreads);
+    std::vector<int> row_index_buffers;
+    std::vector<INMOST::Sparse::Row> swap_rows;
+    if (opts.use_ordered_insert){
+        row_index_buffers.resize(nRows*nthreads);
+        swap_rows.resize(nthreads);
+    }
     INMOST::Sparse::LockService L;
     if (nthreads > 1) L.SetInterval(getBegInd(), getEndInd());    
     auto func_internal_mem_ids = func.setup_and_alloc_memory_range(nthreads);
@@ -733,7 +742,6 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
     auto cycle_body_func = [&row_index_buffers, &swap_rows, use_ordered_insert = opts.use_ordered_insert, is_mtx_include_template = opts.is_mtx_include_template,
                             &func, nRows, reord_nds, prep_ef, comp_node_perm, &matrix,  &L, nthreads, drp_val = opts.drop_val, this](INMOST::Storage::integer lid, int nthread, void* user_data){
         auto& m_w = m_wm[nthread];
-        int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
         if (m_w.status < 0) return;
         INMOST::Cell cell = m_mesh->CellByLocalID(lid);
         if (!cell.isValid() || cell.Hidden()) return;
@@ -765,6 +773,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
         m_w.pool.defragment();
         TIMER_SCOPE(  m_w.m_timers.m_time_proc_user_handler += m_w.m_timers.m_timer.elapsed_and_reset(); ) 
         if (use_ordered_insert){
+            int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
             for(int j = 0; j < nRows; j++) row_index_buffer[j] = j;
             std::sort(row_index_buffer, row_index_buffer + nRows, [&C = m_w.m_indexesC](auto i, auto j){ return internals::assemble_index_decode(C[i]).id < internals::assemble_index_decode(C[j]).id; });
         } 
@@ -797,6 +806,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
                     }
                 }
                 if (use_ordered_insert){
+                    int* row_index_buffer = row_index_buffers.data() + nthread*nRows;
                     if (is_mtx_include_template){
                         auto it = matrix[rid.id].Begin(), iend = matrix[rid.id].End();
                         for (int j = 0; j < nRows; ++j)  if (m_w.m_Ab[row_index_buffer[j]*nRows + i] && fabs(m_w.m_A[row_index_buffer[j]*nRows + i]) > drp_val) {
@@ -805,7 +815,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
                             INMOST_DATA_ENUM_TYPE ind_q = it->first, ind_loc = cid.id;
                             auto cur_end = ((ind_loc - ind_q) > std::distance(it, iend)) ? iend : (it + (ind_loc - ind_q + 1));
                             it = std::lower_bound(it, cur_end, ind_loc, [](const auto& a, INMOST_DATA_ENUM_TYPE b){ return a.first < b; });
-                            assert(it != cur_end && "Matrix doesn't include full template");
+                            assert(it != cur_end && it->first == ind_loc &&  "Matrix doesn't include full template");
                             it->second += val;
                         }
                     } else {
