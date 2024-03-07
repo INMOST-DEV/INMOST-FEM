@@ -407,14 +407,14 @@ public:
     template<typename T = typename Traits::InitValueSetter>
     TCX<decltype(makeInitValueSetter(std::declval<std::vector<INMOST::Tag>>())), T> pullInitValFrom(std::vector<INMOST::Tag> tag_vec) { m_init_value_setter = T(makeInitValueSetter(std::move(tag_vec) )); return *this; }
 
-    template<class RandomIt>
+    template<bool OnlyIfDataAvailable = false, class RandomIt>
     void GatherDataOnElement(const INMOST::Tag* var_tag, const std::size_t ntags, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp) const;
-    template<class RandomIt>
+    template<bool OnlyIfDataAvailable = false, class RandomIt>
     void GatherDataOnElement(INMOST::Tag from, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp) const;
-    template<class RandomIt>
-    void GatherDataOnElement(const INMOST::Tag& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement(from, cell, out, components.begin(), components.size()); }
-    template<class RandomIt>
-    void GatherDataOnElement(const std::vector<INMOST::Tag>& var_tags, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement(var_tags.data(), var_tags.size(), cell, out, components.begin(), components.size()); }
+    template<bool OnlyIfDataAvailable = false, class RandomIt>
+    void GatherDataOnElement(const INMOST::Tag& from, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(from, cell, out, components.begin(), components.size()); }
+    template<bool OnlyIfDataAvailable = false, class RandomIt>
+    void GatherDataOnElement(const std::vector<INMOST::Tag>& var_tags, const INMOST::Cell& cell, RandomIt out, std::initializer_list<int> components = {}) const { GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(var_tags.data(), var_tags.size(), cell, out, components.begin(), components.size()); }
 
     double GetTimeInitAssembleData() const;
     double GetTimeFillMapTemplate() const;

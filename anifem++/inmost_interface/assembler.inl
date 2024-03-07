@@ -858,7 +858,7 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
 #undef TIMER_NOSCOPE
 
 template <typename Traits>
-template<class RandomIt>
+template<bool OnlyIfDataAvailable, class RandomIt>
 void AssemblerT<Traits>::GatherDataOnElement(const INMOST::Tag* var_tag, const std::size_t ntags, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, unsigned int  ncomp) const{
     auto* m = cell.GetMeshLink();
     INMOST::ElementArray<INMOST::Node> nds(m, 4); 
@@ -874,10 +874,10 @@ void AssemblerT<Traits>::GatherDataOnElement(const INMOST::Tag* var_tag, const s
             gni[i] = m_enum.GNodeIndex(nds[i]);
         canonical_node_indexes = createOrderPermutation(gni.data());    
     }
-    Ani::GatherDataOnElement(var_tag, ntags, m_info.TestFuncs(), cell, fcs, eds, nds, canonical_node_indexes.data(), out, component, ncomp);
+    Ani::GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(var_tag, ntags, m_info.TestFuncs(), cell, fcs, eds, nds, canonical_node_indexes.data(), out, component, ncomp);
 }
 template <typename Traits>
-template<class RandomIt>
+template<bool OnlyIfDataAvailable, class RandomIt>
 void AssemblerT<Traits>::GatherDataOnElement(INMOST::Tag from, const INMOST::Cell& cell, RandomIt out, const int* component/*[ncomp]*/, unsigned int  ncomp) const{
     auto* m = cell.GetMeshLink();
     INMOST::ElementArray<INMOST::Node> nds(m, 4); 
@@ -893,7 +893,7 @@ void AssemblerT<Traits>::GatherDataOnElement(INMOST::Tag from, const INMOST::Cel
             gni[i] = m_enum.GNodeIndex(nds[i]);
         canonical_node_indexes = createOrderPermutation(gni.data());    
     }
-    Ani::GatherDataOnElement(from, m_info.TestFuncs(), cell, fcs, eds, nds, canonical_node_indexes.data(), out, component, ncomp);
+    Ani::GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(from, m_info.TestFuncs(), cell, fcs, eds, nds, canonical_node_indexes.data(), out, component, ncomp);
 }
 
 #ifndef NO_ASSEMBLER_TIMERS

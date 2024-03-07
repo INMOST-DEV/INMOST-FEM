@@ -230,25 +230,25 @@ namespace Ani{
         void densify_result(); 
 
     public:
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(const INMOST::Tag& from, const ElementalAssembler& p, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp); 
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(const INMOST::Tag* var_tags, const std::size_t nvar_tags, const ElementalAssembler& p, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(const std::vector<INMOST::Tag>& var_tags, const ElementalAssembler& p, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(std::initializer_list<INMOST::Tag> var_tags, const ElementalAssembler& p, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(const INMOST::Tag& from, const ElementalAssembler& p, RandomIt out, std::initializer_list<int> components);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(std::vector<INMOST::Tag>& var_tags, const ElementalAssembler& p, RandomIt out, std::initializer_list<int> components);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(std::initializer_list<INMOST::Tag> var_tags, const ElementalAssembler& p, RandomIt out, std::initializer_list<int> components);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(const INMOST::Tag& from, const ElementalAssembler& p, RandomIt out, unsigned int physVar);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(std::vector<INMOST::Tag>& var_tags, const ElementalAssembler& p, RandomIt out, unsigned int physVar);
-        template<class RandomIt>
+        template<bool OnlyIfDataAvailable = false, class RandomIt>
         static void GatherDataOnElement(std::initializer_list<INMOST::Tag> var_tags, const ElementalAssembler& p, RandomIt out, unsigned int physVar);
     };
 }
