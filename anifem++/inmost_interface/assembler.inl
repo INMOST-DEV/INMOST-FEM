@@ -438,8 +438,8 @@ int AssemblerT<Traits>::Assemble(INMOST::Sparse::Matrix &matrix, INMOST::Sparse:
                         }
                     } else {
                         INMOST::Sparse::Row& swap_row = swap_rows[nthread];
-                        swap_row.Resize(nRows + matrix[rid.id].Size());
                         auto& qrow = matrix[rid.id];
+                        swap_row.Resize(nRows + qrow.Size());
                         int j = 0, ii = 0, q = 0;
                         int j_end = nRows, ii_end = qrow.Size();
                         while (ii < ii_end && j < j_end){
@@ -652,9 +652,9 @@ int AssemblerT<Traits>::AssembleTemplate(INMOST::Sparse::Matrix &matrix){
                     abort();
                 }
         #endif
-                swap_row.Resize(nRows + matrix[rid.id].Size());
                 if (nthreads > 1) L.Lock(rid.id);
                 auto& qrow = matrix[rid.id];
+                swap_row.Resize(nRows + qrow.Size());
                 int j = 0, ii = 0, q = 0;
                 int j_end = nRows, ii_end = qrow.Size();
                 while (ii < ii_end && j < j_end){
@@ -820,8 +820,8 @@ int AssemblerT<Traits>::AssembleMatrix(INMOST::Sparse::Matrix &matrix, const Ass
                         }
                     } else {
                         INMOST::Sparse::Row& swap_row = swap_rows[nthread];
-                        swap_row.Resize(nRows + matrix[rid.id].Size());
                         auto& qrow = matrix[rid.id];
+                        swap_row.Resize(nRows + qrow.Size());
                         int j = 0, ii = 0, q = 0;
                         int j_end = nRows, ii_end = qrow.Size();
                         while (ii < ii_end && j < j_end){
