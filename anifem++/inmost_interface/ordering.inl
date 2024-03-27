@@ -31,11 +31,15 @@ namespace Ani{
         auto const& hc = m->HighConn(h);//< nodes of the cell
         auto const& lc = m->LowConn(h); //< faces of the cell
 
+        assert(nodes.size() >= 4 || "nodes ElementArray does't have enough of memory"); 
         std::copy(hc.data(), hc.data() + 4, nodes.data());
-        if (reorder_nodes) 
+        if (reorder_nodes)
             reorderNodesOnTetrahedron(nodes);
 
         if (prepare_edges_and_faces){
+            assert(edges.size() >= 6 || "edges ElementArray does't have enough of memory");
+            assert(faces.size() >= 4 || "faces ElementArray does't have enough of memory");
+
             //load remote data to low level cache
             std::array<HandleType, 4> nds_h{nodes.data()[0], nodes.data()[1], nodes.data()[2], nodes.data()[3]};
             std::array<HandleType, 4> fh{lc[0], lc[1], lc[2], lc[3]};
