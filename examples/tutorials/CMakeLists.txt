@@ -30,3 +30,6 @@ target_link_libraries(lin_elast AniFem++ excom)
 
 add_executable(nonlin_elast nonlin_elast.cpp prob_args.h prob_args.cpp)
 target_link_libraries(nonlin_elast AniFem++ excom)
+
+add_executable(nonlin_elast_incompress nonlin_elast_incompress.cpp prob_args.h prob_args.cpp)
+target_link_libraries(nonlin_elast_incompress AniFem++ excom)

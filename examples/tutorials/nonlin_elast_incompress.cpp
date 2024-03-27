@@ -2,16 +2,17 @@
 //
 
 /**
- * This program generates  and solves a finite element system for the stationary nonlinear elasticity problem
+ * This program generates  and solves a finite element system for the stationary nonlinear incompressible elasticity problem
  *
  * \f[
  * \begin{aligned}
  *   \mathrm{div}\ \mathbb{P}  + f &= 0\    in\  \Omega  \\
+ *                           J - 1 &= 0\    in\  \Omega  \\
  *          \mathbf{u}             &= \mathbf{u}_0\  on\  \Gamma_D\\
- *     \mathbb{P} \cdot \mathbf{N} &= -p\ \mathrm{adj}\ \mathbb{F}^T \mathbf{N}\ on\  \Gamma_P\\  
+ *     \mathbb{P} \cdot \mathbf{N} &= -p_{ext}\ \mathrm{adj}\ \mathbb{F}^T \mathbf{N}\ on\  \Gamma_P\\  
  *     \mathbb{P} \cdot \mathbf{N} &= 0\    on\  \Gamma_0\\
- *                      \mathbb{P} &= \mathbb{F} \cdot \mathbb{S}\\ 
- *   \mathbb{F}_{ij} &= \mathbb{I}_{ij} + \mathrm{grad}_j \mathbf{u}_i\\
+ *                      \mathbb{P} &= \mathbb{F} \cdot \mathbb{S} - p \mathrm{adj}\ \mathbb{F}^T\\ 
+ *   \mathbb{F}_{ij} &= \mathbb{I}_{ij} + \mathrm{grad}_j \mathbf{u}_i,\ J = \mathrm{det }\mathbb{F}\\
  *        \mathbb{S} &= \lambda\ \mathrm{tr}\ \mathbb{E}\ \mathbb{I} + 2 \mu \mathbb{E} \\
  *        \mathbb{E} &= \frac{\mathbb{F}^T \cdot \mathbb{F}  - \mathbb{I} } {2} \\
  * \end{aligned}
@@ -24,7 +25,7 @@
  *  λ(x)   = 1.0         - second Lame coefficient
  *  f(x)   = { 0, 0, 0 } - external body forces
  *  u_0(x) = { 0, 0, 0 } - essential (Dirichlet) boundary condition
- *  p(x)   = 0.001         - pressure on bottom part
+ *  p_{ext}(x)   = 0.001         - pressure on bottom part
  * 
  */
 
@@ -33,8 +34,8 @@
 
 using namespace INMOST;
 
-struct InputArgs1VarNonLin: public InputArgs1Var{
-    using ParentType = InputArgs1Var;
+struct InputArgs1VarNonLin: public InputArgs2Var{
+    using ParentType = InputArgs2Var;
     double nlin_rel_err = 1e-8, nlin_abs_err = 1e-8;
     int nlin_maxit = 10;
     double lin_abs_scale = 0.01;
@@ -78,8 +79,9 @@ protected:
 
 int main(int argc, char* argv[]){
     InputArgs1VarNonLin p;
-    std::string prob_name = "nonlin_elast";
+    std::string prob_name = "nonlin_elast_incompress";
     p.save_prefix = prob_name + "_out"; 
+    p.axis_sizes = 5;
     p.parseArgs_mpi(&argc, &argv);
     unsigned quad_order = p.max_quad_order;
 
@@ -95,9 +97,10 @@ int main(int argc, char* argv[]){
     using namespace Ani;
     //generate FEM space from it's name
     FemSpace UFem = choose_space_from_name(p.USpace)^3;
-    uint unf = UFem.dofMap().NumDofOnTet();
-    auto& dofmap = UFem.dofMap();
-    auto mask = GeomMaskToInmostElementType(dofmap.GetGeomMask()) | FACE;
+    FemSpace PFem = choose_space_from_name(p.PSpace);
+    uint unf = UFem.dofMap().NumDofOnTet(), pnf = PFem.dofMap().NumDofOnTet();
+    auto& udofmap = UFem.dofMap();
+    auto mask = GeomMaskToInmostElementType(udofmap.GetGeomMask()) | FACE;
     const int INTERNAL_PART = 0, FREE_BND = 1, DIRICHLET_BND = 2, PRESSURE_BND = 4;
     
     // Set boundary labels on all boundaries
@@ -124,16 +127,17 @@ int main(int argc, char* argv[]){
     struct PotentialParams{
         double mu, lambda;
     };
-    auto Potential = [](PotentialParams p, SymMtx3D<> E, unsigned char dif = 2){
+    auto Potential = [](PotentialParams p, SymMtx3D<> E, double p_coef, unsigned char dif = 2){
         auto I1 = Mech::I1<>{dif, E}; 
         auto I2 = Mech::I2<>{dif, E};
+        auto J = Mech::J<>{dif, E};
         Param<> mu(p.mu), lambda(p.lambda);
         
-        auto W_svk = (lambda + 2*mu)/8 * sq(I1 - 3) + mu*(I1 - 3) - mu/2*(I2 - 3);
+        auto W_svk = (lambda + 2*mu)/8 * sq(I1 - 3) + mu*(I1 - 3) - mu/2*(I2 - 3) - p_coef * (J - 1);
         return W_svk;
     };
-    auto P_func = [Potential](PotentialParams p, const Mtx3D<>& grU) -> Mtx3D<>{ return Mech::S_to_P(grU, Potential(p, Mech::grU_to_E(grU), 1).D()); };
-    auto dP_func = [Potential](PotentialParams p, const Mtx3D<>& grU) -> Sym4Tensor3D<> { auto W = Potential(p, Mech::grU_to_E(grU), 2); return Mech::dS_to_dP(grU, W.D(), W.DD()); };
+    auto P_func = [Potential](PotentialParams p, const Mtx3D<>& grU, double p_coef) -> Mtx3D<>{ return Mech::S_to_P(grU, Potential(p, Mech::grU_to_E(grU), p_coef, 1).D()); };
+    auto dP_func = [Potential](PotentialParams p, const Mtx3D<>& grU, double p_coef) -> Sym4Tensor3D<> { auto W = Potential(p, Mech::grU_to_E(grU), p_coef, 2); return Mech::dS_to_dP(grU, W.D(), W.DD()); };
     auto dJ_func = [](const Mtx3D<>& grU)->Mtx3D<>{ return Mech::S_to_P(grU, Mech::J<>(1, Mech::grU_to_E(grU)).D()); };
     auto ddJ_func = [](const Mtx3D<>& grU)->Sym4Tensor3D<>{ auto J = Mech::J<>(2, Mech::grU_to_E(grU)); return Mech::dS_to_dP(grU, J.D(), J.DD()); };
     auto comp_gradU = [gradUFEM = UFem.getOP(GRAD)](const Coord<> &X, const Tetra<const double>& XYZ, Ani::ArrayView<> udofs, DynMem<>& alloc)->Mtx3D<>{
@@ -141,6 +145,12 @@ int main(int argc, char* argv[]){
         DenseMatrix<> A(grU.m_dat.data(), 9, 1);
         fem3DapplyX(XYZ, ArrayView<const double>(X.data(), 3), DenseMatrix<>(udofs.data, udofs.size, 1), gradUFEM, A, alloc);
         return grU;
+    };
+    auto comp_lagrange_coef = [idenPFEM = PFem.getOP(IDEN)](const Coord<> &X, const Tetra<const double>& XYZ, Ani::ArrayView<> pdofs, DynMem<>& alloc)->double{
+        double p = NAN;
+        DenseMatrix<> pa(&p, 1, 1);
+        fem3DapplyX(XYZ, ArrayView<const double>(X.data(), 3), DenseMatrix<>(pdofs.data, pdofs.size, 1), idenPFEM, pa, alloc);
+        return p;
     };
     auto W_params = [](const Cell& c, const Coord<> &X) -> PotentialParams{
         (void) c, (void) X;
@@ -187,6 +197,7 @@ int main(int argc, char* argv[]){
     struct ProbLocData{
         BndMarker lbl;      //< save labels used to apply boundary conditions
         ArrayView<> udofs;  //< save elemental dofs to evaluate grad_j u_i (x)
+        ArrayView<> pdofs;  //< save elemental dofs to evaluate Lagrange coefficient p(x)
 
         //some helper data to be postponed to tensor functions
         const Tetra<const double>* pXYZ = nullptr;    
@@ -194,23 +205,41 @@ int main(int argc, char* argv[]){
         const Cell* c = nullptr;
     };
 
-    auto P_tensor = [comp_gradU, P_func, W_params](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet){
+    auto P_tensor = [comp_gradU, comp_lagrange_coef, P_func, W_params](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet){
         (void) dims; (void) iTet;
         auto& p = *static_cast<ProbLocData*>(user_data);
         auto grU = comp_gradU(X, *p.pXYZ, p.udofs, *p.palloc);
+        double p_coef = comp_lagrange_coef(X, *p.pXYZ, p.pdofs, *p.palloc);
         PotentialParams c = W_params(*p.c, X);
-        auto P = P_func(c, grU);
+        auto P = P_func(c, grU, p_coef);
         std::copy(P.m_dat.data(), P.m_dat.data() + 9, D);
         return Ani::TENSOR_GENERAL;
     };
-    auto dP_tensor = [comp_gradU, dP_func, W_params](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet){
+    auto dP_tensor = [comp_gradU, comp_lagrange_coef, dP_func, W_params](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet){
         (void) dims; (void) iTet;
         auto& p = *static_cast<ProbLocData*>(user_data);
         auto grU = comp_gradU(X, *p.pXYZ, p.udofs, *p.palloc);
+        double p_coef = comp_lagrange_coef(X, *p.pXYZ, p.pdofs, *p.palloc);
         PotentialParams c = W_params(*p.c, X);
-        auto dP = tensor_convert<Tensor4Rank<3>>(dP_func(c, grU));
+        auto dP = tensor_convert<Tensor4Rank<3>>(dP_func(c, grU, p_coef));
         std::copy(dP.m_dat.data(), dP.m_dat.data() + 81, D);
         return Ani::TENSOR_SYMMETRIC;
+    };
+    auto dlagr_tensor = [comp_gradU, dJ_func](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet){
+        (void) dims; (void) iTet;
+        auto& p = *static_cast<ProbLocData*>(user_data);
+        auto grU = comp_gradU(X, *p.pXYZ, p.udofs, *p.palloc);
+        auto P = dJ_func(grU);
+        std::copy(P.m_dat.data(), P.m_dat.data() + 9, D);
+        return Ani::TENSOR_GENERAL;
+    };
+    auto lagr_rhs_tensor = [comp_gradU, dJ_func](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet){
+        (void) dims; (void) iTet;
+        auto& p = *static_cast<ProbLocData*>(user_data);
+        auto grU = comp_gradU(X, *p.pXYZ, p.udofs, *p.palloc);
+        D[0] = (Mech::J<>(0, Mech::grU_to_E(grU))() - 1);
+
+        return Ani::TENSOR_GENERAL;
     };
     auto pressure_tensor = [comp_gradU, dJ_func, external_pressure](const Coord<> &X, double *D, TensorDims dims, void *user_data, int iTet){
         (void) dims; (void) iTet;
@@ -237,42 +266,56 @@ int main(int argc, char* argv[]){
     };
 
     // Define tag to store result
-    Tag u = createFemVarTag(m, *dofmap.target<>(), "u");
+    Tag u = createFemVarTag(m, *udofmap.target<>(), "u");
+    Tag p_tag = createFemVarTag(m, *PFem.dofMap().target<>(), "p");
+    std::vector<Tag> up{u, p_tag};
 
     //define function for gathering data from every tetrahedron to send them to elemental assembler
-    auto local_data_gatherer = [&BndLabel, geom_mask = UFem.dofMap().GetGeomMask() | DofT::FACE, unf](ElementalAssembler& p) -> void{
+    auto local_data_gatherer = [&BndLabel, geom_mask = UFem.dofMap().GetGeomMask() | DofT::FACE, unf, pnf](ElementalAssembler& p) -> void{
         double *nn_p = p.get_nodes();
         const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
         ProbLocData data;
         data.lbl.fillFromBndTag(BndLabel, geom_mask, *p.nodes, *p.edges, *p.faces);
         data.udofs.Init(p.vars->begin(0), unf);
+        data.pdofs.Init(p.vars->begin(1), pnf);
         data.c = p.cell;
 
         p.compute(args, &data);
     };
     std::function<void(const double**, double*, double*, long*, void*, DynMem<double, long>*)> local_jacobian_assembler = 
-        [unf, dP_tensor, dpressure_tensor, &UFem, order = quad_order](const double** XY/*[4]*/, double* Adat, double* rw, long* iw, void* user_data, DynMem<double, long>* fem_alloc){
+        [unf, pnf, dP_tensor, dpressure_tensor, dlagr_tensor, &UFem, &PFem, order = quad_order](const double** XY/*[4]*/, double* Adat, double* rw, long* iw, void* user_data, DynMem<double, long>* fem_alloc){
         (void) rw, (void) iw;
-        DenseMatrix<> A(Adat, unf, unf); A.SetZero();
+        DenseMatrix<> A(Adat, unf+pnf, unf+pnf); A.SetZero();
         auto adapt_alloc = makeAdaptor<double, int>(*fem_alloc);
-        auto Bmem = adapt_alloc.alloc(unf*unf, 0, 0);
-        DenseMatrix<> B(Bmem.getPlainMemory().ddata, unf, unf); B.SetZero();
+        auto Bmem = adapt_alloc.alloc((unf+pnf)*(unf+pnf), 0, 0);
+        DenseMatrix<> B(Bmem.getPlainMemory().ddata, unf+pnf, unf+pnf); B.SetZero();
 
         Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
         auto& d = *static_cast<ProbLocData*>(user_data);
         d.pXYZ = &XYZ, d.palloc = &adapt_alloc;
-        auto grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN);
+        auto grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN), iden_p = PFem.getOP(IDEN);
 
-        // elemental stiffness matrix <dP grad(P1), grad(P1)> 
-        fem3Dtet<DfuncTraits<>>(XYZ, grad_u, grad_u, dP_tensor, A, adapt_alloc, order, &d);
+        // elemental stiffness matrix <dP grad(P2^3), grad(P2^3)> 
+        fem3Dtet<DfuncTraits<>>(XYZ, grad_u, grad_u, dP_tensor, B, adapt_alloc, order, &d);
+        for (std::size_t i = 0; i < unf; ++i)
+            for (std::size_t j = 0; j < unf; ++j)
+                A(i, j) = B(i, j);
+        // \int (dP(\nabla u)/dp p) : \nabla \phi  
+        // \int q d(1 - J)/dF : \nabla u
+        fem3Dtet<DfuncTraits<>>(XYZ, grad_u, iden_p, dlagr_tensor, B, adapt_alloc, order, &d);
+        for (std::size_t i = 0; i < unf; ++i)
+            for (std::size_t j = 0; j < pnf; ++j)
+                A(i, unf+j) = A(unf+j, i) = -B(j, i);
 
         // read labels from user_data
         auto& dat = *static_cast<ProbLocData*>(user_data);
         // apply Neumann BC
         for (int k = 0; k < 4; ++k){
             if (dat.lbl.f[k] & PRESSURE_BND){ //Neumann BC
-                fem3DfaceN<DfuncTraits<>> ( XYZ, k, grad_u, iden_u, dpressure_tensor, B, adapt_alloc, order, user_data);
-                A += B;
+                fem3DfaceN<DfuncTraits<>> ( XYZ, k, grad_u, iden_u, dpressure_tensor, B, adapt_alloc, order, &d);
+                for (uint i = 0; i < unf; ++i)
+                    for (uint j = 0; j < unf; ++j)
+                        A(i, j) += B(i, j);
             }
         }
 
@@ -282,24 +325,31 @@ int main(int argc, char* argv[]){
             applyDirMatrix(*UFem.dofMap().target<>(), A, sp); 
     };
     std::function<void(const double**, double*, double*, long*, void*, DynMem<double, long>*)> local_residual_assembler = 
-        [unf, P_tensor, pressure_tensor, F_tensor, &UFem, grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN), order = quad_order](const double** XY/*[4]*/, double* Adat, double* rw, long* iw, void* user_data, DynMem<double, long>* fem_alloc){
+        [unf, pnf, P_tensor, pressure_tensor, lagr_rhs_tensor, F_tensor, &UFem, &PFem, grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN), order = quad_order](const double** XY/*[4]*/, double* Adat, double* rw, long* iw, void* user_data, DynMem<double, long>* fem_alloc){
         (void) rw, (void) iw;
-        DenseMatrix<> F(Adat, unf, 1); F.SetZero();
+        DenseMatrix<> F(Adat, unf+pnf, 1); F.SetZero();
         auto adapt_alloc = makeAdaptor<double, int>(*fem_alloc);
-        auto Bmem = adapt_alloc.alloc(unf, 0, 0);
-        DenseMatrix<> B(Bmem.getPlainMemory().ddata, unf, 1); B.SetZero();
+        auto Bmem = adapt_alloc.alloc(unf+pnf, 0, 0);
+        DenseMatrix<> B(Bmem.getPlainMemory().ddata, unf+pnf, 1); B.SetZero();
 
         Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
         auto& d = *static_cast<ProbLocData*>(user_data);
         d.pXYZ = &XYZ, d.palloc = &adapt_alloc;
-        auto grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN);  
+        auto grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN), iden_p = PFem.getOP(IDEN);  
         ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;  
 
-        // elemental stiffness matrix <P, grad(P1)> 
-        fem3Dtet<DfuncTraits<>>(XYZ, iden_p0, grad_u, P_tensor, F, adapt_alloc, order, &d); 
-        // elemental right hand side vector <F, P1>
+        // elemental stiffness matrix <P, grad(P2^3)> 
+        fem3Dtet<DfuncTraits<>>(XYZ, iden_p0, grad_u, P_tensor, B, adapt_alloc, order, &d); 
+        for (std::size_t i = 0; i < unf; ++i)
+            F[i] = B[i];
+        // elemental right hand side vector <-(J-1), P1>
+        fem3Dtet<>(XYZ, iden_p0, iden_p, lagr_rhs_tensor, B, adapt_alloc, order, &d);
+        for (std::size_t i = 0; i < pnf; ++i)
+            F[i+unf] = -B[i];    
+        // elemental right hand side vector <F, P2^3>
         fem3Dtet<DfuncTraits<>>(XYZ, iden_p0, iden_u, F_tensor, B, adapt_alloc, order, &d);
-        F -= B;
+        for (std::size_t i = 0; i < unf; ++i)
+            F[i] -= B[i];
 
         // read labels from user_data
         auto& dat = *static_cast<ProbLocData*>(user_data);
@@ -307,7 +357,8 @@ int main(int argc, char* argv[]){
         for (int k = 0; k < 4; ++k){
             if (dat.lbl.f[k] & PRESSURE_BND){ //Neumann BC
                 fem3DfaceN<DfuncTraits<>> ( XYZ, k, iden_p0, iden_u, pressure_tensor, B, adapt_alloc, order, &d);
-                F += B;
+                for (std::size_t i = 0; i < unf; ++i)
+                    F[i] += B[i];
             }
         }
 
@@ -319,19 +370,22 @@ int main(int argc, char* argv[]){
 
     //define assembler
     Assembler discr(m);
-    discr.SetMatFunc(GenerateElemMat(local_jacobian_assembler, unf, unf, 0, 0));
-    discr.SetRHSFunc(GenerateElemRhs(local_residual_assembler, unf, 0, 0));
+    discr.SetMatFunc(GenerateElemMat(local_jacobian_assembler, unf+pnf, unf+pnf, 0, 0));
+    discr.SetRHSFunc(GenerateElemRhs(local_residual_assembler, unf+pnf, 0, 0));
     {
         //create global degree of freedom enumenator
-        auto Var0Helper = GenerateHelper(*UFem.base());
+        auto Var0Helper = GenerateHelper(*UFem.base()), Var1Helper = GenerateHelper(*PFem.base());
         FemExprDescr fed;
         fed.PushTrialFunc(Var0Helper, "u");
         fed.PushTestFunc(Var0Helper, "phi_u");
+        fed.PushTrialFunc(Var1Helper, "p");
+        fed.PushTestFunc(Var1Helper, "phi_p");
         discr.SetProbDescr(std::move(fed));
     }
     discr.SetDataGatherer(local_data_gatherer);
     discr.PrepareProblem();
-    discr.pullInitValFrom(u);
+    discr.pullInitValFrom(up);
+    if (pRank == 0) std::cout << "#dofs = " << discr.m_enum.getMatrixSize() << std::endl;
 
     //get parallel interval and allocate parallel vectors
     auto i0 = discr.getBegInd(), i1 = discr.getEndInd();
@@ -339,21 +393,23 @@ int main(int argc, char* argv[]){
     Sparse::Vector  x( "x" , i0, i1, m->GetCommunicator()), 
                     dx("dx", i0, i1, m->GetCommunicator()), 
                     b( "b" , i0, i1, m->GetCommunicator());
-    discr.AssembleTemplate(A);  //< preallocate memory for matrix (to accelerate matrix assembling), this call is optional
+    //discr.AssembleTemplate(A);  //< preallocate memory for matrix (to accelerate matrix assembling), this call is optional
     // set options to use preallocated matrix state (to accelerate matrix assembling)
-    Ani::AssmOpts opts = Ani::AssmOpts().SetIsMtxIncludeTemplate(true)
+    Ani::AssmOpts opts = Ani::AssmOpts()/*.SetIsMtxIncludeTemplate(true)
                                         .SetUseOrderedInsert(true)
-                                        .SetIsMtxSorted(true); //< setting this parameters is optional
+                                        .SetIsMtxSorted(true)*/; //< setting this parameters is optional
 
     //setup linear solver
     Solver lin_solver(p.lin_sol_nm, p.lin_sol_prefix);
-    auto assemble_R = [&discr, &u](const Sparse::Vector& x, Sparse::Vector &b) -> int{
-        discr.SaveSolution(x, u);
+    lin_solver.SetParameterReal("drop_tolerance", 1e-2);
+    lin_solver.SetParameterReal("reuse_tolerance", 1e-3);
+    auto assemble_R = [&discr, &up](const Sparse::Vector& x, Sparse::Vector &b) -> int{
+        discr.SaveSolution(x, up);
         std::fill(b.Begin(), b.End(), 0.0);
         return discr.AssembleRHS(b);
     };
-    auto assemble_J = [&discr, &u, opts](const Sparse::Vector& x, Sparse::Matrix &A) -> int{
-        discr.SaveSolution(x, u);
+    auto assemble_J = [&discr, &up, opts](const Sparse::Vector& x, Sparse::Matrix &A) -> int{
+        discr.SaveSolution(x, up);
         std::for_each(A.Begin(), A.End(), [](INMOST::Sparse::Row& row){ for (auto vit = row.Begin(); vit != row.End(); ++vit) vit->second = 0.0; });
         return discr.AssembleMatrix(A, opts);
     };
@@ -385,7 +441,9 @@ int main(int argc, char* argv[]){
         if (pRank == 0) std::cout << prob_name << ":\n\tnit = " << ni << ": newton residual = " << anrm << " ( rel = " << rnrm << " )" <<  std::endl;
         while (rnrm >= p.nlin_rel_err && anrm >= p.nlin_abs_err && ni < p.nlin_maxit){
             assemble_J(x, A);
+            if (pRank == 0) std::cout << "--- Compute preconditioner ---" << std::endl;
             lin_solver.SetMatrix(A);
+            if (pRank == 0) std::cout << "--- Solve linear system ---" << std::endl;
             if (std::stod(lin_solver.GetParameter("absolute_tolerance")) > p.lin_abs_scale*anrm)
                 lin_solver.SetParameterReal("absolute_tolerance", p.lin_abs_scale*anrm);
             lin_solver.Solve(b, dx);
@@ -402,7 +460,7 @@ int main(int argc, char* argv[]){
     }
 
     //copy result to the tag and save solution
-    discr.SaveSolution(x, u);
+    discr.SaveSolution(x, up);
     m->Save(p.save_dir + p.save_prefix + ".pvtu");
 
     discr.Clear();
