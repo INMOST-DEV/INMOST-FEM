@@ -820,15 +820,43 @@ W_e(\mathbb{C}) = \frac{\lambda}{2}(\mathrm{tr}\ \mathbb{E})^2 + \mu\ \mathrm{tr
 
 Слабая постановка имеет вид ($\mathbf{u} \leftrightarrow \mathbf{v}$, $p \leftrightarrow q$):
 ```math
-\mathcal{R}_{\mathbf{v}}(\mathbf{u}, p) = \int_\Omega \mathbb{P}^{ij}(\mathbf{u}, p)\nabla_j \mathbf{v}_i\ d^3\mathbf{x} + \int_{\partial \Omega_p} p_{ext} \mathbf{N}_j (\mathrm{adj}\ \mathbb{F})^{ji} \mathbf{v}_i\ dS - \int_\Omega\mathbf{f}^i \mathbf{v}_i = 0\\
-\mathcal{R}_{q}(\mathbf{u}, p) = -q\ (J - 1) = 0\\
+\begin{aligned}
+  &\mathcal{R}_{\mathbf{v}}(\mathbf{u}, p) = \int_\Omega \mathbb{P}^{ij}(\mathbf{u}, p)\nabla_j \mathbf{v}_i\ d^3\mathbf{x} + \int_{\partial \Omega_p} p_{ext} \mathbf{N}_j (\mathrm{adj}\ \mathbb{F})^{ji} \mathbf{v}_i\ dS - \int_\Omega\mathbf{f}^i \mathbf{v}_i = 0\\
+  &\mathcal{R}_{q}(\mathbf{u}, p) = \int_\Omega -q\ (J - 1) \ d^3\mathbf{x} = 0\\
+\end{aligned}
 ```
 
 Далее вводим дискретизацию
 ```math
-\mathbf{u}^h = \sum\limits_{k = 1}^{K_u} u_k \mathbf{\phi}^{(k)}, p^h = \sum\limits_{k = 1}^{K_p} p_k q^{(k)}.
+\mathbf{u}^h = \sum\limits_{k = 1}^{K_u} u_k \mathbf{\phi}^{(k)}, p^h = \sum\limits_{m = 1}^{K_p} p_m q^{(m)}.
 ```
-После подстановки этой дискретизации в функции невязки получаем нелинейную алгебраическую систему, которую можно решать методом Ньютона так же, как это делалось в предыдущем примере.
+После подстановки этой дискретизации в функции невязки получаем нелинейную алгебраическую систему:
+```math
+\mathcal{R}^h(\mathbf{u}^h, p^h) = \begin{pmatrix} \mathcal{R}^h_{\mathbf{u}}(\mathbf{u}^h, p^h)] \\ \mathcal{R}_{p}(\mathbf{u}^h, p^h) \end{pmatrix} = \begin{pmatrix} \mathrm{vec}[\mathcal{R}^h_{k}(\mathbf{u}^h, p^h)] \\ \mathrm{vec}[\mathcal{R}^h_{K_u + l}(\mathbf{u}^h, p^h)]\end{pmatrix}\\
+```
+```math
+\begin{aligned}
+&\mathcal{R}^h_{k}(\mathbf{u}^h, p^h) = \int_\Omega \mathbb{P}^{ij}(\mathbf{u}^h, p^h) \nabla_j \mathbf{\phi}^{(k)}_i\ d^3\mathbf{x} + \int_{\partial \Omega_p} p_{ext} \mathbf{N}_j \{\mathrm{adj}\ \mathbb{F}(\mathbf{u}^h)\}^{ji} \mathbf{\phi}^{(k)}_i\ dS - \int_\Omega\mathbf{f}^i \mathbf{\phi}^{(k)}_i = 0\\
+&\mathcal{R}^h_{K_u + m}(\mathbf{u}^h, p^h) = \int_\Omega -q^{(m)} (J(\mathbf{u}^h) - 1) d^3\mathbf{x}.
+\end{aligned}
+```
+Якобиан данной системы имеет следующий вид:
+```math
+\mathcal{J}^h(\mathbf{u}^h, p^h) = \begin{pmatrix} \mathcal{J}^h_{\mathbf{u}\mathbf{u}}(\mathbf{u}^h, p^h) & \mathcal{J}^h_{\mathbf{u}p}(\mathbf{u}^h) \\ \mathcal{J}^h_{p\mathbf{u}}(\mathbf{u}^h) & 0 \end{pmatrix}
+```
+где 
+```math
+[\mathcal{J}^h_{\mathbf{u}\mathbf{u}}(\mathbf{u}^h, p^h)]_{kl} = \int_\Omega \left(\frac{\partial^2 W_e}{\partial \mathbb{F}_{ij} \partial \mathbb{F}_{sr}} - p \frac{\partial^2 J}{\partial \mathbb{F}_{ij} \partial \mathbb{F}_{sr}}\right) \nabla_r \mathbf{\phi}^{(l)}_s \nabla_j \mathbf{\phi}^{(k)}_i d^3\mathbf{x} + \int_{\partial \Omega_p} p_{ext} \frac{\partial^2 J} {\partial \mathbb{F}_{ij} \partial \mathbb{F}_{sr}} \nabla_r \mathbf{\phi}^{(l)}_s \mathbf{N}_j \mathbf{\phi}^{(k)}_i\ dS
+```
+```math
+[\mathcal{J}^h_{\mathbf{u}p}(\mathbf{u}^h, p^h)]_{kn} = \frac{\partial \mathcal{R}^h_{k}(\mathbf{u}^h, p^h)}{\partial p_n} =  -\int_\Omega \frac{\partial J}{\partial \mathbb{F}_{ij}} q^{(n)} \nabla_j \mathbf{\phi}^{(k)}_i d^3\mathbf{x}
+```
+```math
+[\mathcal{J}^h_{p\mathbf{u}}(\mathbf{u}^h, p^h)]_{ml} = \frac{\partial \mathcal{R}^h_{K_u + m}(\mathbf{u}^h, p^h)}{\partial u_l} = -\int_\Omega \frac{\partial J}{\partial \mathbb{F}_{sr}} q^{(l)} \nabla_r \mathbf{\phi}^{(l)}_s d^3\mathbf{x}
+```
+Из двух последних равенств видно, что $\mathcal{J}^h_{\mathbf{u}p} = (\mathcal{J}^h_{p\mathbf{u}})^T$.
+
+Данную систему можно решать методом Ньютона так же, как это делалось в предыдущем примере.
 
 В файле [nonlin_elast_incompress.cpp](../../examples/tutorials/nonlin_elast_incompress.cpp) представлено решение этой задачи с использованием runtime интерфейса.
 
