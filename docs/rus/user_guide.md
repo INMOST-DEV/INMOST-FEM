@@ -852,7 +852,7 @@ W_e(\mathbb{C}) = \frac{\lambda}{2}(\mathrm{tr}\ \mathbb{E})^2 + \mu\ \mathrm{tr
 [\mathcal{J}^h_{\mathbf{u}p}(\mathbf{u}^h, p^h)]_{kn} = \frac{\partial \mathcal{R}^h_{k}(\mathbf{u}^h, p^h)}{\partial p_n} =  -\int_\Omega \frac{\partial J}{\partial \mathbb{F}_{ij}} q^{(n)} \nabla_j \mathbf{\phi}^{(k)}_i d^3\mathbf{x}
 ```
 ```math
-[\mathcal{J}^h_{p\mathbf{u}}(\mathbf{u}^h, p^h)]_{ml} = \frac{\partial \mathcal{R}^h_{K_u + m}(\mathbf{u}^h, p^h)}{\partial u_l} = -\int_\Omega \frac{\partial J}{\partial \mathbb{F}_{sr}} q^{(l)} \nabla_r \mathbf{\phi}^{(l)}_s d^3\mathbf{x}
+[\mathcal{J}^h_{p\mathbf{u}}(\mathbf{u}^h, p^h)]_{ml} = \frac{\partial \mathcal{R}^h_{K_u + m}(\mathbf{u}^h, p^h)}{\partial u_l} = -\int_\Omega \frac{\partial J}{\partial \mathbb{F}_{sr}} q^{(m)} \nabla_r \mathbf{\phi}^{(l)}_s d^3\mathbf{x}
 ```
 Из двух последних равенств видно, что $\mathcal{J}^h_{\mathbf{u}p} = (\mathcal{J}^h_{p\mathbf{u}})^T$.
 
