@@ -31,7 +31,7 @@ struct PhysArr: public std::array<FT, N>{
     inline PhysArr<N, FT>& operator-=(const PhysArr<N, FT>& a){ std::array<FT, N>& x = *this; for (std::size_t i = 0; i < continuous_size(); ++i) x[i] -= a[i]; return *this; }
     inline PhysArr<N, FT> operator+(const PhysArr<N, FT>& a) const { PhysArr<N, FT> r(*this); return (r += a);}
     inline PhysArr<N, FT> operator-(const PhysArr<N, FT>& a) const { PhysArr<N, FT> r(*this); return (r -= a);}
-    inline PhysArr<N, FT> operator-() const { const std::array<FT, N>& x = *this; PhysArr<N, FT> r; for (std::size_t i = 0; i < continuous_size(); ++i) r[i] = -x(i); return r;}
+    inline PhysArr<N, FT> operator-() const { const std::array<FT, N>& x = *this; PhysArr<N, FT> r; for (std::size_t i = 0; i < continuous_size(); ++i) r[i] = -x[i]; return r;}
     inline PhysArr<N, FT>& operator*=(FT a){ std::array<FT, N>& x = *this; for (std::size_t i = 0; i < continuous_size(); ++i) x[i] *= a; return *this; }
     inline PhysArr<N, FT>& operator/=(FT a){ std::array<FT, N>& x = *this; for (std::size_t i = 0; i < continuous_size(); ++i) x[i] /= a; return *this; }
     inline PhysArr<N, FT> operator*(FT a) const { PhysArr<N, FT> r(*this); return (r *= a);}
