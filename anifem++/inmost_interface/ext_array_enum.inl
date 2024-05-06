@@ -872,7 +872,7 @@ template <unsigned N, unsigned NV, typename T1, typename UInt, typename GInt, ty
 typename ext_array_enum<N, NV, T1, UInt, GInt, T4>::iterator& ext_array_enum<N, NV, T1, UInt, GInt, T4>::iterator::operator --(){
     auto n = ptr->m_arr_enum.insert_pos;
     auto m = ptr->m_arr_enum.depends_on + ((ptr->m_arr_enum.insert_pos <= ptr->m_arr_enum.depends_on) ? 1 : 0);
-    auto x = (it2 != m_arr_enum.end()) ? it2->second[m] : UInt(-1);
+    auto x = (it2 != ptr->m_arr_enum.end()) ? it2->second[m] : UInt(-1);
     --it2;
     auto v2 = *it2;
     auto v1 = *it1;
