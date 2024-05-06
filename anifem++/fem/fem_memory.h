@@ -17,6 +17,9 @@
 #include <cmath>
 #include <vector>
 
+typedef unsigned long int ulong;
+typedef unsigned int uint;
+
 namespace Ani{
     ///Store view on external memory
     template<typename ScalarType = double>
