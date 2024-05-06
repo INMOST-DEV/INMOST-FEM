@@ -290,7 +290,7 @@ namespace Ani{
         MatFuncWrapDynamic() = default;
         MatFuncWrapDynamic(MatFuncWrapDynamic<ParType, TReal, TInt>&&) = default;
         MatFuncWrapDynamic(const MatFuncWrapDynamic<ParType, TReal, TInt>& a): 
-            m_sp_in{a.m_sp_in}, m_sp_out{a.m_sp_out}, m_f{a.m_f}, m_sz_w{a.m_sz_w}, m_sz_w{a.m_sz_iw}, 
+            m_sp_in{a.m_sp_in}, m_sp_out{a.m_sp_out}, m_f{a.m_f}, m_sz_w{a.m_sz_w}, m_sz_iw{a.m_sz_iw}, 
             m_user_data_required{a.m_user_data_required}, m_dyn_mem_required{a.m_dyn_mem_required} {}
         MatFuncWrapDynamic& operator=(MatFuncWrapDynamic<ParType, TReal, TInt>&&) = default;
         MatFuncWrapDynamic& operator=(const MatFuncWrapDynamic<ParType, TReal, TInt>& a);
