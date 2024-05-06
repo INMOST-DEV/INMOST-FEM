@@ -43,6 +43,7 @@ ExternalProject_Add(inmost_get
         INSTALL_DIR "${inmost_get_SOURCE_DIR}/install"
         CMAKE_ARGS  "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
                     "-DCMAKE_C_COMPILER:PATH=${CMAKE_C_COMPILER}"
+                    "-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}"
                     "-DCMAKE_INSTALL_PREFIX=${inmost_get_SOURCE_DIR}/install"
                     "-DCOMPILE_EXAMPLES=OFF"
                     "-DCOMPILE_TESTS=OFF"
