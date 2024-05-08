@@ -419,13 +419,13 @@ namespace Ani{
                 a.m_mem = PlainMemoryX<ScalarType, IndexType>(); 
             }
             MemPart& operator=(MemPart&& a){
-                if (&a == this) return this;
+                if (&a == this) return *this;
                 clear();
                 m_mem = a.m_mem;
                 m_link = a.m_link; m_chunk_id = a.m_chunk_id; m_part_id = a.m_part_id;
                 a.m_link = nullptr; a.m_chunk_id = -1; a.m_part_id = -1;
                 a.m_mem = PlainMemoryX<ScalarType, IndexType>(); 
-                return this;
+                return *this;
             }
             void clear(){
                 if (!m_link) return;
