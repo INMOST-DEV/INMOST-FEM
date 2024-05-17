@@ -271,7 +271,8 @@ int main(int argc, char* argv[]){
     std::vector<Tag> up{u, p_tag};
 
     //define function for gathering data from every tetrahedron to send them to elemental assembler
-    auto local_data_gatherer = [&BndLabel, geom_mask = UFem.dofMap().GetGeomMask() | DofT::FACE, unf, pnf](ElementalAssembler& p) -> void{
+
+    auto local_data_gatherer = [&BndLabel, unf, pnf, geom_mask = (UFem.dofMap().GetGeomMask() | DofT::FACE)](ElementalAssembler& p) -> void{
         double *nn_p = p.get_nodes();
         const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
         ProbLocData data;
@@ -325,7 +326,7 @@ int main(int argc, char* argv[]){
             applyDirMatrix(*UFem.dofMap().target<>(), A, sp); 
     };
     std::function<void(const double**, double*, double*, long*, void*, DynMem<double, long>*)> local_residual_assembler = 
-        [unf, pnf, P_tensor, pressure_tensor, lagr_rhs_tensor, F_tensor, &UFem, &PFem, grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN), order = quad_order](const double** XY/*[4]*/, double* Adat, double* rw, long* iw, void* user_data, DynMem<double, long>* fem_alloc){
+        [unf, pnf, P_tensor, pressure_tensor, lagr_rhs_tensor, F_tensor, &UFem, &PFem, order = quad_order, grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN)](const double** XY/*[4]*/, double* Adat, double* rw, long* iw, void* user_data, DynMem<double, long>* fem_alloc){
         (void) rw, (void) iw;
         DenseMatrix<> F(Adat, unf+pnf, 1); F.SetZero();
         auto adapt_alloc = makeAdaptor<double, int>(*fem_alloc);

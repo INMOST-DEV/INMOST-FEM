@@ -240,7 +240,7 @@ int main(int argc, char* argv[]){
     Tag u = createFemVarTag(m, *dofmap.target<>(), "u");
 
     //define function for gathering data from every tetrahedron to send them to elemental assembler
-    auto local_data_gatherer = [&BndLabel, geom_mask = UFem.dofMap().GetGeomMask() | DofT::FACE, unf](ElementalAssembler& p) -> void{
+    auto local_data_gatherer = [&BndLabel, unf, geom_mask = (UFem.dofMap().GetGeomMask() | DofT::FACE)](ElementalAssembler& p) -> void{
         double *nn_p = p.get_nodes();
         const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
         ProbLocData data;
