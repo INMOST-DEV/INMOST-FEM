@@ -146,7 +146,7 @@ namespace Ani{
 
         TensorType operator()(const std::array<Scalar, 3> &X, Scalar *D, TensorDims Ddims, void *user_data,
                               int iTet = 0) override {
-            Scalar mem[MaxDSize] = {0};
+            Scalar mem[MaxDSize+7] = {0}; //+7 to suppress gcc memory warning
             assert(MaxDSize >= Ddims.first * Ddims.second && "Too small MaxDSize");
             BaseT::m_mem.Init(mem, MaxDSize);
             return BaseT::operator()(X, D, Ddims, user_data, iTet);
@@ -163,7 +163,7 @@ namespace Ani{
         _internal_DFunc_common(const Functor &f) : BaseT(f) {}
 
         TensorType operator()(ArrayR X, ArrayR D, TensorDims Ddims, void *user_data, const AniMemory<Scalar, IndexType>& mem) override {
-            Scalar lmem[MaxDSize] = {0};
+            Scalar lmem[MaxDSize+7] = {0}; //+7 to suppress gcc memory warning
             assert(MaxDSize >= Ddims.first * Ddims.second && "Too small MaxDSize");
             BaseT::m_mem.Init(lmem, MaxDSize);
             return BaseT::operator()(X, D, Ddims, user_data, mem);
