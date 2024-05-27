@@ -23,6 +23,14 @@ namespace Ani{
         template<typename FT = double>
         inline SymMtx3D<FT> grU_to_E(const Mtx3D<FT>& grU);
 
+        /// Construct dE(i, j) from F(i, j) =  delta_ij + nabla_j u_i and dF(i,j) = nabla_j du_i
+        template<typename FT = double>
+        inline SymMtx3D<FT> F_and_dF_to_dE(const Mtx3D<FT>& F, const Mtx3D<FT>& dF);
+
+        /// Construct dE(i, j) from grU(i, j) = nabla_j u_i and dgrU(i,j) = nabla_j du_i
+        template<typename FT = double>
+        inline SymMtx3D<FT> grU_and_dgrU_to_dE(const Mtx3D<FT>& grU, const Mtx3D<FT>& dgrU);
+
         /// Construct P_{ij} = F_{ik} * S_{kj} 
         template<typename FT = double>
         inline Mtx3D<FT> S_to_P(const Mtx3D<FT>& grU, const SymMtx3D<FT>& S) { return S + grU * S;}

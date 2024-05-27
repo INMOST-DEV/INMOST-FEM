@@ -28,6 +28,26 @@ inline SymMtx3D<FT> grU_to_E(const Mtx3D<FT>& grU){ //E = (F^T*F - I)/2
     return E;      
 }
 template<typename FT>
+inline SymMtx3D<FT> F_and_dF_to_dE(const Mtx3D<FT>& F, const Mtx3D<FT>& dF){
+    SymMtx3D<FT> dE;
+    for (unsigned i = 0; i < 3; ++i)
+        for (unsigned j = i; j < 3; ++j)
+            dE(i,j) = (dF(0,i)*F(0,j) + dF(1,i)*F(1,j) + dF(2,i)*F(2,j)
+                     + F(0,i)*dF(0,j) + F(1,i)*dF(1,j) + F(2,i)*dF(2,j)) / 2;
+    return dE;                
+}
+template<typename FT>
+inline SymMtx3D<FT> grU_and_dgrU_to_dE(const Mtx3D<FT>& grU, const Mtx3D<FT>& dgrU){
+    SymMtx3D<FT> dE;
+    for (unsigned i = 0; i < 3; ++i)
+        for (unsigned j = i; j < 3; ++j)
+            dE(i, j) = (dgrU(i, j) + dgrU(j, i) 
+                + dgrU(0,i)*grU(0,j) + dgrU(1,i)*grU(1,j) + dgrU(2,i)*grU(2,j)
+                + grU(0,i)*dgrU(0,j) + grU(1,i)*dgrU(1,j) + grU(2,i)*dgrU(2,j))/2;
+    return dE;
+}
+
+template<typename FT>
 inline Sym4Tensor3D<FT> dS_to_dP(const Mtx3D<FT>& grU, const SymMtx3D<FT>& S, const BiSym4Tensor3D<FT>& dS){
     // //D_ijkl = I_ik S_lj + F_in F_km dS_njml
     Mtx3D<FT> F = Mtx3D<FT>::Identity() + grU;
