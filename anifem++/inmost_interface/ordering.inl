@@ -163,6 +163,27 @@ namespace Ani{
         auto reordered_lsid = DofT::DofSymmetries::index_on_reorderd_elem(lo.etype, lo.nelem, lo.stype, lo.lsid, nds_arr);
         return DOFLocus{sign, Element(cell.GetMeshLink(), h[dim][elid]), shift + lsid_shift + reordered_lsid};
     }
+    inline DOFLocus getDOFLocusOnElement(const DofT::BaseDofMap& dmap, uint leid, DofT::uchar etype, DofT::LocSymOrder lso, const INMOST::Element& elem, 
+        const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_node_index){
+        using namespace INMOST;
+        uint shift = ( etype & (DofT::EDGE_ORIENT | DofT::FACE_ORIENT) ) ? dmap.NumDof(etype >> 1) : 0;
+        auto dim = DofT::GeomTypeDim(etype);
+        uint lsid_shift = leid - lso.lsid;
+
+        std::array<unsigned char, 4> gni;
+        for (int k = 0; k < 4; ++k)
+            gni[local_node_index[k]] = canonical_node_indexes[k];
+        auto max_id = *std::max_element(gni.data(), gni.data() + dim + 1);
+        for (int k = dim + 1, st = 1; k < 4; ++k, ++st)
+            gni[k] = max_id + st;
+        char sign = 1;
+        int elid = 0;   
+        if (etype & (DofT::EDGE_ORIENT | DofT::FACE_ORIENT))
+            sign = isPositivePermutationOrient(etype, elid, gni.data()) ? 1 : -1; 
+        unsigned char nds_arr[4]{gni[0], gni[1], gni[2], gni[3]};
+        auto reordered_lsid = DofT::DofSymmetries::index_on_reorderd_elem(etype, 0, lso.stype, lso.lsid, nds_arr);
+        return DOFLocus{sign, elem, shift + lsid_shift + reordered_lsid};
+    }
     inline INMOST::Storage::real takeElementDOF(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
         const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
         const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
@@ -256,5 +277,55 @@ namespace Ani{
                                         out + view.m_shiftOnTet, next_component, next_ncomp, local_face_index, local_edge_index, local_node_index);
             }
         }
+    
+    inline void reorder_mesh_function_data(std::vector<INMOST::Tag> ts, const DofT::BaseDofMap& dmap, INMOST::Tag old_node_enumerator, INMOST::Tag new_node_enumerator, std::size_t block_sz, std::array<std::size_t, 4> elem_data_shift, bool allow_compressed_data){
+        using namespace INMOST;
+        if (ts.empty()) return;
+        Mesh* m = ts[0].GetMeshLink();
+        uint nontrivial_symmetry_geom_mask = DofT::UNDEF;
+        for (uint geom_num = 0; geom_num < DofT::NGEOM_TYPES; ++geom_num)
+            if (dmap.SymComponents(DofT::NumToGeomType(geom_num)) & (~uint(1<<0)) )
+                nontrivial_symmetry_geom_mask |= DofT::NumToGeomType(geom_num);
+        if (nontrivial_symmetry_geom_mask == DofT::UNDEF) return; 
+        auto gmask = GeomMaskToInmostElementType(nontrivial_symmetry_geom_mask);
+        auto num_dofs = dmap.NumDofs();
+        auto inum_dofs = DofTNumDofsToInmostNumDofs(num_dofs);
+        auto max_dofs_per_elem = (*std::max_element(inum_dofs.begin(), inum_dofs.end()));
+        std::vector<double> r(block_sz*max_dofs_per_elem);
+        std::vector<int> reord(max_dofs_per_elem);
+        for (auto e = m->BeginElement(gmask); e != m->EndElement(); ++e){
+            auto nds = e->getNodes();
+            auto mlng = std::numeric_limits<long>::max();
+            std::array<long, 4> new_gni{mlng, mlng, mlng, mlng};
+            for (std::size_t i = 0; i < nds.size(); ++i)
+                new_gni[i] = nds[i].Integer(new_node_enumerator);
+            std::array<unsigned char, 4> new_node_ixs{0, 1, 2, 3};
+            new_node_ixs = Ani::createOrderPermutation(new_gni.data());
+            std::array<long, 4> old_gni{mlng, mlng, mlng, mlng};
+            for (std::size_t i = 0; i < nds.size(); ++i)
+                old_gni[new_node_ixs[i]] = nds[i].Integer(old_node_enumerator);
+            auto canonical_node_indexes = Ani::createOrderPermutation(old_gni.data());
+            DofT::TetGeomSparsity sp; 
+            int ielem_type_num = ElementNum(e->GetElementType());
+            sp.set(ielem_type_num, 0);
+            for (auto it = dmap.beginBySparsity(sp, true); it != dmap.endBySparsity(); ++it){
+                auto lo = *it;
+                uint shift = ( lo.etype & (DofT::EDGE_ORIENT | DofT::FACE_ORIENT) ) ? dmap.NumDof(lo.etype >> 1) : 0;
+                auto pos = getDOFLocusOnElement(dmap, lo.leid, lo.etype, lo.getLocSymOrder(), e->getAsElement(), canonical_node_indexes.data());
+                reord[shift + lo.leid] = pos.sign * (pos.elem_data_index + 1);
+            }
+            for (Tag t: ts) if (e->HaveData(t)) {
+                INMOST::Storage::real_array tv = e->RealArray(t);
+                if (allow_compressed_data && tv.size() < elem_data_shift[ielem_type_num] + 2*block_sz) continue; //< consider small arrays as compressed repeated data
+                assert(tv.size() >= elem_data_shift[ielem_type_num] + block_sz * inum_dofs[ielem_type_num] && "Wrong tag array size");
+                auto st_data = tv.data() + elem_data_shift[ielem_type_num];
+                for (std::size_t i = 0; i < inum_dofs[ielem_type_num]; ++i){
+                    std::copy(st_data + block_sz*(abs(reord[i])-1), st_data + block_sz*abs(reord[i]), r.data() + block_sz*i);
+                    if (reord[i] < 0) std::for_each(r.data() + block_sz*i, r.data() + block_sz*(i+1), std::negate<double>());
+                }
+                std::copy(r.data(), r.data() + block_sz*inum_dofs[ielem_type_num], st_data);
+            }
+        }
+    }
 }
 

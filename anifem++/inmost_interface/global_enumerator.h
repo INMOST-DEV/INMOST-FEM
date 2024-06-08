@@ -12,20 +12,6 @@
 
 namespace Ani{
 
-inline INMOST::ElementType GeomMaskToInmostElementType(DofT::uchar ani_geom_mask){ 
-    static constexpr DofT::uchar lookup[] = {DofT::NODE, DofT::EDGE, DofT::FACE, DofT::CELL};
-    INMOST::ElementType res = INMOST::NONE;
-    for (unsigned char d = 0; d < 4; ++d) if (ani_geom_mask & lookup[d])
-        res |= INMOST::ElementTypeFromDim(d);
-    return  res; 
-}
-
-inline int GeomNumToInmostElementNum(int num) { return DofT::NumToGeomDim(num); }
-
-inline std::array<uint, 4> DofTNumDofsToInmostNumDofs(const std::array<uint, DofT::NGEOM_TYPES>& num_dofs){
-    return {num_dofs[0], num_dofs[1]+num_dofs[2], num_dofs[3]+num_dofs[4], num_dofs[5]};
-}
-
 /// Base class for any type of fem global matrix and rhs enumeration
 class IGlobEnumeration{
 public:
