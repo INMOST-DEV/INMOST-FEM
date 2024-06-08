@@ -39,7 +39,7 @@ namespace Ani{
         ///@return sequential number of geom element, i.e. return i for 2^i or negative number if error occured
         ///@warning etype must be primitive geom type, i.e. equals to 2^i
         inline int GeomTypeToNum(uchar etype) { return (etype != UNDEF) ? ilogb(etype) : -1; }
-        /// Return maximal dimension of specified geometrical type (e.g. for NODE|EDGE will be returned 2), for UNDEF return -1
+        /// Return maximal dimension of specified geometrical type (e.g. for NODE|EDGE will be returned 1), for UNDEF return -1
         inline int GeomTypeDim(uchar etype) {
             static constexpr int lookup[] = {-1, 0, 1, 1, 2, 2, 3}; 
             return lookup[GeomTypeToNum(etype) + 1]; 

@@ -93,7 +93,7 @@ inline LocSymOrder DofSymmetries::GetLocSymOrder_by_geom_num(uchar geom_num, uin
         vol = symmetry_volume_by_geom_num(geom_num, i - offs[geom_num]);
         ndofs += vol*m_sym[i];
     }
-    return LocSymOrder(i - (offs[geom_num]+1),  (loc_elem_id - (ndofs - vol*m_sym[i]))%vol);
+    return LocSymOrder((i-1) - offs[geom_num],  (loc_elem_id - (ndofs - vol*m_sym[i-1]))%vol);
 }
 inline uchar DofSymmetries::index_on_reorderd_elem(uchar etype, uchar nelem, uchar sym_num, uchar loc_symmetry_ind, const uchar* node_permutation){
     if (etype == 0 || sym_num == 0) return loc_symmetry_ind;
