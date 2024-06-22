@@ -70,6 +70,22 @@ TEST(AutoDiffTest, TensorAlgebra){
         std::array<double, 3> c{ a[0] - b[0], a[1] - b[1], a[2] - b[2]};
         return sqrt(c[0]*c[0] + c[1]*c[1] + c[2]*c[2]);
     };
+    Mtx3D<> Eff(
+        std::array<double, 9>{
+            1,  2,  3,
+            2,  4,  6,
+            3,  6,  9
+        }
+    );
+    Mtx3D<> E2fs(
+        std::array<double, 9>{
+            26,   24,   36,
+            24,   -8,  -12,
+            36,  -12,  -18
+        }
+    );
+    EXPECT_NEAR(sqrt((Mtx3D<>::TensorSquare(f) - Eff).SquareFrobNorm()), 0.0, 20*sqrt(Eff.SquareFrobNorm())*std::numeric_limits<double>::epsilon());
+    EXPECT_NEAR(sqrt((Mtx3D<>::TensorSymMul2(f, s) - E2fs).SquareFrobNorm()), 0.0, 20*sqrt(E2fs.SquareFrobNorm())*std::numeric_limits<double>::epsilon());
     EXPECT_NEAR(arr_dif_norm(F.Mul(f), std::array<double, 3>{2.4, 4.5, 6.7}), 0, 100*std::numeric_limits<double>::epsilon());
     EXPECT_NEAR(arr_dif_norm(E.Mul(f), std::array<double, 3>{3.2825, 4.735, 5.2325}), 0, 100*std::numeric_limits<double>::epsilon());
     EXPECT_NEAR(F.Dot(f, s), 14.7, 100*std::numeric_limits<double>::epsilon());

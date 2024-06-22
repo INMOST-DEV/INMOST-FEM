@@ -395,7 +395,7 @@ template<typename FT>
 inline PhysMtx<3, FT> PhysMtx<3, FT>::TensorSquare(const PhysArr<3, FT>& s){
     PhysMtx<3, FT> r;
     for (std::size_t i = 0; i < 3; ++i)
-    for (std::size_t j = i; i < 3; ++i)
+    for (std::size_t j = i; j < 3; ++j)
         r(i, j) = r(j, i) = s[i]*s[j];
     return r;
 }
@@ -403,7 +403,7 @@ template<typename FT>
 inline PhysMtx<3, FT> PhysMtx<3, FT>::TensorSymMul2(const PhysArr<3, FT>& f, const PhysArr<3, FT>& s){
     PhysMtx<3, FT> r;
     for (std::size_t i = 0; i < 3; ++i)
-    for (std::size_t j = i; i < 3; ++i)
+    for (std::size_t j = i; j < 3; ++j)
         r(i, j) = r(j, i) = f[i]*s[j] + f[j]*s[i];
     return r;
 }

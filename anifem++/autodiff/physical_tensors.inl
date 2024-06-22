@@ -364,7 +364,7 @@ namespace Ani{
     inline PhysMtx<N, FT> PhysMtx<N, FT>::TensorSymMul2(const PhysArr<N, FT>& f, const PhysArr<N, FT>& s){
         PhysMtx<N, FT> r;
         for (std::size_t i = 0; i < N; ++i)
-        for (std::size_t j = i; i < N; ++i)
+        for (std::size_t j = i; j < N; ++j)
             r(i, j) = r(j, i) = f[i]*s[j] + f[j]*s[i];
         return r;
     }
@@ -372,7 +372,7 @@ namespace Ani{
     inline PhysMtx<N, FT> PhysMtx<N, FT>::TensorSquare(const PhysArr<N, FT>& s){
         PhysMtx<N, FT> r;
         for (std::size_t i = 0; i < N; ++i)
-        for (std::size_t j = i; i < N; ++i)
+        for (std::size_t j = i; j < N; ++j)
             r(i, j) = r(j, i) = s[i]*s[j];
         return r;
     }
