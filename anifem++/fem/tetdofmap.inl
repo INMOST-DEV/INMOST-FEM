@@ -71,7 +71,7 @@ inline uchar DofSymmetries::symmetry_volume_by_geom_num(uchar geom_num, uchar sy
     return vols[offs[geom_num]+sym_num];
 }
 inline uchar DofSymmetries::symmetry_volume(uchar etype, uchar sym_num){
-    assert(sym_num > 0 && "Wrong argument");
+    assert(etype > 0 && "Wrong argument");
     return symmetry_volume_by_geom_num(GeomTypeToNum(etype), sym_num);
 }
 inline bool DofSymmetries::isInited() const{ return m_sym[0] != uint(-1); }
