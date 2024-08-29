@@ -42,6 +42,7 @@ ExternalProject_Add(casadi_get
         INSTALL_DIR "${casadi_get_SOURCE_DIR}/install"
         CMAKE_ARGS  "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
                     "-DCMAKE_C_COMPILER:PATH=${CMAKE_C_COMPILER}"
+                    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
                     "-DBUILD_SHARED_LIBS=ON"
                     "-DCMAKE_INSTALL_PREFIX=${casadi_get_SOURCE_DIR}/install"
                     "-DLIB_PREFIX=${casadi_get_SOURCE_DIR}/install/${CMAKE_INSTALL_LIBDIR}"
@@ -53,6 +54,7 @@ add_library(casadi UNKNOWN IMPORTED GLOBAL)
 add_dependencies(casadi casadi_get)
 set_target_properties(casadi PROPERTIES IMPORTED_LOCATION "${casadi_LIBRARY}")
 target_include_directories(casadi INTERFACE "${LIB_DOWNLOAD_PATH}/casadi/install/${CMAKE_INSTALL_INCLUDEDIR}")
-set(casadi_DOWNLOADED TRUE)
+set(casadi_DOWNLOADED ON CACHE BOOL "")
+mark_as_advanced(casadi_DOWNLOADED)
 install(DIRECTORY "${LIB_DOWNLOAD_PATH}/casadi/install/" 
-        DESTINATION "${CMAKE_INSTALL_PREFIX}") 
+        DESTINATION ".") 

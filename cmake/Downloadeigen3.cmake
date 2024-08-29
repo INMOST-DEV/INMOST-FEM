@@ -38,6 +38,7 @@ ExternalProject_Add(eigen3_get
                     "-DBUILD_TESTING=OFF"
                     "-DEIGEN_BUILD_DOC=OFF"
                     "-DCMAKE_C_COMPILER:PATH=${CMAKE_C_COMPILER}"
+                    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
                     "-DCMAKE_INSTALL_PREFIX=${eigen3_get_SOURCE_DIR}/install"
                     "-DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}"
                     "-DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_INCLUDEDIR}"
@@ -55,6 +56,7 @@ target_include_directories(Eigen3::Eigen INTERFACE ${EIGEN3_INCLUDE_DIRS})
 if (EIGEN3_DEFINITIONS})
     target_compile_definitions(Eigen3::Eigen ${EIGEN3_DEFINITIONS})
 endif()    
-set(eigen3_DOWNLOADED TRUE)
+set(eigen3_DOWNLOADED ON CACHE BOOL "")
+mark_as_advanced(eigen3_DOWNLOADED)
 install(DIRECTORY "${LIB_DOWNLOAD_PATH}/eigen3/install/" 
-        DESTINATION "${CMAKE_INSTALL_PREFIX}") 
+        DESTINATION ".")

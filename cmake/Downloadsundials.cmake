@@ -77,6 +77,7 @@ endfunction(get_sundials_target ltarget)
 get_sundials_target("kinsol")
 get_sundials_target("cvode")
 
-set(sundials_DOWNLOADED TRUE)  
+set(sundials_DOWNLOADED ON CACHE BOOL "")
+mark_as_advanced(sundials_DOWNLOADED)  
 install(DIRECTORY "${LIB_DOWNLOAD_PATH}/sundials/install/" 
-        DESTINATION "${CMAKE_INSTALL_PREFIX}")       
+        DESTINATION ".")         

@@ -139,17 +139,20 @@ install(TARGETS ${ANIFEM_TARGETS}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY cmake/ 
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/cmake"
+        FILES_MATCHING PATTERN "Find*.cmake")
+set(INSTALL_CMAKE_FINDS ${CMAKE_INSTALL_DATAROOTDIR}/cmake)
 
 install(EXPORT "${package_NAME}-targets" 
 		NAMESPACE ${PACKAGE_NAME}::
 		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${package_NAME}")
 include(CMakePackageConfigHelpers)
 # generate the config file that is includes the exports
-set(DOWNLOADED_LIBS_ROOT ${CMAKE_INSTALL_PREFIX})
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.in
   "${CMAKE_CURRENT_BINARY_DIR}/${package_NAME}-config.cmake"
   INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${package_NAME}"
-  PATH_VARS DOWNLOADED_LIBS_ROOT
+  PATH_VARS INSTALL_CMAKE_FINDS
   )
 # generate the version file for the config file
 write_basic_package_version_file(
