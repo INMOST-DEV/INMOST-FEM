@@ -7,11 +7,11 @@ include(CMakeFindDependencyMacro)
 set(CMAKE_MODULE_PATH "@PACKAGE_INSTALL_CMAKE_FINDS@;${CMAKE_MODULE_PATH}")
 
 if (@WITH_MPI@)
-    find_dependency(MPI REQUIRED HINTS "@MPI_DIR@")
+    find_package(MPI REQUIRED HINTS "@MPI_DIR@")
 endif()
 
 if (@WITH_OPENMP@)
-    find_dependency(OpenMP REQUIRED HINTS "@OpenMP_DIR@")
+    find_package(OpenMP REQUIRED HINTS "@OpenMP_DIR@")
 endif()
 
 if (@WITH_INMOST@)
