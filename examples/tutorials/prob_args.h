@@ -3,8 +3,7 @@
 //
 
 #include "inmost.h"
-#include "example_common.h"
-#include "mesh_gen.h"
+#include "anifem++/utils/utils.h"
 #include "anifem++/inmost_interface/fem.h"
 #include <numeric>
 #include <sys/stat.h>

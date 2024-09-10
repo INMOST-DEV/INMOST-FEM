@@ -1,4 +1,4 @@
-#include "example_common.h"
+#include "utils.h"
 #include "anifem++/fem/spaces/spaces.h"
 #include "anifem++/inmost_interface/fem.h"
 
@@ -42,6 +42,7 @@ Ani::FemSpace choose_space_from_name(const std::string& name){
     std::map<std::string, int> conv {
         {"P0", 0}, {"P1", 1}, {"P2", 2}, {"P3", 3},
         {"MINI", 4}, {"MINI1", 4}, {"MINI2", 5}, {"MINI3", 6},
+        {"CR1", 7}, {"MINI_CR", 8}, {"MINI_CR1", 8}
     };
     auto it = conv.find(name);
     if (it == conv.end())
@@ -54,17 +55,12 @@ Ani::FemSpace choose_space_from_name(const std::string& name){
         case 4: return Ani::FemSpace{ P1Space{} } + Ani::FemSpace{ BubbleSpace{} };
         case 5: return Ani::FemSpace{ P2Space{} } + Ani::FemSpace{ BubbleSpace{} };
         case 6: return Ani::FemSpace{ P3Space{} } + Ani::FemSpace{ BubbleSpace{} };
+        case 7: return Ani::FemSpace{ CR1Space{} };
+        case 8: return Ani::FemSpace{ CR1Space{} } + Ani::FemSpace{ BubbleSpace{} };
+        
     }
     throw std::runtime_error("Doesn't find space with specified name = \"" + name + "\"");
     return FemSpace{};   
-}
-
-void print_mesh_sizes(INMOST::Mesh* m){
-    long nN = m->TotalNumberOf(NODE), nE = m->TotalNumberOf(EDGE), nF = m->TotalNumberOf(FACE), nC = m->TotalNumberOf(CELL);
-    if (m->GetProcessorRank() == 0) {
-        std::cout << "Mesh info:"
-            << " #N " << nN << " #E " << nE << " #F " << nF << " #T " << nC << std::endl;
-    }
 }
 
 void print_linear_solver_status(INMOST::Solver& s, const std::string& prob_name, bool exit_on_fail){
@@ -122,4 +118,74 @@ Tag createFemVarTag(Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::str
             it->RealArrayDV(u).resize(ndofs[it->GetElementNum()], 0.0);
     }
     return u;  
+}
+
+void make_l2_project(const std::function<void(Cell c, std::array<double, 3> X, double* res)>& func, Mesh* m, Tag res_tag, Ani::FemSpace fem, int order){
+    using namespace Ani;
+    uint unf = fem.dofMap().NumDofOnTet();
+    auto data_gatherer = [](ElementalAssembler& p)->void{
+        double *nn_p = p.get_nodes();
+        const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
+        
+        p.compute(args, const_cast<Cell*>(p.cell));
+    };
+    auto F_tensor = [func](const Coord<> &X, double *F, TensorDims dims, void *user_data, int iTet)->TensorType {
+        (void) dims; (void) iTet;
+        Cell& c = *static_cast<Cell*>(user_data);
+        func(c, X, F);
+
+        return Ani::TENSOR_GENERAL;
+    };
+    std::function<void(const double**, double*, double*, double*, long*, void*, DynMem<double, long>*)> local_assm = 
+        [fem, unf, order, F_tensor](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, long* iw, void* user_data, Ani::DynMem<double, long>* fem_alloc){
+        (void) w, (void) iw;
+        DenseMatrix<> A(Adat, unf, unf), F(Fdat, unf, 1);
+        A.SetZero(); F.SetZero();
+        auto adapt_alloc = makeAdaptor<double, int>(*fem_alloc);
+        Ani::Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
+        auto iden_u = fem.getOP(IDEN);  
+        ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;
+
+        fem3Dtet<DfuncTraits<TENSOR_NULL, true>>(XYZ, iden_u, iden_u, TensorNull<>, A, adapt_alloc, order); 
+        // elemental right hand side vector <F, P1>
+        fem3Dtet<DfuncTraits<TENSOR_GENERAL, false>>( XYZ, iden_p0, iden_u, F_tensor, F, adapt_alloc, order, user_data);
+    };
+    //define assembler
+    Assembler discr(m);
+    discr.SetMatRHSFunc(GenerateElemMatRhs(local_assm, unf, unf, 0, 0));
+    {
+        //create global degree of freedom enumenator
+        auto Var0Helper = GenerateHelper(*fem.base());
+        FemExprDescr fed;
+        fed.PushTrialFunc(Var0Helper, "u");
+        fed.PushTestFunc(Var0Helper, "phi_u");
+        discr.SetProbDescr(std::move(fed));
+    }
+    discr.SetDataGatherer(data_gatherer);
+    discr.PrepareProblem();
+    Sparse::Matrix A("A");
+    Sparse::Vector x("x"), b("b");
+    discr.Assemble(A, b);
+    Solver solver(Solver::INNER_ILU2);
+    solver.SetParameterReal("absolute_tolerance", 1e-20);
+    solver.SetParameterReal("relative_tolerance", 1e-10);
+    solver.SetMatrix(A);
+    solver.Solve(b, x);
+    print_linear_solver_status(solver, "projection", true);
+
+    //copy result to the tag and save solution
+    discr.SaveSolution(x, res_tag);
+    solver.Clear();
+    discr.Clear();
+}
+
+std::pair<Tag, bool> create_or_load_problem_tag(INMOST::Mesh *m, const Ani::DofT::BaseDofMap &dofmap, std::string var_name, bool load_if_exists){
+    bool have_tag = m->HaveTag(var_name); 
+    if (have_tag){
+        if (!load_if_exists)
+            throw std::runtime_error("Found unexpected tag \"" + var_name +  "\"");
+        else
+            return {m->GetTag(var_name), true};    
+    } else 
+        return {createFemVarTag(m, dofmap, var_name), false};
 }

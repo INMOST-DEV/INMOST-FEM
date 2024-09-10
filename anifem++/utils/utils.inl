@@ -1,30 +1,11 @@
-#pragma once
+#ifndef ANIFEM_UTILS_MESH_UTILS_INL
+#define ANIFEM_UTILS_MESH_UTILS_INL
 
-#include "inmost.h"
-#include "anifem++/fem/fem_space.h"
 #include "anifem++/fem/quadrature_formulas.h"
+#include "utils.h"
 
-
-#if defined(USE_MPI)
-#define BARRIER MPI_Barrier(MPI_COMM_WORLD);
-#else
-#define BARRIER
-#endif
-
-void InmostInit(int* argc, char** argv[], const std::string& solver_db, int& pRank, int& pCount);
-void InmostFinalize();
-
-/// @brief Create unite 1D space from name
-/// @param name is one of "P0", "P1", "P2", "P3", "MINI" (=P1+B4), "MINI1" (=P1+B4), "MINI2" (=P2+B4), "MINI3" (=P3+B4)
-/// @return corresponding space
-Ani::FemSpace choose_space_from_name(const std::string& name);
-
-void print_mesh_sizes(INMOST::Mesh* m);
-void print_linear_solver_status(INMOST::Solver& s, const std::string& prob_name = "problem", bool exit_on_fail = false);
-INMOST::Tag createFemVarTag(INMOST::Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::string& tag_name = "var", bool use_fixed_size = true);
-
-template<int N = 1, typename FUNC>
-std::array<double, N> integrate_vector_func(INMOST::Mesh* m, const FUNC& f, uint order = 5){
+template<int N, typename FUNC>
+std::array<double, N> integrate_vector_func(INMOST::Mesh* m, const FUNC& f, uint order){
     std::array<double, N> res = {0};
     auto formula = tetrahedron_quadrature_formulas(order);
     uint q = formula.GetNumPoints();
@@ -50,6 +31,8 @@ std::array<double, N> integrate_vector_func(INMOST::Mesh* m, const FUNC& f, uint
     return res;
 }
 template<typename FUNC>
-double integrate_scalar_func(INMOST::Mesh* m, const FUNC& f, uint order = 5){
+double integrate_scalar_func(INMOST::Mesh* m, const FUNC& f, uint order){
     return integrate_vector_func(m, [&f](const INMOST::Cell& c, const Ani::Coord<> &X)->std::array<double, 1>{ return {f(c, X)}; }, order)[0];
 }
+
+#endif //ANIFEM_UTILS_MESH_UTILS_INL

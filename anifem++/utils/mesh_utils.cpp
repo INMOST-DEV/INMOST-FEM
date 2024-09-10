@@ -1,4 +1,4 @@
-#include "mesh_gen.h"
+#include "mesh_utils.h"
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -221,4 +221,13 @@ void RepartMesh(Mesh* m){
                       << " #T " << m->NumberOfCells() << std::endl;
     }
 #endif
+}
+
+
+void print_mesh_sizes(INMOST::Mesh* m){
+    long nN = m->TotalNumberOf(NODE), nE = m->TotalNumberOf(EDGE), nF = m->TotalNumberOf(FACE), nC = m->TotalNumberOf(CELL);
+    if (m->GetProcessorRank() == 0) {
+        std::cout << "Mesh info:"
+            << " #N " << nN << " #E " << nE << " #F " << nF << " #T " << nC << std::endl;
+    }
 }

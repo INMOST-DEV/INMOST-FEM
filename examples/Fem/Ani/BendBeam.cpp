@@ -4,7 +4,7 @@
 
 
 #include "inmost.h"
-#include "example_common.h"
+#include "anifem++/utils/utils.h"
 #include "carnum/MeshGen/mesh_gen.h"
 #include "carnum/Fem/AniInterface/Fem3Dtet.h"
 #include "carnum/Fem/AniInterface/ForAssembler.h"
