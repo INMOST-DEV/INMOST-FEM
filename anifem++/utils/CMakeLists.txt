@@ -3,6 +3,7 @@ set(FEM_UTILS_HEADERS mesh_utils.h utils.h utils.inl)
 
 add_library(Fem_utils ${FEM_UTILS_SOURCES} ${FEM_UTILS_HEADERS})
 target_link_libraries(Fem_utils PUBLIC Fem inmost)
+target_link_libraries(Fem_utils PRIVATE Fem_inmost)
 target_include_directories(Fem_utils PUBLIC 
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
