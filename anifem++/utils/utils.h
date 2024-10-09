@@ -1,7 +1,9 @@
 #include <utility>
 #include "inmost.h"
 #include "anifem++/fem/fem_space.h"
+#include "anifem++/fem/operations/operations.h"
 #include "mesh_utils.h"
+#include "anifem++/inmost_interface/assembler.h"
 
 #ifndef ANIFEM_UTILS_UTILS_H
 #define ANIFEM_UTILS_UTILS_H
@@ -23,6 +25,18 @@ void print_linear_solver_status(INMOST::Solver& s, const std::string& prob_name 
 /// @param use_fixed_size if true then will be created fixed-size tag
 /// @return created tag
 INMOST::Tag createFemVarTag(INMOST::Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::string& tag_name = "var", bool use_fixed_size = true);
+
+/// @brief Compute action op on cell-local dof's corresponding to the variable component relative discr and problem tag problem_tag
+/// @return result in out array
+/// @warning out must have size at least op.Dim()
+template<typename Traits>
+void eval_op_var_at_point(double* out, INMOST::Cell c, std::array<double, 3> x_point, const Ani::ApplyOpBase& op, Ani::AssemblerT<Traits>& discr, INMOST::Tag problem_tag, const int* component = nullptr, unsigned int ncomp = 0);
+/// @return action op on the variable component in array
+/// @warning expected N >= op.Dim()
+template<std::size_t N, typename Traits>
+std::array<double, N> eval_op_var_at_point(INMOST::Cell c, std::array<double, 3> x_point, const Ani::ApplyOpBase& op, Ani::AssemblerT<Traits>& discr, INMOST::Tag problem_tag, const int* component = nullptr, unsigned int ncomp = 0);
+template<std::size_t N, typename Traits>
+std::array<double, N> eval_op_var_at_point(INMOST::Cell c, std::array<double, 3> x_point, const Ani::ApplyOpBase& op, Ani::AssemblerT<Traits>& discr, INMOST::Tag problem_tag, std::initializer_list<int> components = {});
 
 /// @brief Compute approximate intergal of function over mesh domain.
 /// @return \sum_{cell \in mesh} |cell| * \sum_{q \in quad_formula} w_q * f(cell, X_q)

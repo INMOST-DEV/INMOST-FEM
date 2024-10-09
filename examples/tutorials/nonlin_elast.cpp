@@ -403,6 +403,25 @@ int main(int argc, char* argv[]){
 
     //copy result to the tag and save solution
     discr.SaveSolution(x, u);
+
+    //save second Piola-Kirchhoff stress in tag
+    auto compute_gradU_at_point = [gradUFEM = UFem.getOP(GRAD)](const Cell& c, const Coord<> &X, Assembler& discr, Tag u)->Mtx3D<>{
+        return Mtx3D<>{eval_op_var_at_point<9>(c, X, gradUFEM, discr, u, std::initializer_list<int>{0}), true};
+    };
+    // res <- {S00 S11 S22 S01 S12 S02}
+    auto compute_S_at_point = [Potential, W_params, &discr, u, compute_gradU_at_point](INMOST::Cell c, std::array<double, 3> X, double* res){
+        Mtx3D<> grU = compute_gradU_at_point(c, X, discr, u);
+        PotentialParams p = W_params(c, X);
+        SymMtx3D<> S = Potential(p, Mech::grU_to_E(grU), 1).D();
+        // save symmetric tensor in paraview compatible order: 00 11 22 01 12 02
+        res[0] = S(0, 0), res[1] = S(1, 1), res[2] = S(2, 2);
+        res[3] = S(0, 1), res[4] = S(1, 2), res[5] = S(0, 2);
+    };
+    FemSpace SFem = FemSpace(P0Space{})^6; //< will save component-wise average of S on every cell
+    // if required you can use any other space to project S on
+    Tag S_tag = createFemVarTag(m, *(SFem.dofMap().target<>()), "S");
+    make_l2_project(compute_S_at_point, m, S_tag, SFem, quad_order);
+
     m->Save(p.save_dir + p.save_prefix + ".pvtu");
 
     discr.Clear();
