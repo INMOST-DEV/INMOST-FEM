@@ -29,6 +29,12 @@ namespace Ani{
     inline void collectConnectivityInfo(
         const INMOST::Cell& cell, INMOST::ElementArray<INMOST::Node>& nodes, INMOST::ElementArray<INMOST::Edge>& edges, INMOST::ElementArray<INMOST::Face>& faces,
         bool reorder_nodes = true, bool prepare_edges_and_faces = true);
+    inline void collectConnectivityInfo(
+        const INMOST::Cell& cell, INMOST::Node* nodes, INMOST::Edge* edges, INMOST::Face* faces,
+        bool reorder_nodes = true, bool prepare_edges_and_faces = true);
+    inline void collectConnectivityInfo(
+        const INMOST::Cell& cell, INMOST::HandleType* nodes, INMOST::HandleType* edges, INMOST::HandleType* faces,
+        bool reorder_nodes = true, bool prepare_edges_and_faces = true);
     template<typename TEnumerator>    
     inline std::array<unsigned char, 4> createOrderPermutation(const TEnumerator* global_node_index/*[4]*/);
     inline bool isPositivePermutationOrient(unsigned char etype, unsigned char elem_id, const unsigned char* node_permutation/*[4]*/);   

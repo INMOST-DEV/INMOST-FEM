@@ -5,11 +5,13 @@
 #include "ordering.h"
 
 namespace Ani{
-    inline void reorderNodesOnTetrahedron(INMOST::ElementArray<INMOST::Node> &nodes) {
-        assert(nodes.size() >= 4);
+    template<typename NodeType, typename ConvertType>
+    void reorderNodesOnTetrahedron(INMOST::Mesh* mlink, NodeType* nodes, ConvertType conv) {
+        assert(mlink != nullptr);
+        assert(nodes != nullptr);
         double m[3][3];
-        auto    crd0 = nodes[0].Coords(), crd1 = nodes[1].Coords(), 
-                crd2 =  nodes[2].Coords(), crd3 =  nodes[3].Coords();
+        auto    crd0 = conv(mlink, nodes[0]).Coords(), crd1 = conv(mlink, nodes[1]).Coords(), 
+                crd2 =  conv(mlink, nodes[2]).Coords(), crd3 =  conv(mlink, nodes[3]).Coords();
         for (int j = 0; j < 3; ++j){
             m[0][j] = crd0[j] - crd3[j];
             m[1][j] = crd1[j] - crd3[j];
@@ -20,28 +22,37 @@ namespace Ani{
         det += m[0][1]*(m[1][2]*m[2][0] - m[1][0]*m[2][2]);
         det += m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]);
         if (det < 0) 
-            std::swap(nodes.data()[2], nodes.data()[3]);
+            std::swap(nodes[2], nodes[3]);
+    }
+    inline void reorderNodesOnTetrahedron(INMOST::Mesh* mlink, INMOST::Node* nodes){ 
+        reorderNodesOnTetrahedron(mlink, nodes, [](INMOST::Mesh* mlink, INMOST::Node& n)->INMOST::Node&{ (void) mlink; return n; });
+    }
+    inline void reorderNodesOnTetrahedron(INMOST::Mesh* mlink, INMOST::HandleType* nodes){ 
+        reorderNodesOnTetrahedron(mlink, nodes, [](INMOST::Mesh* mlink, INMOST::HandleType h)->INMOST::Node{ return INMOST::Node(mlink, h); });
+    }
+    inline void reorderNodesOnTetrahedron(INMOST::ElementArray<INMOST::Node> &nodes) {
+        assert(nodes.size() >= 4);
+        reorderNodesOnTetrahedron(nodes.GetMeshLink(), nodes.data());
     }
     inline void collectConnectivityInfo(
-        const INMOST::Cell& cell, INMOST::ElementArray<INMOST::Node>& nodes, INMOST::ElementArray<INMOST::Edge>& edges, INMOST::ElementArray<INMOST::Face>& faces,
+        const INMOST::Cell& cell, INMOST::HandleType* nodes, INMOST::HandleType* edges, INMOST::HandleType* faces,
         bool reorder_nodes, bool prepare_edges_and_faces){
+        assert(nodes != nullptr);
+        assert(!prepare_edges_and_faces || (edges != nullptr && faces != nullptr));
+
         using namespace INMOST;
         Mesh * m = cell.GetMeshLink();
         auto h = cell.GetHandle();
         auto const& hc = m->HighConn(h);//< nodes of the cell
         auto const& lc = m->LowConn(h); //< faces of the cell
 
-        assert(nodes.size() >= 4 || "nodes ElementArray does't have enough of memory"); 
-        std::copy(hc.data(), hc.data() + 4, nodes.data());
+        std::copy(hc.data(), hc.data() + 4, nodes);
         if (reorder_nodes)
-            reorderNodesOnTetrahedron(nodes);
-
+            reorderNodesOnTetrahedron(m, nodes);
+        
         if (prepare_edges_and_faces){
-            assert(edges.size() >= 6 || "edges ElementArray does't have enough of memory");
-            assert(faces.size() >= 4 || "faces ElementArray does't have enough of memory");
-
             //load remote data to low level cache
-            std::array<HandleType, 4> nds_h{nodes.data()[0], nodes.data()[1], nodes.data()[2], nodes.data()[3]};
+            std::array<HandleType, 4> nds_h{nodes[0], nodes[1], nodes[2], nodes[3]};
             std::array<HandleType, 4> fh{lc[0], lc[1], lc[2], lc[3]};
             auto const& flc0 = m->LowConn(fh[0]), &flc1 = m->LowConn(fh[1]), &flc2 = m->LowConn(fh[2]);
             std::array<std::array<HandleType, 3>, 3> eh{
@@ -71,7 +82,7 @@ namespace Ani{
                     assert(k >= 0 && l >= 0 && "Can't find nodes of the edge");
                     unsigned char id1[2] {static_cast<unsigned char>(k), static_cast<unsigned char>(l)};
                     if (k > l) std::swap(k, l);
-                    edges.data()[l - 1 + (k > 0 ? k + 1 : 0)] = flc[0];
+                    edges[l - 1 + (k > 0 ? k + 1 : 0)] = flc[0];
                     sum += (k + l);
                     
                     auto* elc1 = nh[fi].data() + 2; //< nodes of the second edge
@@ -90,20 +101,38 @@ namespace Ani{
                         p = id1[comp%2], q = k;    
                     }
                     if (k > l) std::swap(k, l);
-                    edges.data()[l - 1 + (k > 0 ? k + 1 : 0)] = flc[1];
+                    edges[l - 1 + (k > 0 ? k + 1 : 0)] = flc[1];
                     sum += (k + l);
 
                     k = p, l = q;
                     if (k > l) std::swap(k, l);
-                    edges.data()[l - 1 + (k > 0 ? k + 1 : 0)] = flc[2];
+                    edges[l - 1 + (k > 0 ? k + 1 : 0)] = flc[2];
                     sum += (k + l);
                 }
                 unsigned char f_id = (7 - sum/2)%4;
-                faces.data()[f_id] = fh[fi];
+                faces[f_id] = fh[fi];
                 fsum += f_id;
             }
-            faces.data()[6 - fsum] = fh[3];
+            faces[6 - fsum] = fh[3];
         } 
+    }
+    inline void collectConnectivityInfo(
+        const INMOST::Cell& cell, INMOST::Node* nodes, INMOST::Edge* edges, INMOST::Face* faces, bool reorder_nodes, bool prepare_edges_and_faces){
+        INMOST::HandleType hnodes[4], hedges[6], hfaces[4]; 
+        collectConnectivityInfo(cell, hnodes, hedges, hfaces, reorder_nodes, prepare_edges_and_faces);
+        INMOST::Mesh * m = cell.GetMeshLink();
+        std::transform(hnodes, hnodes + 4, nodes, [m](INMOST::HandleType h)->INMOST::Node{ return INMOST::Node(m, h); });
+        if (prepare_edges_and_faces){
+            std::transform(hedges, hedges + 4, edges, [m](INMOST::HandleType h)->INMOST::Edge{ return INMOST::Edge(m, h); });
+            std::transform(hfaces, hfaces + 4, faces, [m](INMOST::HandleType h)->INMOST::Face{ return INMOST::Face(m, h); });
+        }
+    }
+    inline void collectConnectivityInfo(
+        const INMOST::Cell& cell, INMOST::ElementArray<INMOST::Node>& nodes, INMOST::ElementArray<INMOST::Edge>& edges, INMOST::ElementArray<INMOST::Face>& faces, bool reorder_nodes, bool prepare_edges_and_faces){
+        assert(nodes.size() >= 4 && "nodes ElementArray does't have enough of memory");
+        assert((!prepare_edges_and_faces || edges.size() >= 6) && "edges ElementArray does't have enough of memory");
+        assert((!prepare_edges_and_faces || faces.size() >= 4) && "faces ElementArray does't have enough of memory");
+        collectConnectivityInfo(cell, nodes.data(), edges.data(), faces.data(), reorder_nodes, prepare_edges_and_faces);
     }
     template<typename TEnumerator>
     inline std::array<unsigned char, 4> createOrderPermutation(const TEnumerator* gni){
