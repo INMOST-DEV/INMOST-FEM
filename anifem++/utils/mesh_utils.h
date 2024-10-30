@@ -13,7 +13,7 @@ std::unique_ptr<INMOST::Mesh> GenerateCube(INMOST_MPI_Comm comm, unsigned nx, un
 ///@param naxis are numbers of steps per axis
 std::unique_ptr<INMOST::Mesh> GenerateParallelepiped(INMOST_MPI_Comm comm, std::array<unsigned, 3> naxis, std::array<double, 3> A = {1, 1, 1}, std::array<double, 3> O = {0, 0, 0});
 /// Redistribute mesh over mpi-processors 
-void RepartMesh(INMOST::Mesh* m);
+void RepartMesh(INMOST::Mesh* m, bool verbose = false);
 /// Print global mesh discretization statistics
 void print_mesh_sizes(INMOST::Mesh* m);
 

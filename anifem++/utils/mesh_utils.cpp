@@ -160,7 +160,7 @@ std::unique_ptr<Mesh> GenerateCube(INMOST_MPI_Comm comm, unsigned nx, unsigned n
 #define BARRIER
 #endif
 
-void RepartMesh(Mesh* m){
+void RepartMesh(Mesh* m, bool verbose){
     int pRank = 0, pCount = 0;
 #if defined(USE_MPI)
     MPI_Comm_rank(INMOST_MPI_COMM_WORLD, &pRank);
@@ -170,7 +170,7 @@ void RepartMesh(Mesh* m){
     // mesh repartition
 #ifdef USE_PARTITIONER
     if(pCount >1) {
-        if (pRank == 0)    std::cout<<"bef part"<<std::endl;
+        if (verbose && pRank == 0)    std::cout<<"- Compute mesh partition"<<std::endl;
         Partitioner *p = new Partitioner(m);
 // #ifdef USE_PARTITIONER_PARMETIS
 //         p->SetMethod(Partitioner::Parmetis, Partitioner::Partition);
@@ -179,7 +179,7 @@ void RepartMesh(Mesh* m){
 // #else
         p->SetMethod(Partitioner::INNER_KMEANS, Partitioner::Partition);      
 // #endif
-        if (pRank  == 0)    std::cout<<"eval"<<std::endl;
+        if (verbose && pRank  == 0)    std::cout<<"- Perform mesh partition"<<std::endl;
         p->Evaluate();
         delete p;
         BARRIER
@@ -199,26 +199,28 @@ void RepartMesh(Mesh* m){
     }    
 #endif
 
-    if (pRank  == 0 && pCount > 1) { std::cout << " repartitioning success" << std::endl; }
+    if (verbose && pRank  == 0 && pCount > 1) { std::cout << "- Repartitioning completed successfully" << std::endl; }
     BARRIER
 
 #ifdef USE_PARTITIONER
-    for (int i = 0; i < pCount && pCount > 1; ++i) {
-        if (pRank == i) {
-            std::cout << pRank << ": Mesh info:"
-                      << " #N " << m->NumberOfNodes()
-                      << " #E " << m->NumberOfEdges()
-                      << " #F " << m->NumberOfFaces()
-                      << " #T " << m->NumberOfCells() << std::endl;
+    if (verbose){
+        for (int i = 0; i < pCount && pCount > 1; ++i) {
+            if (pRank == i) {
+                std::cout << pRank << ": Mesh info:"
+                        << " #N " << m->NumberOfNodes()
+                        << " #E " << m->NumberOfEdges()
+                        << " #F " << m->NumberOfFaces()
+                        << " #T " << m->NumberOfCells() << std::endl;
+            }
+            BARRIER;
         }
-        BARRIER;
-    }
-    if (pCount == 1){
-        std::cout<< pRank << ": Mesh info:"
-                      << " #N " << m->NumberOfNodes()
-                      << " #E " << m->NumberOfEdges()
-                      << " #F " << m->NumberOfFaces()
-                      << " #T " << m->NumberOfCells() << std::endl;
+        if (pCount == 1){
+            std::cout<< pRank << ": Mesh info:"
+                        << " #N " << m->NumberOfNodes()
+                        << " #E " << m->NumberOfEdges()
+                        << " #F " << m->NumberOfFaces()
+                        << " #T " << m->NumberOfCells() << std::endl;
+        }
     }
 #endif
 }

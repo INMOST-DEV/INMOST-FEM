@@ -503,7 +503,7 @@ namespace Ani{
                 new_udofs[r] = ArrayView<>(udofs[r].data + nvar*LNFA, LNFA);
             Dof<FemFix<OP>>::template interpolate<FUSION>(XYZ, 
                 [&f, nvar](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
-                    assert(dim == LDIM*FUSION && "Wrong expected dimension");
+                    assert(dim == LDIM*FUSION && "Wrong expected dimension"); (void) dim;
                     std::array<double, LDIM*DIM*FUSION> mem;
                     f(X, mem.data(), LDIM*DIM*FUSION, user_data);
                     for (uint i = 0; i < FUSION; ++i)
