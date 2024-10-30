@@ -2,6 +2,7 @@
 #define ANIFEM_UTILS_MESH_UTILS_INL
 
 #include "anifem++/fem/quadrature_formulas.h"
+#include "anifem++/inmost_interface/fem.h"
 #include "utils.h"
 
 template<typename Traits>
@@ -69,6 +70,64 @@ std::array<double, N> integrate_vector_func(INMOST::Mesh* m, const FUNC& f, uint
 template<typename FUNC>
 double integrate_scalar_func(INMOST::Mesh* m, const FUNC& f, uint order){
     return integrate_vector_func(m, [&f](const INMOST::Cell& c, const Ani::Coord<> &X)->std::array<double, 1>{ return {f(c, X)}; }, order)[0];
+}
+
+template<typename UFem>
+void make_l2_project(const std::function<void(INMOST::Cell c, std::array<double, 3> X, double* res)>& func, INMOST::Mesh* m, INMOST::Tag res_tag, int order){
+    using namespace INMOST;
+    using namespace Ani;
+    constexpr auto UNF = Operator<IDEN, UFem>::Nfa::value;
+    auto data_gatherer = [](ElementalAssembler& p)->void{
+        double *nn_p = p.get_nodes();
+        const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
+        
+        p.compute(args, const_cast<Cell*>(p.cell));
+    };
+    auto F_tensor = [func](const Coord<> &X, double *F, TensorDims dims, void *user_data, int iTet)->TensorType {
+        (void) dims; (void) iTet;
+        Cell& c = *static_cast<Cell*>(user_data);
+        func(c, X, F);
+
+        return Ani::TENSOR_GENERAL;
+    };
+    std::function<void(const double**, double*, double*, double*, long*, void*, DynMem<double, long>*)> local_assm = 
+        [order, F_tensor](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, long* iw, void* user_data, Ani::DynMem<double, long>* fem_alloc){
+        (void) w, (void) iw;
+        DenseMatrix<> A(Adat, UNF, UNF), F(Fdat, UNF, 1);
+        A.SetZero(); F.SetZero();
+        auto adapt_alloc = makeAdaptor<double, int>(*fem_alloc);
+        Ani::Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
+        fem3Dtet<Operator<IDEN, UFem>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_NULL, true>>(XYZ, TensorNull<>, A, adapt_alloc, order);
+        // elemental right hand side vector <F, P1>
+        fem3Dtet<Operator<IDEN, FemFix<FEM_P0>>, Operator<IDEN, UFem>, DfuncTraits<TENSOR_GENERAL, false>>( XYZ, F_tensor, F, adapt_alloc, order, user_data);
+    };
+    //define assembler
+    Assembler discr(m);
+    discr.SetMatRHSFunc(GenerateElemMatRhs(local_assm, UNF, UNF, 0, 0));
+    {
+        //create global degree of freedom enumenator
+        auto Var0Helper = GenerateHelper<UFem>();
+        FemExprDescr fed;
+        fed.PushTrialFunc(Var0Helper, "u");
+        fed.PushTestFunc(Var0Helper, "phi_u");
+        discr.SetProbDescr(std::move(fed));
+    }
+    discr.SetDataGatherer(data_gatherer);
+    discr.PrepareProblem();
+    Sparse::Matrix A("A");
+    Sparse::Vector x("x"), b("b");
+    discr.Assemble(A, b);
+    Solver solver(Solver::INNER_ILU2);
+    solver.SetParameterReal("absolute_tolerance", 1e-20);
+    solver.SetParameterReal("relative_tolerance", 1e-10);
+    solver.SetMatrix(A);
+    solver.Solve(b, x);
+    print_linear_solver_status(solver, "projection", true);
+
+    //copy result to the tag and save solution
+    discr.SaveSolution(x, res_tag);
+    solver.Clear();
+    discr.Clear();
 }
 
 #endif //ANIFEM_UTILS_MESH_UTILS_INL

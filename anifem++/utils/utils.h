@@ -50,6 +50,9 @@ double integrate_scalar_func(INMOST::Mesh* m, const FUNC& f, uint order = 5);
 /// @brief Compute l2-projection with quadrature order 'order' of vector-field func defined on mesh on FEM space fem with vector of d.o.f.'s in tag res_tag.
 /// @details Solve the problem \int_Omega f * v dX = \int_Omega f^h * v dX, f^h(X) = sum_i f_i * v_i(X)
 void make_l2_project(const std::function<void(INMOST::Cell c, std::array<double, 3> X, double* res)>& func, INMOST::Mesh* m, INMOST::Tag res_tag, Ani::FemSpace fem, int order = 5);
+/// @tparam FEMTYPE is type of FEM space of variable, e.g. FemVec<3, FEM_P2>
+template<typename FEMTYPE>
+void make_l2_project(const std::function<void(INMOST::Cell c, std::array<double, 3> X, double* res)>& func, INMOST::Mesh* m, INMOST::Tag res_tag, int order = 5);
 
 /// @brief Create or load if exists fem-storage tag
 /// @return pair of fem-storage tag and bool indicating on true if tag was loaded
