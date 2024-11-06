@@ -163,7 +163,29 @@ namespace Ani{
             using B = BaseT;
             return sqrt(std::max({len2(B::XY0, B::XY1), len2(B::XY0, B::XY2), len2(B::XY0, B::XY3), 
                                   len2(B::XY1, B::XY2), len2(B::XY1, B::XY3), len2(B::XY2, B::XY3)}));
-        }     
+        } 
+        /// @param iopposite_node is number (0, 1, 2 or 3) of opposite node relative to the face for which external normal is computing
+        /// @warning returns non-normalized vector
+        std::array<NCScalar, 3> normal_direction(unsigned char iopposite_node) const {
+            ScalarType* X[4] = {BaseT::XY0.data, BaseT::XY1.data, BaseT::XY2.data, BaseT::XY3.data};
+            auto i = iopposite_node;
+            ScalarType* p0 = X[(i+1+0)%4], p1 = X[(i+1+1)%4], p2 = X[(i+1+2)%4], p3 = X[i%4];
+            NCScalar    a[3]{p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]},
+                        b[3]{p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]},
+                        c[3]{p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2]};
+            std::array<NCScalar, 3> n{ a[1]*b[2] - a[2]*b[1], -a[0]*b[2] + a[2]*b[0], a[0]*b[1] - a[1]*b[0] };
+            NCScalar vol = n[0] * c[0] + n[1] * c[1] + n[2] * c[2];
+            if (vol > 0) for (int i = 0; i < 3; ++i) n[i] = -n[i];
+            return n;
+        }  
+        /// @return normalized external normal to face formed by nodes (iopposite_node+1)%4, (iopposite_node+2)%4, (iopposite_node+3)%4
+        std::array<NCScalar, 3> normal(unsigned char iopposite_node) const {
+            ScalarType* X[4] = {BaseT::XY0.data, BaseT::XY1.data, BaseT::XY2.data, BaseT::XY3.data};
+            std::array<NCScalar, 3> n;
+            auto i = iopposite_node;
+            face_normal(X[(i+1+0)%4], X[(i+1+1)%4], X[(i+1+2)%4], X[i%4], n.data());
+            return n;
+        }
     };
 
 
