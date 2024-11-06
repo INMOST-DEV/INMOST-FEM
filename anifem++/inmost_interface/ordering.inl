@@ -170,12 +170,11 @@ namespace Ani{
         return false;
     }
     inline DOFLocus getDOFLocus(const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
-        const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
         const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
-        using namespace INMOST;
-        HandleType ch = cell.GetHandle(); 
+        using namespace INMOST; 
         unsigned char local_cell_index[1]{0};
-        const HandleType* h[4]{nodes.data(), edges.data(), faces.data(), &ch};
+        const HandleType* h[4]{nodes, edges, faces, &cell};
         const unsigned char* local_index[4]{local_node_index.data(), local_edge_index.data(), local_face_index.data(), local_cell_index};
         uint shift = ( lo.etype & (DofT::EDGE_ORIENT | DofT::FACE_ORIENT) ) ? dmap.NumDof(lo.etype >> 1) : 0;
         auto dim = DofT::GeomTypeDim(lo.etype);
@@ -190,7 +189,12 @@ namespace Ani{
             sign = isPositivePermutationOrient(lo.etype, elid, gni.data()) ? 1 : -1;
         unsigned char nds_arr[4]{gni[0], gni[1], gni[2], gni[3]};    
         auto reordered_lsid = DofT::DofSymmetries::index_on_reorderd_elem(lo.etype, lo.nelem, lo.stype, lo.lsid, nds_arr);
-        return DOFLocus{sign, Element(cell.GetMeshLink(), h[dim][elid]), shift + lsid_shift + reordered_lsid};
+        return DOFLocus{sign, Element(mlink, h[dim][elid]), shift + lsid_shift + reordered_lsid};
+    }
+    inline DOFLocus getDOFLocus(const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+        const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
+        const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
+        return getDOFLocus(dmap, lo, cell.GetMeshLink(), cell.GetHandle(), faces.data(), edges.data(), nodes.data(), canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
     }
     inline DOFLocus getDOFLocusOnElement(const DofT::BaseDofMap& dmap, uint leid, DofT::uchar etype, DofT::LocSymOrder lso, const INMOST::Element& elem, 
         const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_node_index){
@@ -214,15 +218,20 @@ namespace Ani{
         return DOFLocus{sign, elem, shift + lsid_shift + reordered_lsid};
     }
     inline INMOST::Storage::real takeElementDOF(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
-        const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
         const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
-        auto l = getDOFLocus(dmap, lo, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
+        auto l = getDOFLocus(dmap, lo, mlink, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
         return l.sign * l.elem.RealArray(tag)[l.elem_data_index];
     }
-    inline std::pair<INMOST::Storage::real, bool> takeElementDOFifAvailable(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+    inline INMOST::Storage::real takeElementDOF(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
         const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
         const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
-        auto l = getDOFLocus(dmap, lo, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
+        return takeElementDOF(tag, dmap, lo, cell.GetMeshLink(), cell.GetHandle(), faces.data(), edges.data(), nodes.data(), canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
+    }
+    inline std::pair<INMOST::Storage::real, bool> takeElementDOFifAvailable(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+        const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
+        auto l = getDOFLocus(dmap, lo, mlink, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
         INMOST::Storage::real v{};
         bool avail_data = false;
         if (l.elem.HaveData(tag)){
@@ -234,6 +243,11 @@ namespace Ani{
         }
         return std::pair<INMOST::Storage::real, bool>{v, avail_data};
     }
+    inline std::pair<INMOST::Storage::real, bool> takeElementDOFifAvailable(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+        const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
+        const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
+        return takeElementDOFifAvailable(tag, dmap, lo, cell.GetMeshLink(), cell.GetHandle(), faces.data(), edges.data(), nodes.data(), canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
+    }
     namespace internals{
         template<bool OnlyIfDataAvailable = false>
         struct GDOTTake{
@@ -242,6 +256,11 @@ namespace Ani{
                                 const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
                 return takeElementDOF(tag, dmap, lo, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
             }
+            static inline INMOST::Storage::real ElementDOF(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+                                INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+                                const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
+                return takeElementDOF(tag, dmap, lo, mlink, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
+            }
         };
         template<>
         struct GDOTTake<true>{
@@ -249,6 +268,11 @@ namespace Ani{
                                 const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
                                 const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
                 return takeElementDOFifAvailable(tag, dmap, lo, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
+            }
+            static inline std::pair<INMOST::Storage::real, bool> ElementDOF(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+                                INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+                                const unsigned char* canonical_node_indexes, const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index){
+                return takeElementDOFifAvailable(tag, dmap, lo, mlink, cell, faces, edges, nodes, canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
             }
         };
         template<bool OnlyIfDataAvailable, class RandomIt>
@@ -263,7 +287,7 @@ namespace Ani{
     template<bool OnlyIfDataAvailable, class RandomIt>
     void GatherDataOnElement(
         const INMOST::Tag& from, const DofT::BaseDofMap& dmap, 
-        const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
         const unsigned char* canonical_node_indexes, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp, 
         const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index)
     {
@@ -280,10 +304,40 @@ namespace Ani{
             sp.set(dim);
             for (auto it = ldmap->beginBySparsity(sp, true); it != ldmap->endBySparsity(); ++it){
                 auto lo = *it;
-                auto _v = internals::GDOTTake<OnlyIfDataAvailable>::ElementDOF(from, dmap, lo, cell, faces, edges, nodes, 
+                auto _v = internals::GDOTTake<OnlyIfDataAvailable>::ElementDOF(from, dmap, lo, mlink, cell, faces, edges, nodes, 
                             canonical_node_indexes, local_face_index, local_edge_index, local_node_index);
                 internals::GDOTAssign<OnlyIfDataAvailable, RandomIt>::assign(out, lo.gid - shiftOnTet, _v);
             }
+        }
+    }
+    template<bool OnlyIfDataAvailable, class RandomIt>
+    void GatherDataOnElement(
+        const INMOST::Tag& from, const DofT::BaseDofMap& dmap, 
+        const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
+        const unsigned char* canonical_node_indexes, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp, 
+        const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index)
+    {
+        GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(from, dmap, cell.GetMeshLink(), cell.GetHandle(), faces.data(), edges.data(), nodes.data(), 
+            canonical_node_indexes, out, component, ncomp, local_face_index, local_edge_index, local_node_index);
+    }
+    template<bool OnlyIfDataAvailable, class RandomIt>
+    void GatherDataOnElement(
+        const INMOST::Tag* var_tags, const std::size_t nvar_tags, const DofT::BaseDofMap& dmap, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+        const unsigned char* canonical_node_indexes, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp, 
+        const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index)
+    {
+        unsigned int ndim = (ncomp == 0) ? int(dmap.NestedDim()) : (component[0]+1);
+        if (nvar_tags < ndim)
+            throw std::runtime_error("Number of tags in the vector should coincide with number of variables in dof map");
+        unsigned int v_st = (ncomp == 0) ? 0 : component[0];
+        const int* next_component = (ncomp == 0) ? static_cast<int*>(nullptr) : component+1;
+        unsigned int next_ncomp = (ncomp == 0) ? 0 : ncomp-1;
+        for (unsigned int v = v_st; v < ndim; ++v){
+            int ext_dim = v;
+            auto view = dmap.GetNestedDofMapView(&ext_dim, 1);
+            GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(var_tags[v], *view.m_base, mlink, cell, faces, edges, nodes, canonical_node_indexes, 
+                                    out + view.m_shiftOnTet, next_component, next_ncomp, local_face_index, local_edge_index, local_node_index);
         }
     }
     template<bool OnlyIfDataAvailable, class RandomIt>
@@ -292,20 +346,10 @@ namespace Ani{
         const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
         const unsigned char* canonical_node_indexes, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp, 
         const std::array<unsigned char, 4>& local_face_index, const std::array<unsigned char, 6>& local_edge_index, const std::array<unsigned char, 4>& local_node_index)
-        {
-            unsigned int ndim = (ncomp == 0) ? int(dmap.NestedDim()) : (component[0]+1);
-            if (nvar_tags < ndim)
-                throw std::runtime_error("Number of tags in the vector should coincide with number of variables in dof map");
-            unsigned int v_st = (ncomp == 0) ? 0 : component[0];
-            const int* next_component = (ncomp == 0) ? static_cast<int*>(nullptr) : component+1;
-            unsigned int next_ncomp = (ncomp == 0) ? 0 : ncomp-1;
-            for (unsigned int v = v_st; v < ndim; ++v){
-                int ext_dim = v;
-                auto view = dmap.GetNestedDofMapView(&ext_dim, 1);
-                GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(var_tags[v], *view.m_base, cell, faces, edges, nodes, canonical_node_indexes, 
-                                        out + view.m_shiftOnTet, next_component, next_ncomp, local_face_index, local_edge_index, local_node_index);
-            }
-        }
+    {
+        GatherDataOnElement<OnlyIfDataAvailable, RandomIt>(var_tags, nvar_tags, dmap, cell.GetMeshLink(), cell.GetHandle(), faces.data(), edges.data(), nodes.data(), 
+            canonical_node_indexes, out, component, ncomp, local_face_index, local_edge_index, local_node_index);
+    }
     
     inline void reorder_mesh_function_data(std::vector<INMOST::Tag> ts, const DofT::BaseDofMap& dmap, INMOST::Tag old_node_enumerator, INMOST::Tag new_node_enumerator, std::size_t block_sz, std::array<std::size_t, 4> elem_data_shift, bool allow_compressed_data){
         using namespace INMOST;

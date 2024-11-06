@@ -24,6 +24,7 @@ namespace Ani{
 
     ///Reorder nodes of tetrahedron in positive order
     inline void reorderNodesOnTetrahedron(INMOST::ElementArray<INMOST::Node>& nodes);
+    inline void reorderNodesOnTetrahedron(INMOST::Mesh* mlink, INMOST::HandleType* nodes);
     /// Get cell and restore tetrahedron connectivity on the cell
     /// @warning this function doesn't allocate memory for arrays nodes, edges, faces
     inline void collectConnectivityInfo(
@@ -47,7 +48,10 @@ namespace Ani{
     inline DOFLocus getDOFLocus(const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
         const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
         const unsigned char* canonical_node_indexes/*[4]*/, const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3});
-    
+    inline DOFLocus getDOFLocus(const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+        const unsigned char* canonical_node_indexes/*[4]*/, const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3});
+
     /// Compute index in inmost-element local data array of the d.o.f. on element with reordered nodes
     /// @param dmap is local dof map of considered object, only influence if etype == EDGE_ORIENT or etype == FACE_ORIENT
     /// @param leid is index of d.o.f. on canonical element (on element with canonical numbering of nodes of the element)
@@ -66,6 +70,12 @@ namespace Ani{
     inline std::pair<INMOST::Storage::real, bool> takeElementDOFifAvailable(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
         const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
         const unsigned char* canonical_node_indexes/*[4]*/, const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3});
+    inline INMOST::Storage::real takeElementDOF(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+        const unsigned char* canonical_node_indexes/*[4]*/, const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3});
+    inline std::pair<INMOST::Storage::real, bool> takeElementDOFifAvailable(const INMOST::Tag& tag, const DofT::BaseDofMap& dmap, const DofT::LocalOrder& lo, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+        const unsigned char* canonical_node_indexes/*[4]*/, const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3});
 
     ///Gather all odfs of the variable component on cell from tag into container out 
     /// @tparam OnlyIfDataAvailable if set to true then will gather all d.o.f.'s on the cell else will gather values only if specified d.o.f. is stored in the tag
@@ -79,6 +89,18 @@ namespace Ani{
     void GatherDataOnElement(
         const INMOST::Tag* var_tags, const std::size_t nvar_tags, const DofT::BaseDofMap& dmap, 
         const INMOST::Cell& cell, const INMOST::ElementArray<INMOST::Face>& faces, const INMOST::ElementArray<INMOST::Edge>& edges, const INMOST::ElementArray<INMOST::Node>& nodes, 
+        const unsigned char* canonical_node_indexes, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp, 
+        const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3}); 
+    template<bool OnlyIfDataAvailable = false, class RandomIt>
+    void GatherDataOnElement(
+        const INMOST::Tag& from, const DofT::BaseDofMap& dmap, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
+        const unsigned char* canonical_node_indexes, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp, 
+        const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3});
+    template<bool OnlyIfDataAvailable = false, class RandomIt>
+    void GatherDataOnElement(
+        const INMOST::Tag* var_tags, const std::size_t nvar_tags, const DofT::BaseDofMap& dmap, 
+        INMOST::Mesh* mlink, INMOST::HandleType cell, const INMOST::HandleType* faces, const INMOST::HandleType* edges, const INMOST::HandleType* nodes, 
         const unsigned char* canonical_node_indexes, RandomIt out, const int* component/*[ncomp]*/, unsigned int ncomp, 
         const std::array<unsigned char, 4>& local_face_index = {0, 1, 2, 3}, const std::array<unsigned char, 6>& local_edge_index = {0, 1, 2, 3, 4, 5}, const std::array<unsigned char, 4>& local_node_index = {0, 1, 2, 3}); 
 
