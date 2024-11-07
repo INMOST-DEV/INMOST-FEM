@@ -35,6 +35,41 @@ namespace Ani{
             }
         }
         template<typename Scalar, typename RandomIt>
+        inline void setVectorDirMtxExtraCol( ArrayView<Scalar>& A,
+                                        RandomIt dof_id,
+                                        const DenseMatrix <Scalar>& Vorth,
+                                        ArrayView <Scalar> mem,
+                                        const uint ndc, const get_id_base& id){
+            uint dim = Vorth.nCol;
+            DenseMatrix<Scalar> C(mem.data, dim, 1);
+            for (uint m = 0; m < dim; ++m) 
+                C[m] = A[dof_id[m]];
+            // for (uint k = ndc; k < dim; ++k){
+            //     uint m = id[k];
+            for (uint m = 0; m < dim; ++m){
+                Scalar s = 0;
+                for (uint p = 0; p < dim; ++p)
+                    s += C[p]*Vorth(m, p);
+                A[dof_id[m]] = s;
+            }
+            for (uint k = 0; k < ndc; ++k)
+                A[dof_id[id[k]]] = 0;
+        }
+        template<typename Scalar, typename RandomIt>
+        inline void setVectorDirMtxExtraRow( ArrayView<Scalar>& A,
+                                        RandomIt dof_id, 
+                                        const DenseMatrix <Scalar>& Vorth,
+                                        const uint ndc, const get_id_base& id){
+            uint dim = Vorth.nCol;
+            for (uint k = 0; k < ndc; ++k){
+                Scalar c = 0;
+                for (uint p = 0; p < dim; ++p)
+                    c += A[dof_id[p]]*Vorth(id[k], p);
+                for (uint l = 0; l < dim; ++l)
+                    A[dof_id[l]] -= c * Vorth(id[k], l);
+            }
+        }
+        template<typename Scalar, typename RandomIt>
         inline void setVectorDirMtx(    DenseMatrix <Scalar>& A, 
                                         RandomIt dof_id, 
                                         const DenseMatrix <Scalar>& Vorth,
@@ -95,6 +130,30 @@ namespace Ani{
         get_id_base& id = *static_cast<get_id_base*>(dc_orth == nullptr ? &id_base : static_cast<get_id_base*>(&id_dat));
         performMatrixReorthogonalization<>(A, dof_id, Vorth, mem);
         setVectorDirMtx<>(A, dof_id, Vorth, mem, ndc, id);
+    }
+
+    template<typename Scalar, typename RandomIt>
+    inline void applyVectorDirMatrixExtCol( ArrayView<Scalar>& B,
+                                        RandomIt dof_id, 
+                                        const DenseMatrix <Scalar>& Vorth,
+                                        ArrayView <Scalar> mem,
+                                        const uint ndc, const uint* dc_orth){
+        using namespace VDInternals;
+        get_id_base id_base;
+        get_id_dat id_dat; id_dat.m_id = dc_orth;
+        get_id_base& id = *static_cast<get_id_base*>(dc_orth == nullptr ? &id_base : static_cast<get_id_base*>(&id_dat));
+        setVectorDirMtxExtraCol<>(B, dof_id, Vorth, mem, ndc, id);
+    }
+    template<typename Scalar, typename RandomIt>
+    inline void applyVectorDirMatrixExtRow( ArrayView<Scalar>& C,
+                                        RandomIt dof_id, 
+                                        const DenseMatrix <Scalar>& Vorth,
+                                        const uint ndc, const uint* dc_orth){
+        using namespace VDInternals;
+        get_id_base id_base;
+        get_id_dat id_dat; id_dat.m_id = dc_orth;
+        get_id_base& id = *static_cast<get_id_base*>(dc_orth == nullptr ? &id_base : static_cast<get_id_base*>(&id_dat));
+        setVectorDirMtxExtraRow<>(C, dof_id, Vorth, ndc, id);
     }
 
     template<typename Scalar, typename RandomIt>

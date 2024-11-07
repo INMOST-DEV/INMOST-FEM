@@ -54,6 +54,20 @@ namespace Ani{
                                         const DenseMatrix <Scalar>& Vorth,
                                         ArrayView <Scalar> mem,
                                         const uint ndc, const uint* dc_orth = nullptr);
+    ///@param B is column of elemental matrix with iCol > unf, where unf is size of dof_id vector (count of d.o.f.'s of FEM_U on tetrahedra)
+    ///@param mem should have size at least d = vec_dim(u)
+    template<typename Scalar, typename RandomIt>
+    inline void applyVectorDirMatrixExtCol( ArrayView<Scalar>& B,
+                                        RandomIt dof_id, 
+                                        const DenseMatrix <Scalar>& Vorth,
+                                        ArrayView <Scalar> mem,
+                                        const uint ndc, const uint* dc_orth = nullptr);
+    ///@param C is row of elemental matrix with iRow > unf, where unf is size of dof_id vector (count of d.o.f.'s of FEM_U on tetrahedra)
+    template<typename Scalar, typename RandomIt>
+    inline void applyVectorDirMatrixExtRow( ArrayView<Scalar>& C,
+                                        RandomIt dof_id, 
+                                        const DenseMatrix <Scalar>& Vorth,
+                                        const uint ndc, const uint* dc_orth = nullptr);
     ///@param F is elemental right hand side
     ///@param bc[ndc] is is dirichlet value to be set (rhs in V*u = b)
     ///@param mem[d*std::max(A.nCol, A.nRow)] is work memory
