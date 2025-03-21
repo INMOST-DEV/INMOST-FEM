@@ -13,6 +13,9 @@ target_link_libraries(ex4 AniFem++ Fem_utils)
 add_executable(ex5 ex5.cpp prob_args.h prob_args.cpp)
 target_link_libraries(ex5 AniFem++ Fem_utils)
 
+add_executable(quadrature_function quadrature_function.cpp prob_args.h prob_args.cpp)
+target_link_libraries(quadrature_function AniFem++ Fem_utils)
+
 add_executable(react_diff1 react_diff1.cpp prob_args.h prob_args.cpp)
 target_link_libraries(react_diff1 AniFem++ Fem_utils)
 
