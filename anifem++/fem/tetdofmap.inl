@@ -705,7 +705,7 @@ namespace FemComDetails{
     template<typename Scalar>
     inline void applyDirByDofs(const DofT::BaseDofMap& trial_map, const DofT::BaseDofMap& test_map, DenseMatrix<Scalar>& A, DenseMatrix <Scalar>& F, const DofT::TetGeomSparsity& sp, const ArrayView<const Scalar>& dofs){
         if (trial_map == test_map){
-            applyConstantDirByDofs(trial_map, A, F, sp, dofs);
+            applyDirByDofs(trial_map, A, F, sp, dofs);
             return;
         }
         for (auto jt = trial_map.beginBySparsity(sp, true), it = test_map.beginBySparsity(sp, true); jt != trial_map.endBySparsity() && it != test_map.endBySparsity(); ++it, ++jt){
