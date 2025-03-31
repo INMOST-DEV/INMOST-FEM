@@ -184,17 +184,17 @@ namespace FemComDetails{
         std::array<uint, NGEOM_TYPES> NumDofsOnTet() const override { auto r = m_base.NumDofsOnTet(); for(auto& x: r) x *= m_dim; return r; }
         uint TypeOnTet(uint dof) const override { return m_base.TypeOnTet(dof % m_base.NumDofOnTet()); }
         bool DefinedOn(uchar etype) const override { return m_base.DefinedOn(etype); }
-        uint GetGeomMask() const { return m_base.GetGeomMask(); }
+        uint GetGeomMask() const override { return m_base.GetGeomMask(); }
         uint NestedDim() const override { return m_dim; }
 
         LocalOrder LocalOrderOnTet(TetOrder dof_id) const override;
         uint TetDofID(LocGeomOrder dof_id) const override;
         uchar SymComponents(uchar etype) const override { return m_base.SymComponents(etype); }
         std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override;
-        void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const;
-        std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims);
+        void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const override;
+        std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) override;
         bool operator==(const BaseDofMap& other) const override;
-        void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const;
+        void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const override;
 
         std::shared_ptr<BaseDofMap> Copy() const override { return std::make_shared<VectorDofMapCImpl<true, DofMapT>>(*this); }
     };

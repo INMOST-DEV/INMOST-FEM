@@ -373,7 +373,7 @@ struct SimpleEnumerator: public IGlobEnumeration{
     void Clear() override;
     EnumerateIndex OrderC(const NaturalIndex& physIndex) const override;
     EnumerateIndex operator()(const NaturalIndex& physIndex) const override;
-    NaturalIndex operator()(EnumerateIndex vi) const;
+    NaturalIndex operator()(EnumerateIndex vi) const override;
 
     SimpleEnumerator() = default;
     SimpleEnumerator(ASSEMBLING_TYPE t): m_t(t) {}
@@ -416,15 +416,15 @@ struct GlobEnumeration: public IGlobEnumeration{
     GlobEnumeration& setBaseEnumerator(typename std::enable_if<std::is_base_of<IGlobEnumeration, GlobEnumerationT>::value>::type* = 0){ m_t = NOSPECIFIED; return m_invoker = std::make_unique<GlobEnumerationT>(), *this; }
 
     INMOST::Storage::integer GNodeIndex(const INMOST::Node& n) const override { return m_invoker->GNodeIndex(n); }
-    void Clear(){ if (m_invoker) m_invoker->Clear(); m_invoker.reset(); }
-    EnumerateIndex OrderC(const NaturalIndex& physIndex) const{ return m_invoker->OrderC(physIndex); }
-    EnumerateIndex operator()(const NaturalIndex& physIndex) const{ return m_invoker->operator()(physIndex); }
-    NaturalIndex operator()(EnumerateIndex vi) const { return m_invoker->operator()(vi); }
+    void Clear() override { if (m_invoker) m_invoker->Clear(); m_invoker.reset(); }
+    EnumerateIndex OrderC (const NaturalIndex& physIndex) const override { return m_invoker->OrderC(physIndex); }
+    EnumerateIndex operator()(const NaturalIndex& physIndex) const override { return m_invoker->operator()(physIndex); }
+    NaturalIndex operator()(EnumerateIndex vi) const override { return m_invoker->operator()(vi); }
 
     GlobEnumeration() = default;
     GlobEnumeration(ASSEMBLING_TYPE t) { setAssemblingType(t); }
 
-    void setup();
+    void setup() override;
 };
 
 }

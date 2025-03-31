@@ -80,7 +80,7 @@ namespace Ani{
             res.dSize = fusion*Operator<IDEN, FemFix<FEM_TYPE>>::Dim::value;
             return res;
         }
-        void interpolateOnDOF(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<>* udofs, int idof_on_tet, int fusion, PlainMemoryX<> wmem, void* user_data = nullptr, uint max_quad_order = 5) const{
+        void interpolateOnDOF(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<>* udofs, int idof_on_tet, int fusion, PlainMemoryX<> wmem, void* user_data = nullptr, uint max_quad_order = 5) const override {
             assert(wmem.ge(interpolateOnDOF_mem_req(idof_on_tet, fusion, max_quad_order)) && "Not enough of work memory");
             double* mem = wmem.ddata; //[fusion*Operator<IDEN, FemFix<FEM_TYPE>>::Dim::value]
             Dof<FemFix<FEM_TYPE>>::interpolate(XYZ, f, mem, udofs, idof_on_tet, fusion, user_data, max_quad_order);

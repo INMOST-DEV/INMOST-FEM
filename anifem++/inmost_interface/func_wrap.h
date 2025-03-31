@@ -109,7 +109,7 @@ namespace Ani{
         };
 
         ///Make numerical evaluation
-        ///@param args is working array of const Real pointers, first n_in() elements is pointers on some input parameters
+        ///@param args is working array of const Real pointers, first n_in() elements are pointers on some input parameters
         ///@param res is working array of Real pointers, first n_out() elements will contain pointers of result matrices
         ///@param iw is working integer data
         ///@param w is working real data
@@ -300,7 +300,7 @@ namespace Ani{
             m_user_data_required{with_user_data}, m_dyn_mem_required{use_dyn_mem} {}   
 
         std::vector<MatSparsity<Int>> m_sp_in, m_sp_out;
-        std::function<int(const Real** args, Real** res, Real* w, Int* iw, void* user_data, Ani::DynMem<Real, Int>* dyn_mem)> m_f;
+        Functor m_f;
         mutable DynMemParallel<Real, Int, ThreadPar::mutex<ParType>> m_mem;
         size_t m_sz_w = 0, m_sz_iw = 0;
         bool m_user_data_required = true, m_dyn_mem_required = true;

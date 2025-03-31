@@ -287,6 +287,8 @@ struct PhysMtx<3, FT>{
     friend PhysMtx<3, FT> operator*(FT c, const PhysMtx<3, FT>& a){ return a.operator*(c); }
     inline PhysMtx<3, FT> operator/(FT a) const { PhysMtx<3, FT> r(*this); return (r /= a); }
 
+    inline SymMtx<3, FT> Sym() const;
+
     /// @return a x a
     static inline PhysMtx<3, FT> TensorSquare(const PhysArr<3, FT>& s);
     /// @return f x s + s x f
@@ -308,6 +310,14 @@ PhysMtx<3, FT>::PhysMtx(const SymMtx<3, FT>& r){
     for (std::size_t i = 0; i < 3; ++i)
     for (std::size_t j = i; j < 3; ++j)
         m_dat[3*i + j] = m_dat[3*j + i] = r(i, j);
+}
+template<typename FT>
+inline SymMtx<3, FT> PhysMtx<3, FT>::Sym() const {
+    SymMtx<3, FT> A;
+    for (std::size_t i = 0; i < 3; ++i)
+    for (std::size_t j = i; j < 3; ++j)
+        A(i, j) = (m_dat[3*i + j] + m_dat[3*j + i]) / FT(2.0);
+    return A;
 }
 template<typename FT>
 FT PhysMtx<3, FT>::Trace() const { return operator()(0,0) + operator()(1, 1) + operator()(2,2); }
@@ -523,6 +533,7 @@ struct BiSymTensor4Rank<3, FT>{
     inline FT Dot(const BiSymTensor4Rank<3, FT>& b) const;
     static inline BiSymTensor4Rank<3, FT> TensorSquare(const SymMtx<3, FT>& s);
     static inline BiSymTensor4Rank<3, FT> TensorSymMul2(const SymMtx<3, FT>& f, const SymMtx<3, FT>& s);
+    static inline BiSymTensor4Rank<3, FT> Identity(FT val = FT(1));
 
     inline BiSymTensor4Rank<3, FT>& operator+=(const BiSymTensor4Rank<3, FT>& a){ for (std::size_t i = 0; i < continuous_size(); ++i) m_dat[i] += a[i]; return *this; }
     inline BiSymTensor4Rank<3, FT>& operator-=(const BiSymTensor4Rank<3, FT>& a){ for (std::size_t i = 0; i < continuous_size(); ++i) m_dat[i] -= a[i]; return *this; }
@@ -565,6 +576,17 @@ BiSymTensor4Rank<3, FT> BiSymTensor4Rank<3, FT>::TensorSymMul2(const SymMtx<3, F
     for (auto it = r.begin(); it != r.end(); ++it){
         auto q = it.index();
         *it = f(q.i, q.j) * s(q.k, q.l) + s(q.i, q.j) * f(q.k, q.l);
+    }
+    return r;
+}
+// I_ijkl = (\delta_ik \delta_jl + \delta_il \delta_kl) / 2
+template<typename FT>
+BiSymTensor4Rank<3, FT> BiSymTensor4Rank<3, FT>::Identity(FT val){
+    BiSymTensor4Rank<3, FT> r;
+    for (auto it = r.begin(); it != r.end(); ++it){
+        auto q = it.index();
+        *it = ((q.i == q.k && q.j == q.l ? val : FT(0)) +
+                   (q.i == q.l && q.j == q.k ? val : FT(0))) / 2.0;
     }
     return r;
 }

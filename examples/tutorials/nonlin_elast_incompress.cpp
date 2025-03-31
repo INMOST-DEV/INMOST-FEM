@@ -336,7 +336,7 @@ int main(int argc, char* argv[]){
         Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
         auto& d = *static_cast<ProbLocData*>(user_data);
         d.pXYZ = &XYZ, d.palloc = &adapt_alloc;
-        auto grad_u = UFem.getOP(GRAD), iden_u = UFem.getOP(IDEN), iden_p = PFem.getOP(IDEN);  
+        auto iden_p = PFem.getOP(IDEN);
         ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;  
 
         // elemental stiffness matrix <P, grad(P2^3)> 

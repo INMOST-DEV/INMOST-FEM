@@ -24,6 +24,14 @@ namespace Ani{
         for (std::size_t j = i; j < N; ++j)
             m_dat[N*i + j] = m_dat[N*j + i] = r(i, j);
     }
+    template<std::size_t N, typename FT>
+    inline SymMtx<N, FT> PhysMtx<N, FT>::Sym() const {
+        SymMtx<N, FT> A;
+        for (std::size_t i = 0; i < N; ++i)
+        for (std::size_t j = i; j < N; ++j)
+            A(i, j) = (m_dat[N*i + j] + m_dat[N*j + i]) / 2;
+        return A;
+    }
     namespace internal{
         template <std::size_t N, typename MTX, typename FT>
         FT Trace(const MTX& m){
