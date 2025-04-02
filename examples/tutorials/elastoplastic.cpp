@@ -29,6 +29,7 @@ double Et = E/100; // tangent modulus
 double sigma_yield = 250; // yield strength (Pa)
 double H = E*Et/(E-Et); // hardening modulus
 double Re = 1.3, Ri = 1.; // mesh external and internal radii
+std::string mesh_fname = "../../../data/mesh/thick_cylinder.msh";
 
 struct InputArgs1VarNonLin: public InputArgs1Var{
     using ParentType = InputArgs1Var;
@@ -68,6 +69,9 @@ struct InputArgs1VarNonLin: public InputArgs1Var{
         } if (strcmp(argv[i], "--latol_scl") == 0){
             GETARG(lin_abs_scale = std::stod(argv[++i]);)
             return i+1; 
+        } if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--mesh-name") == 0){
+            GETARG(mesh_fname = argv[++i];)
+            return i+1; 
         } else 
             return ParentType::parseArg(argc, argv, print_messages);
         #undef GETARG
@@ -84,12 +88,13 @@ protected:
         out << prefix << "  -re,   --rel_error       DVAL    <Set stop relative residual norm for newton method, default=\"" << nlin_rel_err << "\">\n";
         out << prefix << "  -ae,   --abs_error       DVAL    <Set stop absolute residual norm for newton method, default=\"" << nlin_abs_err << "\">\n";
         out << prefix << "  -ni,   --maxits          IVAL    <Set maximum number of newton method iterations, default=\"" << nlin_maxit << "\">\n";
-        out << prefix << "         --latol_scl       IVAL    <Set newton linear solver absolute tolerance scale, default=\"" << lin_abs_scale << "\">\n";
+        out << prefix << "         --latol_scl       DVAL    <Set newton linear solver absolute tolerance scale, default=\"" << lin_abs_scale << "\">\n";
         out << prefix << "  -Re,   --external-radius DVAL    <Set external radius of cylinder (if mesh was changed), default=\"" << Re << "\">\n";
         out << prefix << "  -E,    --young-modulus   DVAL    <Set Young modulus of cylinder , default=\"" << E << "\">\n";
         out << prefix << "  -nu,   --poisson-coef    DVAL    <Set Poisson coefficient of cylinder , default=\"" << nu << "\">\n";
         out << prefix << "  -sig0, --sigma-yield     DVAL    <Set yield stress (von Mises criterium) , default=\"" << sigma_yield << "\">\n";
         out << prefix << "  -Et,   --tangent-modulus DVAL    <Set plastic tangent modulus , default=\"" << Et << "\">\n";
+        out << prefix << "  -m,    --mesh-name       SVAL    <Set mesh file name , default=\"" << mesh_fname << "\">\n";
         ParentType::printArgsDescr(out, prefix);
     }
 };
@@ -148,10 +153,20 @@ int main(int argc, char* argv[]){
     InmostInit(&argc, &argv, p.lin_sol_db, pRank, pCount);
 
     Mesh* m = new Mesh;
-    m->Load("../../../data/mesh/thick_cylinder.msh");
-    
-    // Constructing of Ghost cells in 1 layers connected via nodes is required for FEM Assemble method
-    m->ExchangeGhost(1,NODE);
+    //m->SetFileOption("VERBOSITY","2");
+    if(m->isParallelFileFormat(mesh_fname))
+    {
+        m->Load(mesh_fname);
+        // Constructing of Ghost cells in 1 layers connected via nodes is required for FEM Assemble method
+    }
+    else if(pRank == 0)
+    {
+        m->Load(mesh_fname);
+    }
+    //m->ExchangeGhost(1,NODE);
+    RepartMesh(m,true);
+    m->AssignGlobalID(NODE|EDGE|FACE|CELL);
+
     print_mesh_sizes(m);
 
     //generate FEM space from it's name
@@ -193,6 +208,7 @@ int main(int argc, char* argv[]){
         if (mask & EDGE) set_label(it->getEdges());
         if (mask & FACE) set_label(it->getFaces());
     }
+    m->ExchangeData(BndLabel, mask);
     m->ReleaseMarker(bmrk);
 
     // Define tag to store result
@@ -456,8 +472,12 @@ int main(int argc, char* argv[]){
          0.77781746, 0.81240384, 0.84557673, 0.87749644, 0.90829511, \
          0.93808315, 0.96695398, 0.99498744, 1.02225242, 1.04880885};
     int step = 1;
-    std::ofstream ofs("cylinder_load_displacement.csv");
-    if(pRank == 0) ofs << "displacement_inner_boundary;applied_pressure\n";
+    std::ofstream ofs;
+    if(pRank == 0)
+    {
+        ofs = std::ofstream("cylinder_load_displacement.csv");
+        ofs << "displacement_inner_boundary;applied_pressure\n";
+    }
     TimerWrap m_timer_total; m_timer_total.reset();
     while(step < Nincr+1)
     {
@@ -519,13 +539,17 @@ int main(int argc, char* argv[]){
             std::cout << "Finished step " << step << std::endl;
             ofs << u_max << ';' << T << '\n';
         }
-        m->Save(p.save_dir + p.save_prefix + "_" + std::to_string(step-1) + ".vtk");
+        m->Save(p.save_dir + p.save_prefix + "_" + std::to_string(step-1) + ".pvtu");
         ++step;
         double step_sol_time =  m_timer_step.elapsed();
         if (pRank == 0) std::cout << "Step solution time: " << step_sol_time << "s" << std::endl;
     }
     double total_sol_time =  m_timer_total.elapsed();
-    if (pRank == 0) std::cout << "Total solution time: " << total_sol_time << "s" << std::endl;
+    if (pRank == 0)
+    {
+        ofs.close();
+        std::cout << "Total solution time: " << total_sol_time << "s" << std::endl;
+    }
 
     discr.Clear();
     delete m;

@@ -182,14 +182,11 @@ void RepartMesh(Mesh* m, bool verbose){
         if (verbose && pRank  == 0)    std::cout<<"- Perform mesh partition"<<std::endl;
         p->Evaluate();
         delete p;
-        BARRIER
-
         // prior exchange ghost to get optimization in Redistribute
         m->ExchangeGhost(1, NODE); //<- required for parallel fem
         m->Redistribute();
-        BARRIER;
-        m->ExchangeGhost(1, NODE); //<- required for parallel fem
         m->ReorderEmpty(CELL | FACE | EDGE | NODE);
+        m->ExchangeGhost(1, NODE); //<- required for parallel fem
     }
 #else
     if(pCount >1) {
