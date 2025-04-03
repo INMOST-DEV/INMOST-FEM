@@ -586,7 +586,6 @@ BiSymTensor4Rank<3, FT> BiSymTensor4Rank<3, FT>::Identity(FT val){
     BiSymTensor4Rank<3, FT> r;
        r(0, 0, 0, 0) = r(1, 1, 1, 1) = r(2, 2, 2, 2) = val    ;
        r(0, 1, 0, 1) = r(0, 2, 0, 2) = r(1, 2, 1, 2) = val / 2;
-       r(0, 1, 1, 0) = r(0, 2, 2, 0) = r(1, 2, 2, 1) = val / 2;
     return r;
 }
 

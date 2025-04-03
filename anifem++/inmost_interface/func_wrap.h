@@ -243,7 +243,7 @@ namespace Ani{
     struct MatFuncWrapDynamic: public MatFuncWrap<TReal, TInt>{
         using Real = TReal;
         using Int = TInt;
-        using Functor = std::function<int(const Real**, Real**, Real*, Int*, void*, DynMem<Real, Int>*)>;
+        using Functor = std::function<int(const Real** args, Real** res, Real* w, Int* iw, void* user_data, Ani::DynMem<Real, Int>* dyn_mem)>;
         struct IOData{
             const Real** args;
             Real** res;
