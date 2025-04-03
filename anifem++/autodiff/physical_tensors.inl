@@ -27,9 +27,10 @@ namespace Ani{
     template<std::size_t N, typename FT>
     inline SymMtx<N, FT> PhysMtx<N, FT>::Sym() const {
         SymMtx<N, FT> A;
-        for (std::size_t i = 0; i < N; ++i)
-        for (std::size_t j = i; j < N; ++j)
-            A(i, j) = (m_dat[N*i + j] + m_dat[N*j + i]) / 2;
+        for (auto it = A.begin(); it != A.end(); ++it){
+            auto q = it.index();
+            *it = (operator()(q.i, q.j) + operator()(q.j, q.i)) / 2;
+        }
         return A;
     }
     namespace internal{

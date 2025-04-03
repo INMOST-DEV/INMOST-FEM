@@ -314,9 +314,10 @@ PhysMtx<3, FT>::PhysMtx(const SymMtx<3, FT>& r){
 template<typename FT>
 inline SymMtx<3, FT> PhysMtx<3, FT>::Sym() const {
     SymMtx<3, FT> A;
-    for (std::size_t i = 0; i < 3; ++i)
-    for (std::size_t j = i; j < 3; ++j)
-        A(i, j) = (m_dat[3*i + j] + m_dat[3*j + i]) / FT(2.0);
+        for (auto it = A.begin(); it != A.end(); ++it){
+            auto q = it.index();
+            *it = (operator()(q.i, q.j) + operator()(q.j, q.i)) / 2;
+        }
     return A;
 }
 template<typename FT>
@@ -579,15 +580,13 @@ BiSymTensor4Rank<3, FT> BiSymTensor4Rank<3, FT>::TensorSymMul2(const SymMtx<3, F
     }
     return r;
 }
-// I_ijkl = (\delta_ik \delta_jl + \delta_il \delta_kl) / 2
+// I_ijkl = (\delta_ik \delta_jl + \delta_il \delta_jk) / 2
 template<typename FT>
 BiSymTensor4Rank<3, FT> BiSymTensor4Rank<3, FT>::Identity(FT val){
     BiSymTensor4Rank<3, FT> r;
-    for (auto it = r.begin(); it != r.end(); ++it){
-        auto q = it.index();
-        *it = ((q.i == q.k && q.j == q.l ? val : FT(0)) +
-                   (q.i == q.l && q.j == q.k ? val : FT(0))) / 2.0;
-    }
+       r(0, 0, 0, 0) = r(1, 1, 1, 1) = r(2, 2, 2, 2) = val    ;
+       r(0, 1, 0, 1) = r(0, 2, 0, 2) = r(1, 2, 1, 2) = val / 2;
+       r(0, 1, 1, 0) = r(0, 2, 2, 0) = r(1, 2, 2, 1) = val / 2;
     return r;
 }
 
