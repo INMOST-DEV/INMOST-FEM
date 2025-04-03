@@ -7,7 +7,6 @@
 #include "anifem++/fem/operations/eval.h"
 #include "anifem++/inmost_interface/elemental_assembler.h"
 #include "anifem++/inmost_interface/assembler.h"
-#include "anifem++/kinsol_interface/SUNNonlinearSolver.h"
 #include <numeric>
 
 using namespace INMOST;

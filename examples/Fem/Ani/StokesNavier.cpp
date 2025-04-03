@@ -8,7 +8,6 @@
 #include "anifem++/fem/operations/eval.h"
 #include "anifem++/inmost_interface/elemental_assembler.h"
 #include "anifem++/inmost_interface/assembler.h"
-#include "anifem++/kinsol_interface/SUNNonlinearSolver.h"
 #include <numeric>
 #if __cplusplus >= 201703L
 #include <filesystem>
