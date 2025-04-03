@@ -414,10 +414,10 @@ namespace Ani{
             uint GetGeomMask() const override { return base()->GetGeomMask(); }
             virtual void Clear(){ std::fill(m_shiftNumDof.begin(), m_shiftNumDof.end(), 0); m_shiftOnTet = 0; }
             uint NestedDim() const override { return 1; }
-            bool operator==(const BaseDofMap& other) const;
+            bool operator==(const BaseDofMap& other) const override;
 
-            void BeginByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const;
-            void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const;
+            void BeginByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const override;
+            void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const override;
         };
 
         /// A special representation to work with a subvector of d.o.f.s distributed in enclosing vector of a given subspace 
@@ -430,11 +430,11 @@ namespace Ani{
             const BaseDofMap* base() const override { return m_base.get(); }
             void set_base(const std::shared_ptr<BaseDofMap>& new_base) override { m_base = new_base; }
             void set_base(const BaseDofMap* new_base) override { m_base = new_base->Copy(); }
-            uint ActualType() const { return static_cast<uint>(BaseTypes::NestedType); }
-            void Clear(){ m_base = nullptr; NestedDofMapBase::Clear(); }
-            void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const;
-            std::shared_ptr<const BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) const;
-            std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims);
+            uint ActualType() const override { return static_cast<uint>(BaseTypes::NestedType); }
+            void Clear() override { m_base = nullptr; NestedDofMapBase::Clear(); }
+            void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const override;
+            std::shared_ptr<const BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) const override;
+            std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) override;
 
             std::shared_ptr<BaseDofMap> Copy() const override { return std::make_shared<NestedDofMap>(*this); }
         };
@@ -447,11 +447,11 @@ namespace Ani{
             const BaseDofMap* base() const override { return m_base; }
             void set_base(const std::shared_ptr<BaseDofMap>& new_base) override { m_base = new_base.get(); }
             void set_base(const BaseDofMap* new_base) override { m_base = new_base; }
-            uint ActualType() const { return static_cast<uint>(BaseTypes::NestedViewType); }
-            void Clear(){ m_base = nullptr; NestedDofMapBase::Clear(); }
-            void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const;
-            std::shared_ptr<const BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) const;
-            std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims);
+            uint ActualType() const override { return static_cast<uint>(BaseTypes::NestedViewType); }
+            void Clear() override { m_base = nullptr; NestedDofMapBase::Clear(); }
+            void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const override;
+            std::shared_ptr<const BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) const override;
+            std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) override;
 
             std::shared_ptr<BaseDofMap> Copy() const override { return std::make_shared<NestedDofMapView>(*this); }
         };
@@ -605,14 +605,14 @@ namespace Ani{
             uchar SymComponents(uchar etype) const override { return base->SymComponents(etype); }
             std::pair<uint, LocSymOrder> TetDofIDExt(LocGeomOrder dof_id) const override;
             bool DefinedOn(uchar etype) const override { return m_dim ? base->DefinedOn(etype) : false; }
-            uint GetGeomMask() const { return m_dim ? base->GetGeomMask() : UNDEF; }
+            uint GetGeomMask() const override { return m_dim ? base->GetGeomMask() : UNDEF; }
             uint NestedDim() const override { return m_dim; }
-            void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const;
-            std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims);
+            void GetNestedComponent(const int* ext_dims, int ndims, NestedDofMapBase& view) const override;
+            std::shared_ptr<BaseDofMap> GetSubDofMap(const int* ext_dims, int ndims) override;
             bool operator==(const BaseDofMap& other) const override;
             std::shared_ptr<BaseDofMap> Copy() const override { return std::make_shared<VectorDofMap>(*this); }
             
-            void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const;
+            void IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering = false) const override;
             ComponentTetOrder ComponentID(TetOrder dof_id) const { return {dof_id, dof_id % base->NumDofOnTet(), dof_id / base->NumDofOnTet()}; }
             ComponentElemOrder ComponentID(ElemOrder dof_id) const { auto nd = base->NumDof(dof_id.etype); return {dof_id.etype, dof_id.gid, dof_id.gid % nd, dof_id.gid / nd};  }
         };

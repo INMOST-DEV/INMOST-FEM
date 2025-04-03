@@ -225,6 +225,8 @@ struct PhysMtx{
     friend PhysMtx<N, FT> operator*(FT c, const PhysMtx<N, FT>& a){ return a.operator*(c); }
     inline PhysMtx<N, FT> operator/(FT a) const { PhysMtx<N, FT> r(*this); return (r /= a); }
 
+    inline SymMtx<N, FT> Sym() const;
+
     /// @return a x a
     static inline PhysMtx<N, FT> TensorSquare(const PhysArr<N, FT>& s);
     /// @return f x s + s x f

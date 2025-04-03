@@ -112,7 +112,7 @@ namespace Ani{
             for (std::size_t j = 0; j < A.nCol; ++j) 
                 for (std::size_t i = 0; i < A.nRow; ++i) 
                     nrm += A(i, j) * A(i, j);
-            nrm = sqrt(nrm)*abs(a);
+            nrm = sqrt(nrm)*fabs(a);
         }
         return nrm;
     }

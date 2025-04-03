@@ -5,11 +5,10 @@
 
 #include "inmost.h"
 #include "anifem++/utils/utils.h"
-#include "carnum/MeshGen/mesh_gen.h"
-#include "carnum/Fem/AniInterface/Fem3Dtet.h"
-#include "carnum/Fem/AniInterface/ForAssembler.h"
-#include "carnum/Fem/Assembler.h"
-#include "carnum/Solver/SUNNonlinearSolver.h"
+#include "anifem++/fem/operations/eval.h"
+#include "anifem++/inmost_interface/elemental_assembler.h"
+#include "anifem++/inmost_interface/assembler.h"
+#include "anifem++/kinsol_interface/SUNNonlinearSolver.h"
 #include <numeric>
 #if __cplusplus >= 201703L
 #include <filesystem>
@@ -155,8 +154,8 @@ struct ProblemDefinition{
             auto Var0Helper = GenerateHelper<UFem>(),
                  Var1Helper = GenerateHelper<PFem>();
             FemExprDescr fed;
-            fed.PushVar(Var0Helper, "u"); fed.PushTestFunc(Var0Helper, "phi_u");
-            fed.PushVar(Var1Helper, "p"); fed.PushTestFunc(Var1Helper, "phi_p");
+            fed.PushTrialFunc(Var0Helper, "u"); fed.PushTestFunc(Var0Helper, "phi_u");
+            fed.PushTrialFunc(Var1Helper, "p"); fed.PushTestFunc(Var1Helper, "phi_p");
             discr.SetProbDescr(std::move(fed));
         }
         discr.SetDataGatherer(get_local_data_gatherer());
@@ -768,14 +767,14 @@ struct ProblemDefinition{
             for (int i = 0; i < 4; ++i)
                 data.nlbl[i] = (*p.nodes)[i].Integer(Label);
             for (int i = 0; i < 4; ++i)
-                data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(Label);
+                data.flbl[i] = (*p.faces)[i].Integer(Label);
             for (int i = 0; i < 6; ++i)    
-                data.elbl[i] = (*p.edges)[p.local_edge_index[i]].Integer(Label);
+                data.elbl[i] = (*p.edges)[i].Integer(Label);
             
 
             double vardat[2*unfa];
-            data.udofs.Init(p.vars->initValues.data() + p.vars->base_MemOffsets[0], unfa); 
-            data.pdofs.Init(p.vars->initValues.data() + p.vars->base_MemOffsets[1], pnfa);
+            data.udofs.Init(p.vars->begin(0), unfa);
+            data.pdofs.Init(p.vars->begin(1), pnfa);
             data.um1dofs.Init(vardat, unfa), data.um2dofs.Init(vardat+unfa, unfa);
             Tag utag = up[0];
 

@@ -254,7 +254,10 @@ static void* _N_VGetCommunicator_Inmost_internals(N_Vector v){
 template<typename T = INMOST_MPI_Comm, typename std::enable_if<std::is_pointer<T>::value, char>::type* = nullptr>
 static void*  _N_VGetCommunicator_Inmost_internals(N_Vector v){
 #ifdef USE_MPI
-    return NV_DATA_P(v)->GetCommunicator();
+    //return NV_DATA_P(v)->GetCommunicator();
+    static INMOST_MPI_Comm comm;
+    comm = NV_DATA_P(v)->GetCommunicator();
+    return &comm;
 #else
     (void) v;
     return NULL;

@@ -103,7 +103,7 @@ int main(int argc, char* argv[]){
         (void) X; (void) dims; (void) user_data; (void) iTet;
         DenseMatrix<> C(D, 9, 9); 
         double lambda = 1.0, mu = 3.0;
-        //C_{(ij)(kl)} = \lambda \detla_{ij}\delta_{kl} + \mu (\detla_{ik}\delta_{jl} + \detla_{il}\delta_{jk})
+        //C_{(ij)(kl)} = \lambda \delta_{ij}\delta_{kl} + \mu (\delta_{ik}\delta_{jl} + \delta_{il}\delta_{jk})
         C.SetZero();
         for (int i = 0; i < 3; ++i)      
             for (int l = 0; l < 3; ++l){ 

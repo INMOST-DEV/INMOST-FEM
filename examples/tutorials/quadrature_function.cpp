@@ -189,9 +189,7 @@ int main(int argc, char* argv[]){
                 mptr->Enumerate(NODE, dup_gid); //< save node enumeration
             }
             RepartMesh(mptr.get()); //< divide the mesh between processors
-            if (!mptr->GlobalIDTag().isValid()) {
-                mptr->AssignGlobalID(NODE|EDGE|FACE|CELL);
-            }
+            mptr->AssignGlobalID(NODE|EDGE|FACE|CELL);
 
                 if (!mptr->HaveTag(p.func_name))
                     throw std::runtime_error("Loaded mesh from file \"" + p.mesh_file + "\" does't have tag \"" + p.func_name + "\"");

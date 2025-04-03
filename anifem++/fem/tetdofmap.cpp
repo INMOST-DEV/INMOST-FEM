@@ -356,7 +356,7 @@ std::pair<uint, DofT::LocSymOrder> DofT::UniteDofMap::TetDofIDExt(LocGeomOrder d
 uint DofT::UniteDofMap::GetGeomMask() const{
     uint res = 0;
     for (int i = 0; i < NGEOM_TYPES; ++i) 
-        res |= ((m_shiftTetDof[i+1] - m_shiftTetDof[i]) != 0) ? (1 << i) : 0;
+        res |= ((m_shiftTetDof[i+1] - m_shiftTetDof[i]) != 0) ? NumToGeomType(i) : 0;
     return res;    
 }
 void DofT::UniteDofMap::IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering) const{

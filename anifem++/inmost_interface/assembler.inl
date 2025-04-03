@@ -153,9 +153,9 @@ bool AssemblerT<Traits>::fill_assemble_templates(
             auto edim = DofT::GeomTypeDim(tl.etype);
             char sign = 1;
             if (tl.etype & (DofT::EDGE_ORIENT | DofT::FACE_ORIENT)){
-                if (esigns[tl.nelem + (edim > 1) ? 6 : 0] == 0)
-                    esigns[tl.nelem + (edim > 1) ? 6 : 0] = isPositivePermutationOrient(tl.etype, tl.nelem, canonical_node_indexes) ? 1 : -1;
-                sign = esigns[tl.nelem + (edim > 1) ? 6 : 0];
+                if (esigns[tl.nelem + ((edim > 1) ? 6 : 0)] == 0)
+                    esigns[tl.nelem + ((edim > 1) ? 6 : 0)] = isPositivePermutationOrient(tl.etype, tl.nelem, canonical_node_indexes) ? 1 : -1;
+                sign = esigns[tl.nelem + ((edim > 1) ? 6 : 0)];
             }
             auto reordered_lsid = DofT::DofSymmetries::index_on_reorderd_elem(tl.etype, tl.nelem, tl.stype, tl.lsid, canonical_node_indexes); 
             auto elem = INMOST::Element(m, h[edim][tl.nelem]);

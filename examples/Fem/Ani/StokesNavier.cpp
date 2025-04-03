@@ -5,10 +5,10 @@
 
 #include "inmost.h"
 #include "anifem++/utils/utils.h"
-#include "carnum/MeshGen/mesh_gen.h"
-#include "carnum/Fem/AniInterface/Fem3Dtet.h"
-#include "carnum/Fem/AniInterface/ForAssembler.h"
-#include "carnum/Fem/Assembler.h"
+#include "anifem++/fem/operations/eval.h"
+#include "anifem++/inmost_interface/elemental_assembler.h"
+#include "anifem++/inmost_interface/assembler.h"
+#include "anifem++/kinsol_interface/SUNNonlinearSolver.h"
 #include <numeric>
 #if __cplusplus >= 201703L
 #include <filesystem>
@@ -457,7 +457,7 @@ int main(int argc, char* argv[]){
             ProbData data;
             for (int i = 0; i < 4; ++i) {
                 data.nlbl[i] = (*p.nodes)[i].Integer(Label);
-                //data.flbl[i] = (*p.nodes)[p.local_face_index[i]].Integer(BndLabel);
+                //data.flbl[i] = (*p.nodes)[i].Integer(BndLabel);
             }
             data.uprev.Init(udat, Operator<IDEN, UFem>::Nfa::value);
             ElementalAssembler::GatherDataOnElement(up, p, udat, 0);
@@ -473,8 +473,8 @@ int main(int argc, char* argv[]){
             auto Var0Helper = GenerateHelper<UFem>(),
                  Var1Helper = GenerateHelper<PFem>();
             FemExprDescr fed;
-            fed.PushVar(Var0Helper, "u"); fed.PushTestFunc(Var0Helper, "phi_u");
-            fed.PushVar(Var1Helper, "p"); fed.PushTestFunc(Var1Helper, "phi_p");
+            fed.PushTrialFunc(Var0Helper, "u"); fed.PushTestFunc(Var0Helper, "phi_u");
+            fed.PushTrialFunc(Var1Helper, "p"); fed.PushTestFunc(Var1Helper, "phi_p");
             discr.SetProbDescr(std::move(fed));
         }
         discr.SetDataGatherer(local_data_gatherer);

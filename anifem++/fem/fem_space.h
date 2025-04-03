@@ -247,12 +247,12 @@ namespace Ani{
 
         BandDenseMatrixX<> operator()(AniMemoryX<> &mem, ArrayView<> &U) const override { return m_space->applyOP(m_op, mem, U); }
         OpMemoryRequirements getMemoryRequirements(uint nquadpoints, uint fusion = 1) const override { return m_space->memOP(m_op, nquadpoints, fusion); }
-        uint Nfa() const { return m_nfa; }
-        uint Dim() const { return m_dim; }
-        uint Order() const { return m_order; }
-        uint ActualType() const { return 2; }
-        bool operator==(const ApplyOpBase& otherOp) const { return otherOp.ActualType() == ActualType() && m_space == static_cast<const ApplyOpFromSpaceView&>(otherOp).m_space && m_op == static_cast<const ApplyOpFromSpaceView&>(otherOp).m_op; }
-        std::shared_ptr<ApplyOpBase> Copy() const { return std::make_shared<ApplyOpFromSpaceView>(*this); } 
+        uint Nfa() const override { return m_nfa; }
+        uint Dim() const override { return m_dim; }
+        uint Order() const override { return m_order; }
+        uint ActualType() const override { return 2; }
+        bool operator==(const ApplyOpBase& otherOp) const override { return otherOp.ActualType() == ActualType() && m_space == static_cast<const ApplyOpFromSpaceView&>(otherOp).m_space && m_op == static_cast<const ApplyOpFromSpaceView&>(otherOp).m_op; }
+        std::shared_ptr<ApplyOpBase> Copy() const override { return std::make_shared<ApplyOpFromSpaceView>(*this); }
 
         ApplyOpFromSpaceView() = default;
         ApplyOpFromSpaceView(OperatorType op, const BaseFemSpace* sp): m_space{sp}, m_op{op}, m_dim{sp->dimOP(op)}, m_nfa{sp->dofMap().NumDofOnTet()}, m_order{sp->orderOP(op)} {}
@@ -359,7 +359,7 @@ namespace Ani{
         explicit UnionFemSpace(std::vector<std::shared_ptr<BaseFemSpace>> subsets): m_subsets(std::move(subsets)){ setup(); }
         UnionFemSpace& Init(std::vector<std::shared_ptr<BaseFemSpace>> subsets);
         BaseTypes gatherType() const final { return BaseFemSpace::BaseTypes::UnionType; }
-        std::shared_ptr<BaseFemSpace> subSpace(const int* ext_dims, int ndims) const;
+        std::shared_ptr<BaseFemSpace> subSpace(const int* ext_dims, int ndims) const override;
         std::shared_ptr<BaseFemSpace> copy() const override { return std::make_shared<UnionFemSpace>(*this); }
         std::string typeName() const override;
         bool operator==(const BaseFemSpace& other) const override;
@@ -439,9 +439,9 @@ namespace Ani{
         std::string typeName() const { return m_invoker ? m_invoker->typeName() : ""; }
         bool operator==(const FemSpace& other) const { return m_invoker.get() == other.m_invoker.get() || (m_invoker && other.m_invoker && *m_invoker == *other.m_invoker); }
         
-        /// @brief Check wheather the object store some actual fem space 
+        /// @brief Check whether the object store some actual fem space 
         bool isValid() const { return m_invoker != nullptr; }
-        /// @brief Get dimesion of the fem space
+        /// @brief Get dimension of the fem space
         uint dim() const { return m_invoker->dim(); }
         /// @brief Get polynomial order of the fem space
         uint order() const { return m_invoker->order(); }
@@ -592,7 +592,7 @@ namespace Ani{
     inline static FemSpace make_complex_with_simplification(const std::vector<FemSpace>& spaces);
     inline static FemSpace pow(const FemSpace& d, int k) { return d^k; } 
 
-    /// Apply operator from space with space ownship 
+    /// Apply operator from space with space ownership 
     struct ApplyOpFromSpace: public ApplyOpBase{
         FemSpace m_space;
         OperatorType m_op = IDEN; 
@@ -607,7 +607,7 @@ namespace Ani{
         uint Order() const override { return m_order; }
         uint ActualType() const override { return 3; }
         bool operator==(const ApplyOpBase& otherOp) const override { return otherOp.ActualType() == ActualType() && m_space == static_cast<const ApplyOpFromSpace&>(otherOp).m_space && m_op == static_cast<const ApplyOpFromSpace&>(otherOp).m_op; }
-        std::shared_ptr<ApplyOpBase> Copy() const { return std::make_shared<ApplyOpFromSpace>(*this); } 
+        std::shared_ptr<ApplyOpBase> Copy() const override { return std::make_shared<ApplyOpFromSpace>(*this); }
         ApplyOpFromSpace(OperatorType op, const FemSpace& sp): m_space{sp}, m_op{op}, m_dim{sp.dimOP(op)}, m_nfa{sp.dofMap().NumDofOnTet()}, m_order{sp.orderOP(op)} {}
         ApplyOpFromSpace(const ApplyOpFromSpace&) = default;
         ApplyOpFromSpace(ApplyOpFromSpace&&) = default;

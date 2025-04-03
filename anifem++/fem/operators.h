@@ -420,7 +420,7 @@ namespace Ani{
         uint Order() const override { return m_order; }
         uint ActualType() const override { return 1; }
         bool operator==(const ApplyOpBase& otherOp) const override { return otherOp.ActualType() == ActualType() && m_unique_label == static_cast<const ApplyOpCustom&>(otherOp).m_unique_label; }
-        std::shared_ptr<ApplyOpBase> Copy() const { return std::make_shared<ApplyOpCustom>(*this); }
+        std::shared_ptr<ApplyOpBase> Copy() const override { return std::make_shared<ApplyOpCustom>(*this); }
     };
     /// @brief Generator of ApplyOp from templated spaces, shouldn't used in working codes, just helper for testing
     template<int OPERATOR, typename FEM_TYPE>

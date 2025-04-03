@@ -4,10 +4,10 @@
 
 #include "inmost.h"
 #include "anifem++/utils/utils.h"
-#include "carnum/MeshGen/mesh_gen.h"
-#include "carnum/Fem/AniInterface/Fem3Dtet.h"
-#include "carnum/Fem/AniInterface/ForAssembler.h"
-#include "carnum/Fem/Assembler.h"
+#include "anifem++/fem/operations/eval.h"
+#include "anifem++/inmost_interface/elemental_assembler.h"
+#include "anifem++/inmost_interface/assembler.h"
+#include "anifem++/kinsol_interface/SUNNonlinearSolver.h"
 #include <numeric>
 
 #if __cplusplus >= 201703L
@@ -358,7 +358,7 @@ struct DynDiffProblem{
         if (pRank == 0) std::cout << "--- Allocate storage for FEM variables ---" << std::endl;
         {
             auto Var0Helper = GenerateHelper<UFem>();
-            auto amask = Var0Helper->GetGeomMask();
+            auto amask = DofTNumDofsToInmostNumDofs(Var0Helper.NumDofs());
             ElementType et = 0;
             for (unsigned i = 0; i < amask.size(); ++i) 
                 if (amask[i]) 
@@ -367,7 +367,7 @@ struct DynDiffProblem{
             uprev = m->CreateTag("uprev", DATA_REAL, et, NONE, 1);
 
             FemExprDescr fed;
-            fed.PushVar(Var0Helper, "u");
+            fed.PushTrialFunc(Var0Helper, "u");
             fed.PushTestFunc(Var0Helper, "phi_u");
             discr.SetProbDescr(std::move(fed));
         }
@@ -471,11 +471,11 @@ struct DynDiffProblem{
             for (int i = 0; i < 4; ++i)
                 data.nlbl[i] = (*p.nodes)[i].Integer(bnd);
             for (int i = 0; i < 4; ++i)
-                data.flbl[i] = (*p.faces)[p.local_face_index[i]].Integer(bnd);
+                data.flbl[i] = (*p.faces)[i].Integer(bnd);
 
             double vardat[1*unfa];
             //Set udofs from initial values propogated by previous call discr.pullInitValFrom(u);
-            data.udofs.Init(p.vars->initValues.data() + p.vars->base_MemOffsets[0], unfa); 
+            data.udofs.Init(p.vars->begin(0), unfa);
             //Set udofs_prev values from data on tag uprev
             data.udofs_prev.Init(vardat+0*unfa, unfa);
             ElementalAssembler::GatherDataOnElement(uprev, p, data.udofs_prev.data, {});
