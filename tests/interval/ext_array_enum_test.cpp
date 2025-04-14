@@ -2,7 +2,7 @@
 // Created by Liogky Alexey on 01.08.2023.
 //
 #include <gtest/gtest.h>
-#include "anifem++/inmost_interface/ext_array_enum.h"
+#include "anifem++/interval/ext_array_enum.h"
 
 using namespace Ani;
 
@@ -78,7 +78,7 @@ bool test_ext_array(const std::vector<std::array<unsigned, N>>& vals, bool with_
     return true;   
 }
 
-TEST(IInterfaceHelpers, ArrayEnumerator){
+TEST(Interval, ArrayEnumerator){
     std::vector<std::array<unsigned, 1>> vals1{
         {1}, {0}, {3}, {5}, {7}, {2}  
     };
@@ -124,7 +124,7 @@ TEST(IInterfaceHelpers, ArrayEnumerator){
     EXPECT_TRUE(test_ext_array<4>(vals4, true)) << "Error at N = 4" << std::endl;
 }
 
-TEST(IInterfaceHelpers, IntervalEnumerator){
+TEST(Interval, IntervalEnumerator){
     interval_external_memory<int> mem;
     std::map<int, int> cmap = {
         {0, 1}, {1, 2}, {2, 5}, {3, 6}, {4, 7}, {5, 100}
@@ -174,7 +174,7 @@ TEST(IInterfaceHelpers, IntervalEnumerator){
     EXPECT_TRUE(have_error == 0) << "NERRORS: " << have_error << std::endl;   
 }
 
-TEST(IInterfaceHelpers, RemapedArrayEnumerator){
+TEST(Interval, RemapedArrayEnumerator){
     std::vector<std::array<unsigned, 3>> vv{
         {1, 0, 0}, {1, 0, 1}, {1, 0, 2}, {1, 1, 0}, 
         {1, 2, 4}, {1, 2, 3}, 

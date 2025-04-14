@@ -8,7 +8,7 @@
 #include "inmost.h"
 #include "elemental_assembler.h"
 #include <map>
-#include "ext_array_enum.h"
+#include "anifem++/interval/ext_array_enum.h"
 
 namespace Ani{
 

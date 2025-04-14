@@ -1,3 +1,4 @@
+add_subdirectory(interval)
 add_subdirectory(fem)
 if (WITH_INMOST)
     add_subdirectory(inmost_interface)

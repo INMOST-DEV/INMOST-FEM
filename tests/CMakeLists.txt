@@ -15,7 +15,7 @@ include(GoogleTest)
 set(ANIFEM_TEST "") # - list of tests
 add_subdirectory(fem)
 add_subdirectory(kinsol_interface)
-add_subdirectory(inmost_interface)
+add_subdirectory(interval)
 add_subdirectory(autodiff)
 
 add_executable( anifem_test ${ANIFEM_TEST} )
