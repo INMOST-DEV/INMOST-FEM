@@ -221,6 +221,7 @@ namespace Ani{
 #endif
         auto q = mem.q;
         auto f = mem.f;
+        using std::abs;
         DenseMatrix<Scalar> XYP{mem.XYP.data, 3, 4*f, mem.XYP.size};
         DenseMatrix<Scalar> det{mem.DET.data, 1, f, mem.DET.size};
         DenseMatrix<Scalar> PSI{mem.PSI.data, 3, 3*f, mem.PSI.size};

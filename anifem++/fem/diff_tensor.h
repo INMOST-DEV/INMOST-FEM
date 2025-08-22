@@ -241,6 +241,7 @@ namespace Ani{
     template<typename Scalar = double, int N, typename VectorFieldFunction>
     auto makeVectorTensor(const VectorFieldFunction& f){
         return [&f](const Coord<Scalar> &X, double *dat, TensorDims dims, void *user_data, int iTet){
+            (void) user_data; (void) iTet;
             if (dims.first != N || dims.second != 1) throw std::runtime_error("Waited tensor with dimension " 
                 + std::to_string(dims.first) + " x " + std::to_string(dims.second) + " instead " + std::to_string(N) + " x 1");
             auto res = f(X);

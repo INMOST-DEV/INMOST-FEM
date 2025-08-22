@@ -62,7 +62,7 @@ namespace Ani{
         NumericExpr<REAL>& set_sub(const BaseExpr& a, const BaseExpr& b) override { return set_op(a, b, std::minus<REAL>()); }
         NumericExpr<REAL>& set_div(const BaseExpr& a, const BaseExpr& b) override { return set_op(a, b, std::divides<REAL>()); }
         NumericExpr<REAL>& set_swap_sign(const BaseExpr& a) override { return set_op(a, std::negate<REAL>()); }
-        NumericExpr<REAL>& set_abs(const BaseExpr& a) override { return set_op(a, [](REAL a){ return abs(a); }); }
+        NumericExpr<REAL>& set_abs(const BaseExpr& a) override { return set_op(a, [](REAL a){ using std::abs; return abs(a); }); }
         NumericExpr<REAL>& set_exp(const BaseExpr& a) override { return set_op(a, [](REAL a){ return exp(a); }); }
         NumericExpr<REAL>& set_expm1(const BaseExpr& a) override { return set_op(a, [](REAL a){ return expm1(a); }); }
         NumericExpr<REAL>& set_log(const BaseExpr& a) override { return set_op(a, [](REAL a){ return log(a); }); }

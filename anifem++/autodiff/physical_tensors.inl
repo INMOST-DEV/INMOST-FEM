@@ -310,6 +310,7 @@ namespace Ani{
 
     template<std::size_t N, typename FT>
     FT PhysMtx<N, FT>::Det() const {
+        using std::abs;
         FT max_val = abs(*std::max_element(cbegin(), cend(), [](const auto& a, const auto& b){ return abs(a) < abs(b); }));
         const FT eps = 100 * max_val * std::numeric_limits<FT>::epsilon();
 
@@ -341,6 +342,7 @@ namespace Ani{
 
     template<std::size_t N, typename FT>
     FT SymMtx<N, FT>::Det() const {
+        using std::abs;
         FT max_val = abs(*std::max_element(cbegin(), cend(), [](const auto& a, const auto& b){ return abs(a) < abs(b); }));
         const FT eps = 100 * max_val * std::numeric_limits<FT>::epsilon();
 
