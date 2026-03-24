@@ -16,9 +16,14 @@ namespace Ani{
 
 template<std::size_t N, typename FT = double>
 struct PhysArr: public std::array<FT, N>{
-    PhysArr(): std::array<FT, N>{FT()} {};
+    PhysArr(): std::array<FT, N>{FT(0)} {}
     PhysArr(const std::array<FT, N>& a): std::array<FT, N>(a) {}
     PhysArr(std::array<FT, N>&& a): std::array<FT, N>(std::move(a)) {}
+    PhysArr(std::initializer_list<FT> init) {
+        std::size_t cnt = std::min(init.size(), N); 
+        std::copy(init.begin(), init.begin() + cnt, this->begin()); 
+        std::fill(this->begin() + cnt, this->end(), FT(0));
+    }
 
     constexpr std::size_t rank() const { return 1U; }
     constexpr std::size_t continuous_size() const { return N; }
@@ -39,13 +44,14 @@ struct PhysArr: public std::array<FT, N>{
     inline PhysArr<N, FT> operator/(FT a) const { PhysArr<N, FT> r(*this); return (r /= a); }
 
     inline FT SquareFrobNorm() const;
+    inline FT Dot(const PhysArr<N, FT>& b) const;
 };
 
 /// Structure to store symmetrical NxN matrices. 
-/// Data stored in row major order
+/// Data stored in row major upper triag mtx order
 ///  a0 a1 a2
-///  a3 a4 a5
-///  a6 a7 a8
+///  a1 a3 a4
+///  a2 a4 a5
 template<std::size_t N, typename FT = double>
 struct SymMtx{
     union Index{
@@ -77,6 +83,7 @@ struct SymMtx{
     
     SymMtx() = default;
     explicit SymMtx(std::array<FT, N*(N+1)/2> arr): m_dat{std::move(arr)} {}
+    SymMtx(std::array<FT, N*(N+1)/2> arr, bool row_major_upper_triag_mtx);
 
     template <typename DataType = FT>
     struct mtx_iterator{

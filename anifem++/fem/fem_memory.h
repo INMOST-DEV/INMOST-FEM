@@ -91,6 +91,7 @@ namespace Ani{
             return (*this *= inv_val);
         }
         void SetZero(){ std::fill(data, data + nRow*nCol, 0); }
+        void SetEye(double c = 1) { SetZero(); for (std::size_t i = 0, cnt = std::min(nRow, nCol); i < cnt; ++i) data[i + nRow * i] = c; }
         std::string to_string(const std::string& val_sep = " ", const std::string& row_sep = "\n") const;
 
         /// @return Frobenius norm of ||a*A + b*B|| if b != 0 else return ||a*A||
