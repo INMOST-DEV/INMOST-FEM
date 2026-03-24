@@ -189,3 +189,186 @@ std::pair<Tag, bool> create_or_load_problem_tag(INMOST::Mesh *m, const Ani::DofT
     } else 
         return {createFemVarTag(m, dofmap, var_name), false};
 }
+
+void solve_stationary_diffusion(   
+    INMOST::Mesh* m, Ani::FemSpace fem, 
+    INMOST::Tag res_tag, 
+    const std::function<bool(INMOST::Element e)> is_dirichlet, const std::function<void(INMOST::Element e, std::array<double, 3> X, Ani::ArrayView<> dirichlet_value_out)> dirichlet_func,
+    const std::function<void(INMOST::Face f, std::array<double, 3> X, Ani::ArrayView<> neumann_value_out)> neumann_func,
+    const std::function<Ani::TensorType(INMOST::Cell c, std::array<double, 3> X, Ani::DenseMatrix<> Dout)> diffusion_tensor,
+    const std::function<void(INMOST::Cell c, std::array<double, 3> X, Ani::ArrayView<> Fout)> right_hand_side,
+    int quad_order
+    ){
+    using namespace Ani;
+    uint unf = fem.dofMap().NumDofOnTet();
+    uint geom_mask = fem.dofMap().GetGeomMask();
+    // Define memory requirements for elemental assembler
+    PlainMemoryX<> mem_req;
+    {
+        auto grad_u = fem.getOP(GRAD), iden_u = fem.getOP(IDEN);
+        ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;
+        mem_req = fem3Dtet_memory_requirements<DfuncTraits<>>(grad_u, grad_u, quad_order);
+        // mem_req.extend_size(fem3Dtet_memory_requirements<DfuncTraits<>>(iden_u, iden_u, quad_order));
+        mem_req.extend_size(fem3Dtet_memory_requirements<DfuncTraits<>>(iden_p0, iden_u, quad_order));
+        mem_req.extend_size(fem3Dface_memory_requirements<DfuncTraits<>>(iden_p0, iden_u, quad_order));
+        mem_req.extend_size(fem.interpolateByDOFs_mem_req());
+    }
+    PlainMemory<> shrt_req = mem_req.enoughPlainMemory();
+
+    // Define tensors from the problem
+    auto K_tensor = [func = diffusion_tensor](const Coord<> &X, double *Kdat, TensorDims dims, void *user_data, int iTet) {
+        (void) iTet;
+        Cell& c = *static_cast<Cell*>(user_data);
+        auto t = func(c, X, Ani::DenseMatrix<>(Kdat, dims.first, dims.second));
+
+        return t;
+    };
+    auto F_tensor = [func = right_hand_side](const Coord<> &X, double *F, TensorDims dims, void *user_data, int iTet) {
+        (void) X; (void) dims; (void) user_data; (void) iTet;
+        Cell& c = *static_cast<Cell*>(user_data);
+        auto sz = dims.first*dims.second;
+        func(c, X, ArrayView<>(F, sz));
+
+        return sz == 1 ? Ani::TENSOR_SCALAR : Ani::TENSOR_GENERAL;
+    };
+    auto U_0 = [func = dirichlet_func](const Coord<> &X, double* res, ulong dim, void* user_data)->int{ 
+        INMOST::Element& e = *static_cast<INMOST::Element*>(user_data);
+        func(e, X, ArrayView<>(res, dim));
+        return 0;
+    }; 
+    auto G_0 = [func = neumann_func](const Coord<> &X, double *g0, TensorDims dims, void *user_data, int iTet) {
+        (void) iTet;
+        Face& f = *static_cast<Face*>(user_data);
+        auto sz = dims.first*dims.second;
+        func(f, X, ArrayView<>(g0, sz));
+        return sz == 1 ? Ani::TENSOR_SCALAR : Ani::TENSOR_GENERAL;
+    };
+    // Define user structure to store input data used in local assembler
+    struct ProbLocData{
+        const ElementArray<Node>* nodes;
+        const ElementArray<Edge>* edges;
+        const ElementArray<Face>* faces;
+        const Cell* c;
+        DofT::TetGeomSparsity sp;
+        unsigned char is_neumann = 0;
+        const unsigned char* node_permutation = nullptr;
+    };
+    auto bmrk = m->CreateMarker();
+    if (bmrk == InvalidMarker())
+        throw std::runtime_error("Can't create marker");
+    m->MarkBoundaryFaces(bmrk);
+    auto data_gatherer = [geom_mask, is_dirichlet, bmrk](ElementalAssembler& p)->void{
+        double *nn_p = p.get_nodes();
+        const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
+        ProbLocData data;
+        data.nodes = p.nodes;
+        data.edges = p.edges;
+        data.faces = p.faces;
+        data.c = p.cell;
+        if (geom_mask & DofT::NODE)
+            for (unsigned i = 0; i < 4U; ++i) if (is_dirichlet((*p.nodes)[i]))
+                data.sp.setNode(i);
+        if (geom_mask & DofT::EDGE)
+            for (unsigned i = 0; i < 6U; ++i) if (is_dirichlet((*p.edges)[i]))
+                data.sp.setEdge(i);
+        if (geom_mask & DofT::FACE)
+            for (unsigned i = 0; i < 4U; ++i) {
+                if (is_dirichlet((*p.faces)[i]))
+                    data.sp.setFace(i);
+                else if ((*p.faces)[i].GetMarker(bmrk))
+                    data.is_neumann |= (1 << i);
+            }
+        if ((geom_mask & DofT::CELL) && is_dirichlet(*p.cell) )
+            data.sp.setCell();
+        data.node_permutation = p.node_permutation;
+
+        p.compute(args, &data);
+    };
+    // define elemental assembler of local matrix and rhs
+    std::function<void(const double**, double*, double*, double*, long*, void*)> local_assm =
+            [&K_tensor, &F_tensor, &U_0, &G_0, order = quad_order, mem_req, shrt_req, unf, &fem, geom_mask](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, long* iw, void* user_data) -> void{
+        auto& dat = *static_cast<ProbLocData*>(user_data);
+        PlainMemory<> _mem = shrt_req;
+        _mem.ddata = w, _mem.idata = reinterpret_cast<int*>(iw);
+        PlainMemoryX<> mem = mem_req;
+        mem.allocateFromPlainMemory(_mem);
+        // read user_data
+        Cell cell = *dat.c;
+        DenseMatrix<>   A(Adat, unf, unf), F(Fdat, unf, 1), 
+                        // B(w + shrt_req.dSize, unf, unf), 
+                        G(w + shrt_req.dSize, unf, 1);
+        A.SetZero(); 
+        // B.SetZero();
+        F.SetZero(); 
+
+        Tetra<const double> XYZ(XY[0], XY[1], XY[2], XY[3]);
+
+        auto grad_u = fem.getOP(GRAD), iden_u = fem.getOP(IDEN);
+        ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;
+        // elemental stiffness matrix <K grad(P1), grad(P1)>
+        fem3Dtet<DfuncTraits<>>(XYZ, grad_u, grad_u, K_tensor, A, mem, order, &cell);
+        // // elemental mass matrix <A P1, P1>
+        // fem3Dtet<DfuncTraits<>>(XYZ, iden_u, iden_u, A_tensor, B, mem, order);
+        // A += B;
+
+        // elemental right hand side vector <F, P1>
+        fem3Dtet<DfuncTraits<>>( XYZ, iden_p0, iden_u, F_tensor, F, mem, order, &cell);
+
+        // apply Neumann and Robin BC
+        for (int k = 0; k < 4; ++k) if (dat.is_neumann & (1 << k)) {
+            Face f = (*dat.faces)[k];
+            fem3Dface<DfuncTraits<>>( XYZ, k, iden_p0, iden_u, G_0, G, mem, order, &f);
+            F += G;
+        }
+        
+        //set dirichlet condition
+        if (!dat.sp.empty()){
+            ArrayView<> dof_values(w + shrt_req.dSize, unf);
+            for (auto it = fem.dofMap().beginBySparsity(dat.sp); it != fem.dofMap().endBySparsity(); ++it){
+                auto lo = *it;
+                DOFLocus l = getDOFLocus(*(fem.dofMap().target<>()), lo, *dat.c, *dat.faces, *dat.edges, *dat.nodes, dat.node_permutation);
+                fem.interpolateOnDOF(XYZ, U_0, dof_values, lo.gid, mem, &l.elem, order);
+            }
+            applyDirByDofs(*(fem.dofMap().target<>()), A, F, dat.sp, ArrayView<const double>(dof_values.data, dof_values.size));
+        }
+    };
+
+    //define assembler
+    Assembler discr(m);
+    discr.SetMatRHSFunc(GenerateElemMatRhs(local_assm, unf, unf, shrt_req.dSize+unf*unf, shrt_req.iSize));
+    {
+        //create global degree of freedom enumenator
+        auto Var0Helper = GenerateHelper(*fem.base());
+        FemExprDescr fed;
+        fed.PushTrialFunc(Var0Helper, "u");
+        fed.PushTestFunc(Var0Helper, "phi_u");
+        discr.SetProbDescr(std::move(fed));
+    }
+    discr.SetDataGatherer(data_gatherer);
+    discr.PrepareProblem();
+    Sparse::Matrix A("A");
+    Sparse::Vector x("x"), b("b");
+    discr.Assemble(A, b);
+    Solver solver(Solver::INNER_ILU2);
+    solver.SetParameterReal("absolute_tolerance", 1e-20);
+    solver.SetParameterReal("relative_tolerance", 1e-10);
+    solver.SetMatrix(A);
+    solver.Solve(b, x);
+    print_linear_solver_status(solver, "projection", true);
+
+    //copy result to the tag and save solution
+    discr.SaveSolution(x, res_tag);
+    solver.Clear();
+    discr.Clear();
+    for (auto f = m->BeginFace(); f != m->EndFace(); ++f) f->RemMarker(bmrk);
+    m->ReleaseMarker(bmrk);
+}
+
+void make_laplace(INMOST::Mesh* m, Ani::FemSpace fem, INMOST::Tag res_tag, const std::function<bool(INMOST::Element e)> is_dirichlet, const std::function<void(INMOST::Element e, std::array<double, 3> X, Ani::ArrayView<> dirichlet_value_out)> dirichlet_func, int order){
+    solve_stationary_diffusion(m, fem, res_tag, is_dirichlet, dirichlet_func, 
+        [](INMOST::Face, std::array<double, 3>, Ani::ArrayView<> out){ out.SetZero(); },
+        [](INMOST::Cell, std::array<double, 3>, Ani::DenseMatrix<> Dout){ Dout.SetEye(1); return Ani::TENSOR_NULL; },
+        [](INMOST::Cell, std::array<double, 3>, Ani::ArrayView<> Fout){ Fout.SetZero(); },
+        order
+    );
+}

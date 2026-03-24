@@ -58,6 +58,19 @@ void make_l2_project(const std::function<void(INMOST::Cell c, std::array<double,
 /// @return pair of fem-storage tag and bool indicating on true if tag was loaded
 std::pair<INMOST::Tag, bool> create_or_load_problem_tag(INMOST::Mesh *m, const Ani::DofT::BaseDofMap &dofmap, std::string var_name, bool load_if_exists = true);
 
+// //TODO: implement following simple function, should return some structure which allow computation of the mesh function and gradients at points
+void solve_stationary_diffusion(   
+    INMOST::Mesh* m, Ani::FemSpace fem, 
+    INMOST::Tag res_tag, 
+    const std::function<bool(INMOST::Element e)> is_dirichlet, const std::function<void(INMOST::Element e, std::array<double, 3> X, Ani::ArrayView<> dirichlet_value_out)> dirichlet_func,
+    const std::function<void(INMOST::Face f, std::array<double, 3> X, Ani::ArrayView<> neumann_value_out)> neumann_func = [](INMOST::Face, std::array<double, 3>, Ani::ArrayView<> out){ out.SetZero(); },
+    const std::function<Ani::TensorType(INMOST::Cell c, std::array<double, 3> X, Ani::DenseMatrix<> Dout)> diffusion_tensor = [](INMOST::Cell, std::array<double, 3>, Ani::DenseMatrix<> Dout){ Dout.SetEye(1); return Ani::TENSOR_NULL; },
+    const std::function<void(INMOST::Cell c, std::array<double, 3> X, Ani::ArrayView<> Fout)> right_hand_side = [](INMOST::Cell, std::array<double, 3>, Ani::ArrayView<> Fout){ Fout.SetZero(); },
+    int order = 5
+    );
+
+void make_laplace(INMOST::Mesh* m, Ani::FemSpace fem, INMOST::Tag res_tag, const std::function<bool(INMOST::Element e)> is_dirichlet, const std::function<void(INMOST::Element e, std::array<double, 3> X, Ani::ArrayView<> dirichlet_value_out)> dirichlet_func, int order = 5);
+
 #if defined(USE_MPI)
 #define BARRIER MPI_Barrier(MPI_COMM_WORLD);
 #else
