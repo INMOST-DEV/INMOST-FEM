@@ -16,7 +16,7 @@ namespace Ani{
 
 template<std::size_t N, typename FT = double>
 struct PhysArr: public std::array<FT, N>{
-    PhysArr(): std::array<FT, N>{FT(0)} {}
+    PhysArr(): std::array<FT, N>{FT()} {}
     PhysArr(const std::array<FT, N>& a): std::array<FT, N>(a) {}
     PhysArr(std::array<FT, N>&& a): std::array<FT, N>(std::move(a)) {}
     PhysArr(std::initializer_list<FT> init) {
