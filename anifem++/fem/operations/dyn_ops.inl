@@ -125,8 +125,8 @@ namespace Ani{
         fem3DapplyL<Op, ScalarType, IndexType>(XYZ, XYL, dofs, opU, req);          
     }
     template<typename Op, typename ScalarType, typename IndexType, typename TetraScalarTp>
-    void fem3DapplyX( const Tetra<TetraScalarTp>& XYZ, const ArrayView<const ScalarType> X, const DenseMatrix<ScalarType>& dofs, 
-                  DenseMatrix<ScalarType>& opU, DynMem<ScalarType, IndexType>& wmem){
+    void fem3DapplyX( const Tetra<TetraScalarTp>& XYZ, const ArrayView<const ScalarType> X, const ArrayView<ScalarType>& dofs, 
+                  ArrayView<ScalarType>& opU, DynMem<ScalarType, IndexType>& wmem){
         auto req = fem3DapplyX_memory_requirements<Op, ScalarType, IndexType>(X.size/3, XYZ.fusion);  
         auto mem = wmem.alloc(req.dSize, req.iSize, 0);
         req.ddata = mem.m_mem.ddata, req.idata = mem.m_mem.idata; 

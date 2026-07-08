@@ -140,6 +140,7 @@ namespace Ani{
         int nfa_shift = 0; 
         for (uint v = 0; v < m_subsets.size(); ++v){
             OpMemoryRequirements lreq = (m_subsets[v].get()->*req)(mem.q, mem.f, ts...);
+            assert(mem.extraR.size >= lreq.Usz && "Wrong allocated memory size");
             mem.extraR.size -= lreq.Usz; 
             ArrayView<> Vm(mem.extraR.data + mem.extraR.size, lreq.Usz);  
             BandDenseMatrixX<> Vx = (m_subsets[v].get()->*apl)(mem, Vm, ts...);

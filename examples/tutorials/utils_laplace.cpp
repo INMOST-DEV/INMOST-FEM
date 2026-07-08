@@ -261,6 +261,7 @@ int main(int argc, char* argv[]){
             return p.dirichlet_function.contains(l);
         };
         auto dirichlet_func = [&Lbl, &p](INMOST::Element e, std::array<double, 3> X, Ani::ArrayView<> dirichlet_value_out) -> bool {
+            (void) X;
             if (!e.HaveData(Lbl)) 
                 return false;
             auto l = e.Integer(Lbl);

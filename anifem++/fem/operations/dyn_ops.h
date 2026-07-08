@@ -88,8 +88,8 @@ namespace Ani{
                     const Functor& Dfnc, DenseMatrix<>& opU, DynMem<>& wmem, void *user_data = nullptr);
     ///Evaluate \f$ Op(u)[x] \f$
     template<typename Op, typename ScalarType = double, typename IndexType = int, typename TetraScalarTp>
-    void fem3DapplyX( const Tetra<TetraScalarTp>& XYZ, const ArrayView<const ScalarType> X, const DenseMatrix<ScalarType>& dofs, 
-                  DenseMatrix<ScalarType>& opU, DynMem<ScalarType, IndexType>& wmem);
+    void fem3DapplyX( const Tetra<TetraScalarTp>& XYZ, const ArrayView<const ScalarType> X, const ArrayView<ScalarType>& dofs, 
+                  ArrayView<ScalarType>& opU, DynMem<ScalarType, IndexType>& wmem);
     ///Evaluate \f$ Op(u)[x] \f$
     template<typename TetraScalarTp>
     void fem3DapplyX(const Tetra<TetraScalarTp>& XYZ, const ArrayView<const double> X, const DenseMatrix<>& dofs,
