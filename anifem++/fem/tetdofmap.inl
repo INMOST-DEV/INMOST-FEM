@@ -357,6 +357,7 @@ namespace FemComDetails{
         uint ActualType() const override { return static_cast<uint>(BaseTypes::ComplexTemplateType); }
         uint NumDof(uchar etype) const override { auto t = GeomTypeToNum(etype); return m_spaceNumDof[t][Size::value] - m_spaceNumDof[t][0]; }
         uint NumDofOnTet(uchar etype) const override { auto t = GeomTypeToNum(etype); return m_spaceNumDofTet[t][Size::value] - m_spaceNumDofTet[t][0]; }
+        uint NumDofOnTet() const override { auto nn = NumDofsOnTet(); return std::accumulate(nn.begin(), nn.end(), 0U); }
 
         std::array<uint, NGEOM_TYPES> NumDofs() const override;
         std::array<uint, NGEOM_TYPES> NumDofsOnTet() const override;

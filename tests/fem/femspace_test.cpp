@@ -4,7 +4,59 @@
 #include "anifem++/fem/spaces/spaces.h"
 #include "anifem++/fem/operations/operations.h"
 
+struct AniInterface_FemSpace_evaluateT{
+    template<typename FEMTYPE, typename FUNC>
+    static std::vector<double> interp(Ani::Tetra<const double> XYZ, const FUNC& f){
+        using namespace Ani;
+        const int NF = Operator<IDEN, FEMTYPE>::Nfa::value;
+        std::vector<double> res(NF);
+        interpolateByDOFs<FEMTYPE>(XYZ, f, ArrayView<>(res.data(), NF), DofT::TetGeomSparsity().setCell(true));
+        return res;
+    }
+    template<int OPERATOR, typename FEMTYPE>
+    static std::vector<double> eval_f(Ani::Tetra<const double> XYZ, Ani::ArrayView<> udofs, const std::array<double, 3>& x){
+        using namespace Ani;
+        const int Dim = Operator<OPERATOR, FEMTYPE>::Dim::value;
+        const int NFA = Operator<IDEN, FEMTYPE>::Nfa::value;
+        std::vector<double> res(Dim);
+        DenseMatrix<> u(res.data(), Dim, 1);
+        DenseMatrix<> dofs(udofs.data, NFA, 1);
+        auto req = fem3DapplyX_memory_requirements<Operator<OPERATOR, FEMTYPE>>(x.size()/3, XYZ.fusion);  
+        std::vector<char> buf(req.enoughRawSize());
+        req.allocateFromRaw(buf.data(), buf.size());
+        fem3DapplyX<Operator<OPERATOR, FEMTYPE>>(XYZ, ArrayView<const double>(x.data(), x.size()), ArrayView<double>(dofs.data, dofs.nCol*dofs.nRow), ArrayView<>(u.data, u.size), req);
+        if (OPERATOR == OperatorType::GRAD) {
+            int dim = Dim;
+            u.Init(res.data(), dim/3, 3, dim);
+            std::vector<double> tmp(dim);
+            std::copy(res.begin(), res.end(), tmp.begin());
+            for (uint i = 0; i < static_cast<uint>(dim / 3); ++i)
+                for (int k = 0; k < 3; ++k)
+                    u(i, k) = tmp[k + 3*i];
+        }
+        return res;
+    }
+    template<int OPERATOR, typename FEMTYPE, typename FUNC1, typename FUNC2>
+    static void test(Ani::Tetra<const double> XYZ, std::array<double, 3> x, const FUNC1& F, const FUNC2& OpF, bool print_stat = false){
+        using namespace Ani;
+        auto udofs_d = interp<FEMTYPE, FUNC1>(XYZ, F);
+        ArrayView<> udofs(udofs_d.data(), udofs_d.size());
+        if (print_stat)
+            std::cout << "udofs = " << DenseMatrix<>(udofs.data, 1, udofs.size) << std::endl;
+        auto eval = eval_f<OPERATOR, FEMTYPE>(XYZ, udofs, x);
+        std::vector<double> exact(Operator<OPERATOR, FEMTYPE>::Dim::value);
+        OpF(x, exact.data(), exact.size(), nullptr);
+        DenseMatrix<>   Uex(exact.data(), exact.size(), 1), 
+                        Uev(eval.data(), eval.size(), 1);
+        if (print_stat)
+            std::cout   << "Uex = \n" << Uex 
+                        << "\nUev = \n" << Uev << std::endl;                
+        EXPECT_NEAR(Uex.ScalNorm(1, Uex, -1, Uev), 0, 100*(1 + Uex.ScalNorm(1, Uex))*DBL_EPSILON) << "Operator = " << static_cast<int>(OPERATOR) << " space = " << typeid(FEMTYPE).name();
+    }
+};
+
 TEST(AniInterface, FemSpace){
+    using evaluateT = AniInterface_FemSpace_evaluateT;
     using namespace Ani;
 
     FemSpace P0{ P0Space{} };
@@ -44,6 +96,13 @@ TEST(AniInterface, FemSpace){
     EXPECT_TRUE(MINI1 == make_union_raw({P1, B4}));
     EXPECT_TRUE(CmplP2 == make_complex_with_simplification({P2, P2*P2}));
 
+    using Mini1T = FemUnionT<FemFix<FEM_P1>, FemFix<FEM_B4>>;
+    using Mini2T = FemUnionT<FemFix<FEM_P2>, FemFix<FEM_B4>>;
+    EXPECT_TRUE(MINI1.dofMap() != DofT::DofMap(Ani::Dof<Mini1T>::Map())); //BaseTypes::ComplexTemplateType != BaseTypes::ComplexType
+    EXPECT_TRUE(MINI1.order() == uint(Operator<IDEN, Mini1T>::Order::value));
+    EXPECT_TRUE(MINI1.dim() == uint(Operator<IDEN, Mini1T>::Dim::value));
+    EXPECT_TRUE(uint(Operator<IDEN, Ani::FemVecT<3, Mini1T>>::Nfa::value) == 15);
+
     {
         const double Mep[] = { 
             1, 0, 0, 0, -0.25,
@@ -55,6 +114,8 @@ TEST(AniInterface, FemSpace){
         DenseMatrix<const double> Me(Mep, 5, 5);
         auto M = MINI1.target<UnionFemSpace>()->GetOrthBasisShiftMatrix();
         EXPECT_NEAR(Me.ScalNorm(1, Me, -1, M), 0, 100*(1 + Me.ScalNorm(1, Me))*DBL_EPSILON) << "Problem with UnionSpace(P1, Bubble) orthoganalize matrix";
+        M = Mini1T::GetOrthBasisShiftMatrix();
+        EXPECT_NEAR(Me.ScalNorm(1, Me, -1, M), 0, 100*(1 + Me.ScalNorm(1, Me))*DBL_EPSILON) << "Problem with FemUnionT<FemFix<FEM_P1>, FemFix<FEM_B4>> orthoganalize matrix";
     }
     
     double XYp[] = {0, 0, 0, 2, 1, 1, 1, 2, 1, 2, 1, 2};
@@ -77,6 +138,20 @@ TEST(AniInterface, FemSpace){
             EXPECT_TRUE(udofs_expected.size() == nf);
             if (udofs_expected.size() == nf){
                 DenseMatrix<const double> U(udofs.data(), nf, 1), Ue(udofs_expected.data(), nf, 1);
+                EXPECT_NEAR(Ue.ScalNorm(1, Ue, -1, U), 0, 100*(1 + Ue.ScalNorm(1, Ue))*DBL_EPSILON);
+            }
+        };
+        auto check_interpolationT = [&wmem, &mem, &udofs, &XYZ](auto s, const auto& f, const DofT::TetGeomSparsity& sp, const std::vector<double> udofs_expected, bool print_eval = false)->void{
+            using FemT = std::remove_cv_t<std::remove_reference_t<decltype(s)>>;
+            const int NF = Operator<IDEN, FemT>::Nfa::value;
+            udofs.resize(NF);
+            std::fill(udofs.begin(), udofs.end(), 0);
+            interpolateByDOFs<FemT>(XYZ, f, ArrayView<>(udofs.data(), NF), sp);
+            if (print_eval)
+                std::cout << DenseMatrix<const double>(udofs.data(), 1, NF) << std::endl;
+            EXPECT_TRUE(udofs_expected.size() == NF);
+            if (udofs_expected.size() == NF){
+                DenseMatrix<const double> U(udofs.data(), NF, 1), Ue(udofs_expected.data(), NF, 1);
                 EXPECT_NEAR(Ue.ScalNorm(1, Ue, -1, U), 0, 100*(1 + Ue.ScalNorm(1, Ue))*DBL_EPSILON);
             }
         };
@@ -130,8 +205,13 @@ TEST(AniInterface, FemSpace){
         //compound femspace interpolate tests
         check_interpolation(MINI1, f, sp, {0, 2, 1, 2, 0}, false);
         check_interpolation(MINI1, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 1.25}, false);
+        check_interpolationT(Mini1T{}, f, sp, {0, 2, 1, 2, 0}, false);
+        check_interpolationT(Mini1T{}, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 1.25}, false);
+        check_interpolation(MINI2, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0, 0, 0, 1.5, 2, 1.5, 1.25}, false);
+        check_interpolationT(Mini2T{}, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0, 0, 0, 1.5, 2, 1.5, 1.25}, false);
         auto P123dofs = std::vector<double>{0,2,1,2, 0,2,5,5,0,0,0,3.25,3.25,4.5, 0,3,3,3,0,0,0,0,0,0,29./9,29./9,3,3,29./9,29./9,0,29./9,0,0 };
         check_interpolation(P1*P2*P3, f, sp, P123dofs, false);
+        check_interpolationT(FemCom<FemFix<FEM_P1>, FemFix<FEM_P2>, FemFix<FEM_P3>>{}, f, sp, P123dofs, false);
         check_interpolation(make_complex_raw({P1, make_complex_raw({P2, P3})}), f, sp, P123dofs, false);
         check_interpolation(make_complex_raw({make_complex_raw({P1, P2}), P3}), f, sp, P123dofs, false);
         check_interpolation(P1^3, f, sp, {0,2,1,2, 0,2,5,5, 0,3,3,3}, false);
@@ -332,6 +412,8 @@ TEST(AniInterface, FemSpace){
         test_evaluates(GRAD, P3, fp3, dfp3);
         test_evaluates(IDEN, MINI1, fp1, fp1);
         test_evaluates(GRAD, MINI1, fp1, dfp1);
+        evaluateT::test<IDEN, Mini1T>(XYZ, x, fp1, fp1);
+        evaluateT::test<GRAD, Mini1T>(XYZ, x, fp1, dfp1);
         test_evaluates(IDEN, P1^3, p1_vec, p1_vec);
         test_evaluates(GRAD, P3^3, p1_vec, dp1_vec);
         test_evaluates(IDEN, VecP2, p2_vec, p2_vec);
@@ -375,6 +457,12 @@ TEST(AniInterface, FemSpace){
         auto dcompl_vec = mix_df({{dfp0, 3}, {dfp1, 3}, {dfp2_1, 3}, {dfp2, 3}, {dfp1, 3}, {dfp0, 3}, {df_rot, 9}});
         test_evaluates(IDEN, P1*(P2^3)*(MINI1^2)*RT0, compl_vec, compl_vec);
         test_evaluates(GRAD, P1*(P2^3)*(MINI1^2)*RT0, compl_vec, dcompl_vec);
+        evaluateT::test<IDEN, FemCom<FemFix<FEM_P1>, FemVecT<3, FemFix<FEM_P2>>, FemVecT<2, Mini1T>, FemFix<FEM_RT0>> >(XYZ, x, compl_vec, compl_vec);
+        evaluateT::test<GRAD, FemCom<FemFix<FEM_P1>, FemVecT<3, FemFix<FEM_P2>>, FemVecT<2, Mini1T>, FemFix<FEM_RT0>> >(XYZ, x, compl_vec, dcompl_vec);
+        auto compl_vec1 = mix_f({{fp0, 1}, {fp1, 1}, {fp2_1, 1}, {fp2, 1}, {f_rot, 3}});
+        auto dcompl_vec1 = mix_df({{dfp0, 3}, {dfp1, 3}, {dfp2_1, 3}, {dfp2, 3}, {df_rot, 9}});
+        evaluateT::test<IDEN, FemCom<FemFix<FEM_P1>, FemVecT<3, FemFix<FEM_P2>>, FemFix<FEM_RT0>> >(XYZ, x, compl_vec1, compl_vec1);
+        evaluateT::test<GRAD, FemCom<FemFix<FEM_P1>, FemVecT<3, FemFix<FEM_P2>>, FemFix<FEM_RT0>> >(XYZ, x, compl_vec1, dcompl_vec1);
 
         //test for inverted tetra
         std::swap(XYZ.XY0, XYZ.XY1);

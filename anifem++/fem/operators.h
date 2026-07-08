@@ -89,6 +89,21 @@ namespace Ani{
 
         template<int SUM, int OP, class... Types>
         struct OrderCounter;
+
+        template<int SUM, int OP, class... Types>
+        struct UnionOrderCounter;
+
+        template<int OP, class... Types>
+        struct AllUnionDimEqual;
+
+        template<std::size_t I, int OP, class... Types>
+        struct UnionMemReq;
+
+        template<int OP, class... Types>
+        struct UnionOperatorApply;
+
+        template<bool isFem, class... Types>
+        struct FemUnionTImpl;
     }
 
     ///Vector of any same finite type (including composite finite types)
@@ -100,6 +115,10 @@ namespace Ani{
     ///Composition of any finite types
     template< class... Types >
     using FemCom = FemComDetails::FemComImpl<FemComDetails::CheckFemVars<0, Types ...>::Val::value, Types ...>;
+
+    ///Union of any finite types with the same dimension
+    template<class... Types>
+    using FemUnionT = FemComDetails::FemUnionTImpl<FemComDetails::CheckFemVars<0, Types ...>::Val::value, Types ...>;
 
     template<int OPERATOR, int DIM, int FEM_TYPE>
     struct Operator<OPERATOR, FemVec<DIM, FEM_TYPE>> {
@@ -146,10 +165,10 @@ namespace Ani{
         template<typename ScalarType, typename IndexType>
         inline static auto apply(AniMemory<ScalarType, IndexType> &mem, ArrayView<ScalarType> &U){
             auto A = convToBendMx(Base().apply(mem, U), Dim::value, Nfa::value);
-            auto ANpart = decltype(A)::Nparts::value;
+            const auto ANpart = decltype(A)::Nparts::value;
             BandDenseMatrix<DIM*ANpart, ScalarType, IndexType> res;
             for (IndexType i = 0; i < DIM; ++i){
-                for (int k = 0; k < ANpart; ++k) {
+                for (std::size_t k = 0; k < ANpart; ++k) {
                     res.data[i*ANpart + k] = A.data[k];
                     res.stRow[i*ANpart + k] = Base::Dim::value * i + A.stRow[k];
                     res.stCol[i*ANpart + k] = Base::Nfa::value * i + A.stCol[k];
@@ -166,18 +185,18 @@ namespace Ani{
     template<int OPERATOR, class... Types>
     struct Operator<OPERATOR, FemCom<Types...>> {
         template<int i>
-        using Base = Operator<OPERATOR, std::tuple_element<i, typename FemCom<Types...>::Base>>;
+        using Base = Operator<OPERATOR, typename std::tuple_element<i, typename FemCom<Types...>::Base>::type>;
     private:
         template<std::size_t i, typename ScalarType, typename IndexType>
         struct MemoryRequirements {
             inline static void
             Impl(int f, int q, std::size_t &Usz, std::size_t &extraR, std::size_t &extraI) {
-                IndexType _Usz = 0, _extraR = 0, _extraI = 0;
+                std::size_t _Usz = 0, _extraR = 0, _extraI = 0;
                 Base<i>().template memoryRequirements<ScalarType, IndexType>(f, q, _Usz, _extraR, _extraI);
                 Usz += _Usz;
                 if (extraR < _extraR) extraR = _extraR;
                 if (extraI < _extraI) extraI = _extraI;
-                MemoryRequirements< i + 1, ScalarType, IndexType>::Impl(f, q, &Usz, &extraR, &extraI);
+                MemoryRequirements< i + 1, ScalarType, IndexType>::Impl(f, q, Usz, extraR, extraI);
             }
         };
         template<typename ScalarType, typename IndexType>
@@ -189,16 +208,16 @@ namespace Ani{
         template <std::size_t I, std::size_t N, std::size_t PART, std::size_t NPART, std::size_t DIMOFFSET, std::size_t NFAOFFSET, typename ScalarType, typename IndexType>
         struct Apply{
             inline static void Impl(AniMemory<ScalarType, IndexType> &mem, ArrayView<ScalarType> &U, BandDenseMatrix<NPART, ScalarType, IndexType>& res){
-                auto A = convToBendMx(Base<I>().apply(mem, U));
-                auto ANpart = decltype(A)::Nparts::value;
-                int rUsz = 0;
-                for (int k = 0; k < ANpart; ++k) {
+                std::size_t rUsz = 0, eR = 0, eI = 0;
+                Base<I>().template memoryRequirements<ScalarType, IndexType>(mem.f, mem.q, rUsz, eR, eI);
+                auto A = convToBendMx(Base<I>().apply(mem, U), Base<I>::Dim::value, Base<I>::Nfa::value);
+                const auto ANpart = decltype(A)::Nparts::value;
+                for (std::size_t k = 0; k < ANpart; ++k) {
                     res.data[PART + k] = A.data[k];
                     res.stRow[PART + k] = DIMOFFSET + A.stRow[k];
                     res.stCol[PART + k] = NFAOFFSET + A.stCol[k];
-                    rUsz += (A.stRow[k + 1] - A.stRow[k]) * (A.stCol[k + 1] - A.stCol[k]);
                 }
-                rUsz *= mem.q * mem.f;
+                assert(U.size >= rUsz && "Wrong size of allocated memory");
                 U.data += rUsz;
                 U.size -= rUsz;
                 Apply<I+1, N, PART + ANpart, NPART, DIMOFFSET + Base<I>::Dim::value, NFAOFFSET + Base<I>::Nfa::value, ScalarType, IndexType>::Impl(mem, U, res);
@@ -221,7 +240,7 @@ namespace Ani{
         template<typename ScalarType, typename IndexType>
         inline static auto
         apply(AniMemory<ScalarType, IndexType> &mem, ArrayView<ScalarType> &U){
-            auto Nparts = FemComDetails::NpartsCounter<0, OPERATOR, Types...>::value;
+            const auto Nparts = FemComDetails::NpartsCounter<0, OPERATOR, Types...>::value;
             BandDenseMatrix<Nparts, ScalarType, IndexType> res;
 
             ArrayView<ScalarType> tmp = U;
@@ -233,6 +252,31 @@ namespace Ani{
         }
     private:
         using DummyType = typename std::enable_if<OPERATOR==IDEN || OPERATOR==GRAD || OPERATOR==DUDX || OPERATOR==DUDY || OPERATOR==DUDZ, bool>::type;
+    };
+
+    template<int OPERATOR, class... Types>
+    struct Operator<OPERATOR, FemUnionT<Types...>> {
+        using Union = FemUnionT<Types...>;
+        using Base = typename Union::Base;
+        static_assert(FemComDetails::AllUnionDimEqual<OPERATOR, Types...>::value,
+                      "Union space may be defined only with subsets of fem basis functions of same dimension");
+        using Nfa = std::integral_constant<int, FemComDetails::NfaCounter<0, OPERATOR, Types...>::value>;
+        using Dim = std::integral_constant<int, Operator<OPERATOR, std::tuple_element_t<0, Base>>::Dim::value>;
+        using Order = std::integral_constant<int, FemComDetails::UnionOrderCounter<0, OPERATOR, Types...>::value>;
+
+        template<typename ScalarType, typename IndexType>
+        inline static void memoryRequirements(int f, int q, std::size_t &Usz, std::size_t &extraR, std::size_t &extraI) {
+            FemComDetails::UnionMemReq<0, OPERATOR, Types...>::template Impl<ScalarType, IndexType>(f, q, extraR, extraI);
+            Usz = 2 * Dim::value * q * f * Nfa::value;
+        }
+
+        template<typename ScalarType, typename IndexType>
+        inline static DenseMatrix<ScalarType>
+        apply(AniMemory<ScalarType, IndexType> &mem, ArrayView<ScalarType> &U) {
+            return FemComDetails::UnionOperatorApply<OPERATOR, Types...>::template Impl<ScalarType, IndexType>(mem, U);
+        }
+    private:
+        using DummyType = typename std::enable_if<OPERATOR==IDEN || OPERATOR==GRAD || OPERATOR==DIV || OPERATOR==CURL || OPERATOR==DUDX || OPERATOR==DUDY || OPERATOR==DUDZ, bool>::type;
     };
 
     template<int NCRD, int FEM_TYPE>
@@ -552,7 +596,7 @@ namespace Ani{
         template<int I, int N, int DIM_SHIFT, int NFA_SHIFT, uint FUSION, typename EvalFunc>
         struct Choose{
             static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data, uint max_quad_order){
-                using LocalVar = std::tuple_element<I, typename FemCom<Type...>::Base>;
+                using LocalVar = typename std::tuple_element<I, typename FemCom<Type...>::Base>::type;
                 constexpr auto DIM = Operator<IDEN, FemCom<Type...>>::Dim::value;
                 constexpr auto LNFA = Operator<IDEN, LocalVar>::Nfa::value;
                 constexpr auto LDIM = Operator<IDEN, LocalVar>::Dim::value;
@@ -560,7 +604,7 @@ namespace Ani{
                     std::array<ArrayView<>, FUSION> ludofs;
                     for (uint i = 0; i < FUSION; ++i)
                         ludofs[i] = ArrayView<>(udofs[i].data + NFA_SHIFT, udofs[i].size - NFA_SHIFT);
-                    Dof<LocalVar>::template interpolate<FUSION,EvalFunc >(XYZ, 
+                    Dof<LocalVar>::template interpolate<FUSION>(XYZ, 
                         [&f](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
                             assert(dim == LDIM*FUSION && "Wrong expected dimension");
                             std::array<double, DIM*FUSION> mem;
@@ -588,7 +632,57 @@ namespace Ani{
         template<uint FUSION = 1, typename EvalFunc>
         static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data = nullptr, uint max_quad_order = 5){
             constexpr auto K = sizeof...(Type);
-            Choose<0, K, 0, 0, FUSION, EvalFunc>::interpolate(XYZ, f, udofs, idof_on_tet, 0, 0, user_data, max_quad_order);
+            Choose<0, K, 0, 0, FUSION, EvalFunc>::interpolate(XYZ, f, udofs, idof_on_tet, user_data, max_quad_order);
+        }
+        template<typename EvalFunc>
+        static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<> udofs, int idof_on_tet, void* user_data = nullptr, uint max_quad_order = 5){
+            interpolate<1, EvalFunc>(XYZ, f, std::array<ArrayView<>, 1>{udofs}, idof_on_tet, user_data, max_quad_order);
+        }
+    };
+
+    template<typename ...Type>
+    struct Dof<FemUnionT<Type...>>{
+    private:
+        template<int I, int N, int NFA_SHIFT, uint FUSION, typename EvalFunc>
+        struct Choose{
+            static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data, uint max_quad_order){
+                using LocalVar = typename std::tuple_element<I, typename FemUnionT<Type...>::Base>::type;
+                constexpr auto DIM = Operator<IDEN, FemUnionT<Type...>>::Dim::value;
+                constexpr auto LNFA = Operator<IDEN, LocalVar>::Nfa::value;
+                constexpr auto LDIM = Operator<IDEN, LocalVar>::Dim::value;
+                if (idof_on_tet - NFA_SHIFT < LNFA){
+                    std::array<ArrayView<>, FUSION> ludofs;
+                    for (uint i = 0; i < FUSION; ++i)
+                        ludofs[i] = ArrayView<>(udofs[i].data + NFA_SHIFT, udofs[i].size - NFA_SHIFT);
+                    Dof<LocalVar>::template interpolate<FUSION>(XYZ,
+                        [&f](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
+                            assert(dim == LDIM*FUSION && "Wrong expected dimension");
+                            std::array<double, DIM*FUSION> mem;
+                            f(X, mem.data(), DIM*FUSION, user_data);
+                            for (uint i = 0; i < FUSION; ++i)
+                                std::copy(mem.data() + DIM*i, mem.data() + DIM*i + LDIM, res + i*LDIM);
+                            return 0;
+                        },
+                        ludofs, idof_on_tet - NFA_SHIFT, user_data, max_quad_order);
+                } else {
+                    Choose<I+1, N, NFA_SHIFT + LNFA, FUSION, EvalFunc>::interpolate(XYZ, f, udofs, idof_on_tet, user_data, max_quad_order);
+                }
+            }
+        };
+        template<int N, int NFA_SHIFT, uint FUSION, typename EvalFunc>
+        struct Choose<N, N, NFA_SHIFT, FUSION, EvalFunc>{
+            static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data, uint max_quad_order){
+                throw std::runtime_error("Reached unreaceable code");
+            }
+        };
+    public:
+        static inline auto Map(){
+            return DofT::ComplexDofMapC<decltype(Dof<Type>::Map())...>(Dof<Type>::Map()...);
+        }
+        template<uint FUSION = 1, typename EvalFunc>
+        static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data = nullptr, uint max_quad_order = 5){
+            constexpr auto K = sizeof...(Type);
+            Choose<0, K, 0, FUSION, EvalFunc>::interpolate(XYZ, f, udofs, idof_on_tet, user_data, max_quad_order);
         }
         template<typename EvalFunc>
         static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<> udofs, int idof_on_tet, void* user_data = nullptr, uint max_quad_order = 5){
@@ -703,7 +797,7 @@ namespace Ani{
         struct FindStart{
             template<typename ScalarType>
             inline static void Impl(int odf, const ScalarType  *nodes, ScalarType  *coord){
-                using LocalVar = std::tuple_element<I, typename FemCom<Type...>::Base>;
+                using LocalVar = typename std::tuple_element<I, typename FemCom<Type...>::Base>::type;
                 if (odf < OFF + Operator<IDEN, LocalVar>::Nfa::value){
                     DOF_coord<LocalVar>::template at<ScalarType>(odf - OFF, nodes, coord);
                 } else {
@@ -723,6 +817,36 @@ namespace Ani{
         static inline void at(int odf, const ScalarType  *nodes, ScalarType  *coord){
             assert(odf >= 0 && "Wrong odf");
             return FindStart<0, std::tuple_size<typename FemCom<Type...>::Base>::value, 0>::Impl(odf, nodes, coord);
+        }
+    };
+
+    template<typename ...Type>
+    struct DOF_coord<FemUnionT<Type...>>{
+    private:
+        template <std::size_t I, std::size_t N, std::size_t OFF>
+        struct FindStart{
+            template<typename ScalarType>
+            inline static void Impl(int odf, const ScalarType  *nodes, ScalarType  *coord){
+                using LocalVar = typename std::tuple_element<I, typename FemUnionT<Type...>::Base>::type;
+                if (odf < OFF + Operator<IDEN, LocalVar>::Nfa::value){
+                    DOF_coord<LocalVar>::template at<ScalarType>(odf - OFF, nodes, coord);
+                } else {
+                    FindStart<I+1, N, OFF + Operator<IDEN, LocalVar>::Nfa::value>(odf, nodes, coord);
+                }
+            }
+        };
+        template <std::size_t N, std::size_t OFF>
+        struct FindStart<N, N, OFF>{
+            template<typename ScalarType>
+            inline static void Impl(int odf, const ScalarType  *nodes, ScalarType  *coord){
+                assert(false && "Wrong odf");
+            }
+        };
+    public:
+        template<typename ScalarType = double>
+        static inline void at(int odf, const ScalarType  *nodes, ScalarType  *coord){
+            assert(odf >= 0 && "Wrong odf");
+            return FindStart<0, std::tuple_size<typename FemUnionT<Type...>::Base>::value, 0>::Impl(odf, nodes, coord);
         }
     };
 }
