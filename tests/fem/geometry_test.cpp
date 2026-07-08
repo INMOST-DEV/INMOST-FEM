@@ -62,6 +62,37 @@ std::vector<double> mat_vec_colmajor(const double* a, const double* x, int n, in
     return b;
 }
 
+std::vector<double> mat_mul_qr_colmajor(const double* q, const double* r, int n, int m) {
+    std::vector<double> a(n * m, 0.0);
+    for (int j = 0; j < m; ++j)
+        for (int k = 0; k < m; ++k)
+            for (int i = 0; i < n; ++i)
+                a[i + j * n] += q[i + k * n] * r[k + j * m];
+    return a;
+}
+
+void expect_mat_near_colmajor_rect(const double* a, const double* b, int n, int m, double tol = kTol) {
+    for (int j = 0; j < m; ++j)
+        for (int i = 0; i < n; ++i)
+            EXPECT_NEAR(a[i + j * n], b[i + j * n], tol) << "at (" << i << "," << j << ")";
+}
+
+void expect_upper_triangular_colmajor(const double* r, int m, double tol = kTol) {
+    for (int j = 0; j < m; ++j)
+        for (int i = j + 1; i < m; ++i)
+            EXPECT_NEAR(r[i + j * m], 0.0, tol) << "at (" << i << "," << j << ")";
+}
+
+void expect_orthonormal_cols_colmajor(const double* q, int n, double tol = kTol) {
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j) {
+            double dot = 0.0;
+            for (int k = 0; k < n; ++k)
+                dot += q[k + i * n] * q[k + j * n];
+            EXPECT_NEAR(dot, (i == j) ? 1.0 : 0.0, tol) << "columns " << i << " and " << j;
+        }
+}
+
 } // namespace
 
 TEST(Geometry, Inverse3x3) {
@@ -351,4 +382,35 @@ TEST(Geometry, FullPivLU) {
 
     const double x3_multi[6] = {1, 0, 1, 2, 0, 1};
     expect_system(a3, x3_multi, 3, 2, "3x3 multiple RHS");
+}
+
+TEST(Geometry, HouseholderQR) {
+    using namespace Ani;
+
+    const auto expect_qr = [](const double* a, int n, int m, const char* label) {
+        std::vector<double> q(n * n);
+        std::vector<double> r(m * m);
+        std::vector<double> mem(n * m + n + m);
+        SCOPED_TRACE(label);
+
+        householderQR(a, n, m, q.data(), r.data(), mem.data());
+
+        expect_upper_triangular_colmajor(r.data(), m);
+        expect_orthonormal_cols_colmajor(q.data(), n);
+
+        const auto reconstructed = mat_mul_qr_colmajor(q.data(), r.data(), n, m);
+        expect_mat_near_colmajor_rect(reconstructed.data(), a, n, m);
+    };
+
+    const double a22[4] = {1, 2, 3, 4};
+    expect_qr(a22, 2, 2, "2x2 square");
+
+    const double a32[6] = {1, 0, 0, 0, 1, 0};
+    expect_qr(a32, 3, 2, "3x2 tall");
+
+    const double a33[9] = {2, 1, 0, 1, 2, 1, 0, 1, 2};
+    expect_qr(a33, 3, 3, "3x3 SPD");
+
+    const double a43[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1};
+    expect_qr(a43, 4, 3, "4x3 overdetermined");
 }

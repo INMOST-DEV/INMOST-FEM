@@ -12,6 +12,7 @@
 #include <algorithm> 
 #include <stdexcept>
 #include <cmath>
+#include <limits>
 
 #include "fem_memory.h"
 
@@ -397,6 +398,95 @@ namespace Ani{
         for (int i = 0; i < N; ++i)
             Inv[i+i*N] = 1;
         fullPivLU_solve(A, Inv, N, N, Inv, mem, imem);
+#endif
+    }
+
+    /// @brief Compute Householder QR decomposition of dense matrix A = Q[1:N, 1:M] * R[1:M, 1:M]
+    /// @param A is a col-major matrix of NxM size, N >= M
+    /// @param N is number of rows in A
+    /// @param M is number of cols in A
+    /// @param Q is memory for NxN orthonormal col-major matrix result
+    /// @param R is memory for MxM col-major matrix result
+    /// @param mem additional real memory of size N*M + N + M for work
+    template<typename Scalar>
+    inline void householderQR(const Scalar* A, int N, int M, Scalar* Q, Scalar* R, Scalar* mem){
+#ifdef WITH_EIGEN
+        (void) mem;
+        using namespace Eigen;
+        const Map<const MatrixX<Scalar>> Am(A, N, M);
+        HouseholderQR<MatrixX<Scalar>> qr(Am);
+        Map<MatrixX<Scalar>> Qm(Q, N, N);
+        Map<MatrixX<Scalar>> Rm(R, M, M);
+        Qm = qr.householderQ();
+        Rm = qr.matrixQR().topLeftCorner(M, M).template triangularView<Upper>();
+#else
+        #define W(i, j) mem[(i) + (j)*N]
+        Scalar* tau = mem + N*M + N;
+        Scalar* v = mem + N*M;
+
+        std::copy(A, A + N*M, mem);
+
+        for (int k = 0; k < M; ++k){
+            Scalar norm = 0;
+            for (int i = k; i < N; ++i)
+                norm += W(i, k) * W(i, k);
+            norm = std::sqrt(norm);
+            if (norm <= std::numeric_limits<Scalar>::epsilon()){
+                tau[k] = 0;
+                v[k] = 1;
+                for (int i = k + 1; i < N; ++i)
+                    v[i] = 0;
+                continue;
+            }
+
+            Scalar alpha = W(k, k);
+            Scalar beta = (alpha >= 0) ? -norm : norm;
+            tau[k] = (beta - alpha) / beta;
+            Scalar inv_denom = Scalar(1) / (alpha - beta);
+            v[k] = 1;
+            for (int i = k + 1; i < N; ++i)
+                v[i] = W(i, k) * inv_denom;
+
+            W(k, k) = beta;
+            for (int i = k + 1; i < N; ++i)
+                W(i, k) = v[i];
+
+            for (int j = k + 1; j < M; ++j){
+                Scalar dot = v[k] * W(k, j);
+                for (int i = k + 1; i < N; ++i)
+                    dot += v[i] * W(i, j);
+                dot *= tau[k];
+                W(k, j) -= dot * v[k];
+                for (int i = k + 1; i < N; ++i)
+                    W(i, j) -= dot * v[i];
+            }
+        }
+
+        for (int j = 0; j < M; ++j)
+            for (int i = 0; i < M; ++i)
+                R[i + j*M] = (i <= j) ? W(i, j) : 0;
+
+        for (int j = 0; j < N; ++j)
+            for (int i = 0; i < N; ++i)
+                Q[i + j*N] = (i == j) ? 1 : 0;
+
+        for (int k = M - 1; k >= 0; --k){
+            if (tau[k] == 0)
+                continue;
+            v[k] = 1;
+            for (int i = k + 1; i < N; ++i)
+                v[i] = W(i, k);
+            for (int j = 0; j < N; ++j){
+                Scalar dot = v[k] * Q[k + j*N];
+                for (int i = k + 1; i < N; ++i)
+                    dot += v[i] * Q[i + j*N];
+                dot *= tau[k];
+                Q[k + j*N] -= dot * v[k];
+                for (int i = k + 1; i < N; ++i)
+                    Q[i + j*N] -= dot * v[i];
+            }
+        }
+        #undef W
 #endif
     }
 };
