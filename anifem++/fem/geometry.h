@@ -16,7 +16,7 @@
 #include "fem_memory.h"
 
 namespace Ani{
-    ///@return determinant of input matrix
+    /// @return determinant of input matrix
     template<typename Scalar>
     inline Scalar inverse3x3(const Scalar* m, Scalar* inv){
 #define ID(I, J) (I) + 3*(J)
@@ -197,11 +197,11 @@ namespace Ani{
     
     /// @brief Solve the problem AX = B for A=A^T > 0
     /// @param A is square symmetric positive definite matrix of NxN size
-    /// @param B is matrix of right-hand side of NxM size
+    /// @param B is col-major matrix of right-hand side of NxM size
     /// @param N is dimesion of the problem
     /// @param M is count of columns in B matrix 
-    /// @param X is memory for solution, may coincide with B
-    /// @param mem additional memory of size N*(N+1)/2 for work, may coinside with A
+    /// @param X is memory for col-major solution, may coincide with B
+    /// @param mem additional memory of size N*(N+1)/2 for work, may coincide with A
     template<typename Scalar>
     inline void cholesky_solve(const Scalar* A, const Scalar* B, int N, int M, Scalar* X, Scalar* mem){
     #ifdef WITH_EIGEN
@@ -252,7 +252,7 @@ namespace Ani{
     /// @param A is square symmetric positive definite matrix of NxN size
     /// @param Inv is memory for NxN matrix result
     /// @param N is dimension of problem
-    /// @param mem additional memory of size N*(N+1)/2 for work, may coinside with A
+    /// @param mem additional memory of size N*(N+1)/2 for work, may coincide with A
     template<typename Scalar>
     inline void cholesky_inverse(const Scalar* A, Scalar* Inv, int N, Scalar* mem){
         std::fill(Inv, Inv + N*N, 0);
@@ -352,11 +352,11 @@ namespace Ani{
     }
 
     /// @brief Solve the problem AX = B for sqaure dense matrix using LU decomposition
-    /// @param A is square matrix of NxN size
-    /// @param B is matrix of right-hand side of NxM size
+    /// @param A is square col-major matrix of NxN size
+    /// @param B is col-major matrix of right-hand side of NxM size
     /// @param N is dimesion of the problem
     /// @param M is count of columns in B matrix 
-    /// @param X is memory for solution, may coincide with B
+    /// @param X is memory for col-major solution, may coincide with B
     /// @param mem additional real memory of size N*(N+M) for work
     /// @param imem additional integer memory of size 2*N for work
     template<typename Scalar>
@@ -379,8 +379,8 @@ namespace Ani{
 #endif
     }
     /// @brief Compute A^{-1} for dense matrix using LU decomposition
-    /// @param A is matrix of NxN size
-    /// @param Inv is memory for NxN matrix result, may coinside with A
+    /// @param A is col-major matrix of NxN size
+    /// @param Inv is memory for NxN col-major matrix result, may coincide with A
     /// @param N is dimension of problem
     /// @param mem additional memory of size 2*N*N for work
     /// @param imem additional integer memory of size 2*N for work
