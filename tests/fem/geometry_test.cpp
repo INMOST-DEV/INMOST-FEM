@@ -93,6 +93,21 @@ void expect_orthonormal_cols_colmajor(const double* q, int n, double tol = kTol)
         }
 }
 
+std::vector<double> mat_mul_svd_colmajor(const double* u, const double* s, const double* v, int n, int m) {
+    const int k = std::min(n, m);
+    std::vector<double> a(n * m, 0.0);
+    for (int j = 0; j < m; ++j)
+        for (int i = 0; i < n; ++i)
+            for (int t = 0; t < k; ++t)
+                a[i + j * n] += u[i + t * n] * s[t] * v[j + t * m];
+    return a;
+}
+
+void expect_singular_values_descending(const double* s, int k, double tol = kTol) {
+    for (int i = 0; i + 1 < k; ++i)
+        EXPECT_GE(s[i] + tol, s[i + 1]) << "index " << i;
+}
+
 } // namespace
 
 TEST(Geometry, Inverse3x3) {
@@ -413,4 +428,62 @@ TEST(Geometry, HouseholderQR) {
 
     const double a43[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1};
     expect_qr(a43, 4, 3, "4x3 overdetermined");
+}
+
+TEST(Geometry, JacobiSVD) {
+    using namespace Ani;
+
+    const auto mem_size = [](int n, int m) {
+        const int k = std::min(n, m);
+        return 2 * k * k + k;
+    };
+
+    const auto expect_svd = [&](const double* a, int n, int m, bool compute_u, bool compute_v, const char* label) {
+        const int k = std::min(n, m);
+        std::vector<double> u(compute_u ? n * n : 0);
+        std::vector<double> s(k);
+        std::vector<double> v(compute_v ? m * m : 0);
+        std::vector<double> mem(mem_size(n, m));
+        SCOPED_TRACE(label);
+
+        EXPECT_EQ(jacobiSVD(a, n, m,
+                            compute_u ? u.data() : static_cast<double*>(nullptr),
+                            s.data(),
+                            compute_v ? v.data() : static_cast<double*>(nullptr),
+                            mem.data()), 0);
+
+        expect_singular_values_descending(s.data(), k);
+        if (compute_u)
+            expect_orthonormal_cols_colmajor(u.data(), n);
+        if (compute_v)
+            expect_orthonormal_cols_colmajor(v.data(), m);
+        if (compute_u && compute_v) {
+            const auto reconstructed = mat_mul_svd_colmajor(u.data(), s.data(), v.data(), n, m);
+            expect_mat_near_colmajor_rect(reconstructed.data(), a, n, m);
+        }
+    };
+
+    const double a22[4] = {3, 0, 0, 1};
+    expect_svd(a22, 2, 2, true, true, "2x2 diagonal full");
+    {
+        std::vector<double> s(2);
+        std::vector<double> mem(mem_size(2, 2));
+        EXPECT_EQ(jacobiSVD(a22, 2, 2, static_cast<double*>(nullptr), s.data(), static_cast<double*>(nullptr), mem.data()), 0);
+        EXPECT_NEAR(s[0], 3.0, kTol);
+        EXPECT_NEAR(s[1], 1.0, kTol);
+    }
+
+    const double a32[6] = {1, 2, 3, 4, 5, 6};
+    expect_svd(a32, 3, 2, true, true, "3x2 tall full");
+    expect_svd(a32, 3, 2, false, false, "3x2 singular values only");
+
+    const double a23[6] = {1, 2, 3, 4, 5, 6};
+    expect_svd(a23, 2, 3, true, true, "2x3 wide full");
+    expect_svd(a23, 2, 3, true, false, "2x3 U and S only");
+    expect_svd(a23, 2, 3, false, true, "2x3 V and S only");
+
+    const double ax23[6] = {10, 79, 56, 48, 88, 13};
+    expect_svd(ax23, 2, 3, true, true, "2x3 wide full");
+    expect_svd(ax23, 2, 3, true, false, "2x3 U and S only");
+    expect_svd(ax23, 2, 3, false, true, "2x3 V and S only");
 }
