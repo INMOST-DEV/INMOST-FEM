@@ -1,5 +1,7 @@
 //
-// ComplementFemSpace: V1 - V0 = V1 ∩ V0^{perp_L2}
+// ComplementFemSpace: orthogonal complement of V0 in V1
+//   L2Complement:     V1 - V0 = V1 ∩ V0^{perp_L2}
+//   EnergyComplement: energy-orthogonal complement (+ mean-zero vs constants in V0)
 //
 
 #ifndef CARNUM_ANI_COMPLEMENT_FEMSPACE_H
@@ -11,18 +13,30 @@
 namespace Ani {
 
 struct ComplementFemSpace : public BaseFemSpace {
+    enum Orthogonality : int { L2Complement = 0, EnergyComplement = 1 };
+
+    Orthogonality m_orth = L2Complement;
     std::shared_ptr<BaseFemSpace> m_V1;
     std::shared_ptr<BaseFemSpace> m_V0;
     std::vector<double> m_basis_coefs; ///< Psi, row-major n10 x n1
     std::vector<double> m_dual_coefs;  ///< B,   row-major n10 x n1
     std::vector<DofT::LocalOrder> m_dof_tags;
+    std::vector<double> m_D; ///< Energy only: (3*dim)x(3*dim) column-major; empty means identity
 
     ComplementFemSpace() = default;
 
+    /// Monolithic complement. D is used only for EnergyComplement (nullptr → identity).
     static ComplementFemSpace make(
         std::shared_ptr<BaseFemSpace> V1,
         std::shared_ptr<BaseFemSpace> V0,
+        Orthogonality orth = L2Complement,
+        const double* D = nullptr,
         uint quad_order = 0);
+
+    /// Factorized Vector/Complex when possible (always for L2; for Energy when D is identity).
+    static FemSpace make(const FemSpace& V1, const FemSpace& V0,
+        Orthogonality orth = L2Complement,
+        const double* D = nullptr, uint quad_order = 0);
 
     BaseTypes gatherType() const override { return BaseTypes::ComplementType; }
     std::shared_ptr<BaseFemSpace> subSpace(const int* ext_dims, int ndims) const override;
@@ -44,6 +58,12 @@ struct ComplementFemSpace : public BaseFemSpace {
     BandDenseMatrixX<> applyDUDX(AniMemoryX<>& mem, ArrayView<>& U, uchar k) const override;
     OpMemoryRequirements memDUDX(uint nquadpoints, uint fusion, uchar k) const override;
 };
+
+inline FemSpace makeEnergyComplement(const FemSpace& V1, const FemSpace& V0,
+    const double* D = nullptr, uint quad_order = 0)
+{
+    return ComplementFemSpace::make(V1, V0, ComplementFemSpace::EnergyComplement, D, quad_order);
+}
 
 FemSpace operator-(const FemSpace& V1, const FemSpace& V0);
 

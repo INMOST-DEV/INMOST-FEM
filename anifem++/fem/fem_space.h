@@ -83,7 +83,7 @@ namespace Ani{
             VectorType = 2, ///< form vector-variable from space for element, perform cartesian power operation, e.g. FEM_P1^3
             ComplexType = 3,///< form vector-variable from vector of spaces for elements, perform cartesian multiplication of spaces, e.g. FEM_P2 x FEM_P1
             NoType = 4,
-            ComplementType = 5, ///< orthogonal complement V1 - V0 = V1 ∩ V0^{perp_L2}
+            ComplementType = 5, ///< orthogonal complement of V0 in V1 (L2 or energy; see ComplementFemSpace::m_orth)
         };
         
         DofMap m_order;

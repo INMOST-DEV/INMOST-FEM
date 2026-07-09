@@ -12,7 +12,8 @@
 
 namespace {
 
-int complement_edge_row(const Ani::ComplementFemSpace& comp, int vi, int vj){
+template<typename CompSpace>
+int complement_edge_row(const CompSpace& comp, int vi, int vj){
     const int a = std::min(vi, vj), b = std::max(vi, vj);
     static const unsigned char I[6] = {0, 0, 0, 1, 1, 2}, J[6] = {1, 2, 3, 2, 3, 3};
     for (int k = 0; k < static_cast<int>(comp.m_dof_tags.size()); ++k){
@@ -108,6 +109,10 @@ TEST(AniInterface, FemSpace){
     FemSpace P1_plus_P2P1 = P1 + P2P1;
     FemSpace P2P1_vec = P2P1^3;
     FemSpace P2P1_vec_direct = (P2^3) - (P1^3);
+    FemSpace EP2P1 = ComplementFemSpace::make(P2, P1, ComplementFemSpace::EnergyComplement);
+    FemSpace EP3P1 = ComplementFemSpace::make(P3, P1, ComplementFemSpace::EnergyComplement);
+    FemSpace EP2P1_vec = EP2P1 ^ 3;
+    FemSpace EP2P1_vec_direct = ComplementFemSpace::make(P2 ^ 3, P1 ^ 3, ComplementFemSpace::EnergyComplement);
 
     EXPECT_EQ(P2P1_vec.dofMap().NumDofOnTet(), P2P1_vec_direct.dofMap().NumDofOnTet());
     EXPECT_EQ(P2P1_vec.gatherType(), BaseFemSpace::BaseTypes::VectorType);
@@ -116,6 +121,12 @@ TEST(AniInterface, FemSpace){
     EXPECT_EQ(P3P1.dofMap().NumDofOnTet(), P3.dofMap().NumDofOnTet() - P1.dofMap().NumDofOnTet());
     EXPECT_EQ(MINI1P1.dofMap().NumDofOnTet(), 1u);
     EXPECT_EQ(P1_plus_P2P1.dofMap().NumDofOnTet(), P2.dofMap().NumDofOnTet());
+    EXPECT_EQ(EP2P1.gatherType(), BaseFemSpace::BaseTypes::ComplementType);
+    EXPECT_EQ(EP2P1.dofMap().NumDofOnTet(), P2.dofMap().NumDofOnTet() - P1.dofMap().NumDofOnTet());
+    EXPECT_EQ(EP3P1.dofMap().NumDofOnTet(), P3.dofMap().NumDofOnTet() - P1.dofMap().NumDofOnTet());
+    EXPECT_EQ(EP2P1_vec.dofMap().NumDofOnTet(), EP2P1_vec_direct.dofMap().NumDofOnTet());
+    EXPECT_EQ(EP2P1_vec.gatherType(), BaseFemSpace::BaseTypes::VectorType);
+    EXPECT_EQ(EP2P1_vec_direct.gatherType(), BaseFemSpace::BaseTypes::VectorType);
 
     EXPECT_TRUE(MINI1.dofMap() == DofT::merge({P1.dofMap(), B4.dofMap()}));
     EXPECT_TRUE(VecP2.dofMap() == DofT::pow(P2.dofMap(), 3));
@@ -500,6 +511,7 @@ TEST(AniInterface, FemSpace){
             auto test_scalar_complement = [&](const FemSpace& V10, const FemSpace& V1, int preferred_row = 0){
                 auto* comp = V10.target<ComplementFemSpace>();
                 ASSERT_NE(comp, nullptr) << V10.typeName();
+                EXPECT_EQ(comp->m_orth, ComplementFemSpace::L2Complement);
                 EXPECT_EQ(V10.gatherType(), BaseFemSpace::BaseTypes::ComplementType);
                 EXPECT_EQ(V10.dim(), 1u);
                 const int n1 = static_cast<int>(V1.dofMap().NumDofOnTet());
@@ -539,6 +551,49 @@ TEST(AniInterface, FemSpace){
                 }
             };
 
+            auto test_scalar_energy_complement = [&](const FemSpace& VE, const FemSpace& V1, int preferred_row = 0){
+                auto* ec = VE.target<ComplementFemSpace>();
+                ASSERT_NE(ec, nullptr) << VE.typeName();
+                EXPECT_EQ(ec->m_orth, ComplementFemSpace::EnergyComplement);
+                EXPECT_EQ(VE.gatherType(), BaseFemSpace::BaseTypes::ComplementType);
+                EXPECT_EQ(VE.dim(), 1u);
+                const int n1 = static_cast<int>(V1.dofMap().NumDofOnTet());
+                const int n0 = static_cast<int>(ec->m_V0->m_order.NumDofOnTet());
+                const int n10 = static_cast<int>(VE.dofMap().NumDofOnTet());
+                EXPECT_EQ(n10, n1 - n0);
+                ASSERT_GT(n10, 0);
+                const int row = std::min(preferred_row, n10 - 1);
+                std::vector<double> unit(n10, 0.0);
+                unit[row] = 1.0;
+
+                auto f_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
+                    (void) user_data; assert(dim == 1);
+                    res[0] = eval_with_coef(IDEN, VE, unit, pt)[0];
+                    return 0;
+                };
+                auto df_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
+                    (void) user_data; assert(dim == 3);
+                    auto g = eval_with_coef(GRAD, VE, unit, pt);
+                    std::copy(g.begin(), g.end(), res);
+                    return 0;
+                };
+                {
+                    auto udofs_interp = interpolate(VE, f_basis);
+                    DenseMatrix<const double> U(udofs_interp.data, n10, 1), Ue(unit.data(), n10, 1);
+                    EXPECT_NEAR(Ue.ScalNorm(1, Ue, -1, U), 0, 100 * (1 + Ue.ScalNorm(1, Ue)) * DBL_EPSILON)
+                        << VE.typeName();
+                }
+                test_evaluates(IDEN, VE, f_basis, f_basis);
+                test_evaluates(GRAD, VE, f_basis, df_basis);
+
+                for (int k = 0; k < n10; ++k){
+                    double s = 0;
+                    for (int j = 0; j < n1; ++j)
+                        s += ec->m_basis_coefs[k * n1 + j] * ec->m_dual_coefs[k * n1 + j];
+                    EXPECT_NEAR(s, 1.0, 1e-8) << VE.typeName() << " bio " << k;
+                }
+            };
+
             {
                 auto* comp = P2P1.target<ComplementFemSpace>();
                 ASSERT_NE(comp, nullptr);
@@ -569,6 +624,40 @@ TEST(AniInterface, FemSpace){
                 test_evaluates(GRAD, P2P1_vec, f_vec_basis, df_vec_basis);
                 test_evaluates(IDEN, P2P1_vec_direct, f_vec_basis, f_vec_basis);
                 test_evaluates(GRAD, P2P1_vec_direct, f_vec_basis, df_vec_basis);
+            }
+
+            {
+                auto* ec = EP2P1.target<ComplementFemSpace>();
+                ASSERT_NE(ec, nullptr);
+                EXPECT_EQ(ec->m_orth, ComplementFemSpace::EnergyComplement);
+                for (auto it = EP2P1.dofMap().begin(); it != EP2P1.dofMap().end(); ++it)
+                    EXPECT_TRUE(it->etype == DofT::EDGE_UNORIENT);
+                const int row01 = complement_edge_row(*ec, 0, 1);
+                ASSERT_GE(row01, 0);
+                test_scalar_energy_complement(EP2P1, P2, row01);
+                test_scalar_energy_complement(EP3P1, P3, 0);
+
+                const int n10 = static_cast<int>(EP2P1.dofMap().NumDofOnTet());
+                std::vector<double> unit_vec(n10 * 3, 0.0);
+                unit_vec[row01] = 1.0;
+                unit_vec[n10 + row01] = 1.0;
+                unit_vec[2 * n10 + row01] = 1.0;
+                auto f_vec_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
+                    (void) user_data; assert(dim == 3);
+                    auto v = eval_with_coef(IDEN, EP2P1_vec, unit_vec, pt);
+                    std::copy(v.begin(), v.end(), res);
+                    return 0;
+                };
+                auto df_vec_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
+                    (void) user_data; assert(dim == 9);
+                    auto g = eval_with_coef(GRAD, EP2P1_vec, unit_vec, pt);
+                    std::copy(g.begin(), g.end(), res);
+                    return 0;
+                };
+                test_evaluates(IDEN, EP2P1_vec, f_vec_basis, f_vec_basis);
+                test_evaluates(GRAD, EP2P1_vec, f_vec_basis, df_vec_basis);
+                test_evaluates(IDEN, EP2P1_vec_direct, f_vec_basis, f_vec_basis);
+                test_evaluates(GRAD, EP2P1_vec_direct, f_vec_basis, df_vec_basis);
             }
 
             test_scalar_complement(P3P2, P3, 7);
@@ -1029,6 +1118,177 @@ TEST(AniInterface, ComplementSpaces){
         EXPECT_EQ(umap->NumDof(DofT::FACE_ORIENT), 0u);
         EXPECT_EQ(umap->NumDof(DofT::NODE), 0u);
         EXPECT_EQ(umap->NumDof(DofT::CELL), 0u);
+
+        // Analytical check for Complement(P2, P1) = L² orthogonal complement.
+        //
+        // Theory. Same P2 nodal basis / embedding C as in the energy case. Now
+        //   K = { u ∈ R^{10} : C M1 u = 0 },   dim K = n1 − n0 = 6
+        // (mean-zero is automatic: constants ⊂ P1). Stab(edge 01) ≅ Z2×Z2.
+        // Stab-invariants in K form a 3-space; on the 5-parameter ansatz
+        //   ψ=(α,α,β,β, γ, δ,δ,δ,δ, ε)
+        // the integer basis is
+        //   v1 = (0, 0, 2, 2,  1, 0,0,0,0, 0),
+        //   v2 = (4, 4, 4, 4,  0, 1,1,1,1, 0),
+        //   v3 = (2, 2, 0, 0,  0, 0,0,0,0, 1).
+        // Canonical generator = M1-projection of the edge bubble e_4 onto that span:
+        //   w_can = (−8/15,−8/15, 2/15,2/15,  7/15, −1/5,−1/5,−1/5,−1/5, 2/15)
+        // with ‖w_can‖_{M1}^2 = 11/4725. The continuous L² frame is the S4-orbit of
+        // any generic vector in this 3-space. Duals come from the algebraic split
+        // R^{n1} = span(Ψ) ⊕ V0 via B = first n10 rows of [Ψ; C]^{-1} (as columns of
+        // the inverse, stored row-major in m_dual_coefs).
+        {
+            using uchar = DofT::uchar;
+            const int n1 = 10, n10 = 6, n0 = 4;
+            static const int edge_ij[6][2] = {{0,1},{0,2},{0,3},{1,2},{1,3},{2,3}};
+            auto apply_vertex_perm = [&](const uchar sigma[4], const double* x, double* y){
+                std::fill(y, y + n1, 0.0);
+                for (int j = 0; j < 4; ++j)
+                    y[sigma[j]] = x[j];
+                for (int k = 0; k < 6; ++k){
+                    uchar a = sigma[edge_ij[k][0]], b = sigma[edge_ij[k][1]];
+                    if (a > b) std::swap(a, b);
+                    int k2 = -1;
+                    for (int t = 0; t < 6; ++t)
+                        if (edge_ij[t][0] == a && edge_ij[t][1] == b){ k2 = t; break; }
+                    ASSERT_GE(k2, 0);
+                    y[4 + k2] = x[4 + k];
+                }
+            };
+            auto edge_sigma = [&](int ea, int eb, uchar sigma[4]){
+                int rem[2], nr = 0;
+                for (int i = 0; i < 4; ++i)
+                    if (i != ea && i != eb) rem[nr++] = i;
+                sigma[0] = static_cast<uchar>(ea);
+                sigma[1] = static_cast<uchar>(eb);
+                sigma[2] = static_cast<uchar>(rem[0]);
+                sigma[3] = static_cast<uchar>(rem[1]);
+            };
+
+            const double V01[3][10] = {
+                {0, 0, 2, 2, 1, 0, 0, 0, 0, 0},
+                {4, 4, 4, 4, 0, 1, 1, 1, 1, 0},
+                {2, 2, 0, 0, 0, 0, 0, 0, 0, 1},
+            };
+            const double w_can01[10] = {
+                -8.0/15.0, -8.0/15.0, 2.0/15.0, 2.0/15.0, 7.0/15.0,
+                -1.0/5.0, -1.0/5.0, -1.0/5.0, -1.0/5.0, 2.0/15.0
+            };
+
+            auto mats = build_complement_matrices(P2, P1, 2 * P2.order() + 1);
+            ASSERT_EQ(mats.n1, n1);
+            ASSERT_EQ(mats.n0, n0);
+            const double* M1 = mats.M1.data();
+            const double* C = mats.C.data();
+
+            for (int e = 0; e < n10; ++e){
+                ASSERT_EQ(static_cast<int>(comp->m_dof_tags[e].nelem), e);
+                uchar sigma[4];
+                edge_sigma(edge_ij[e][0], edge_ij[e][1], sigma);
+                double Bspan[3][10];
+                for (int c = 0; c < 3; ++c)
+                    apply_vertex_perm(sigma, V01[c], Bspan[c]);
+                const double* psi = comp->m_basis_coefs.data() + e * n1;
+                double G[9] = {0}, rhs[3] = {0};
+                for (int j = 0; j < 3; ++j)
+                    for (int i = 0; i < 3; ++i){
+                        double s = 0;
+                        for (int k = 0; k < n1; ++k)
+                            s += Bspan[i][k] * Bspan[j][k];
+                        G[i + j * 3] = s;
+                    }
+                for (int i = 0; i < 3; ++i){
+                    double s = 0;
+                    for (int k = 0; k < n1; ++k)
+                        s += Bspan[i][k] * psi[k];
+                    rhs[i] = s;
+                }
+                double chol_mem[6], coef[3];
+                cholesky_solve(G, rhs, 3, 1, coef, chol_mem);
+                double err2 = 0, nrm2 = 0;
+                for (int k = 0; k < n1; ++k){
+                    double r = psi[k];
+                    for (int c = 0; c < 3; ++c)
+                        r -= coef[c] * Bspan[c][k];
+                    err2 += r * r;
+                    nrm2 += psi[k] * psi[k];
+                }
+                EXPECT_LT(std::sqrt(err2) / std::max(1e-30, std::sqrt(nrm2)), 1e-12)
+                    << "P2-P1 mode " << e << " not in analytical Stab-span";
+                double m2 = 0;
+                for (int i = 0; i < n1; ++i)
+                    for (int j = 0; j < n1; ++j)
+                        m2 += psi[i] * M1[i + j * n1] * psi[j];
+                EXPECT_NEAR(m2, 1.0, 1e-10) << "P2-P1 mode " << e << " M1-norm";
+            }
+
+            {
+                double Orbit[6][10];
+                for (int e = 0; e < 6; ++e){
+                    uchar sigma[4];
+                    edge_sigma(edge_ij[e][0], edge_ij[e][1], sigma);
+                    apply_vertex_perm(sigma, w_can01, Orbit[e]);
+                }
+                for (int e = 0; e < n10; ++e){
+                    const double* psi = comp->m_basis_coefs.data() + e * n1;
+                    double Gram[36] = {0}, rhs[6] = {0};
+                    for (int j = 0; j < 6; ++j)
+                        for (int i = 0; i < 6; ++i){
+                            double s = 0;
+                            for (int a = 0; a < n1; ++a)
+                                for (int b = 0; b < n1; ++b)
+                                    s += Orbit[i][a] * M1[a + b * n1] * Orbit[j][b];
+                            Gram[i + j * 6] = s;
+                        }
+                    for (int i = 0; i < 6; ++i){
+                        double s = 0;
+                        for (int a = 0; a < n1; ++a)
+                            for (int b = 0; b < n1; ++b)
+                                s += Orbit[i][a] * M1[a + b * n1] * psi[b];
+                        rhs[i] = s;
+                    }
+                    double chol_mem[21], coef[6];
+                    cholesky_solve(Gram, rhs, 6, 1, coef, chol_mem);
+                    std::vector<double> recon(n1, 0.0), diff(n1, 0.0);
+                    for (int a = 0; a < n1; ++a){
+                        for (int i = 0; i < 6; ++i)
+                            recon[a] += coef[i] * Orbit[i][a];
+                        diff[a] = psi[a] - recon[a];
+                    }
+                    double d2 = 0, n2 = 0;
+                    for (int a = 0; a < n1; ++a)
+                        for (int b = 0; b < n1; ++b){
+                            d2 += diff[a] * M1[a + b * n1] * diff[b];
+                            n2 += psi[a] * M1[a + b * n1] * psi[b];
+                        }
+                    EXPECT_LT(std::sqrt(std::max(0.0, d2)) / std::max(1e-30, std::sqrt(n2)), 1e-10)
+                        << "P2-P1 mode " << e << " not in analytical w_can orbit";
+                }
+            }
+
+            // Duals from [Ψ; C]^{-1}: B[k,j] = BigInv[j,k] for k < n10.
+            {
+                std::vector<double> Big(n1 * n1, 0.0), BigInv(n1 * n1, 0.0);
+                std::vector<double> lu_mem(2 * n1 * n1), imem(2 * n1);
+                for (int k = 0; k < n10; ++k)
+                    for (int j = 0; j < n1; ++j)
+                        Big[k + j * n1] = comp->m_basis_coefs[k * n1 + j];
+                for (int k = 0; k < n0; ++k)
+                    for (int j = 0; j < n1; ++j)
+                        Big[n10 + k + j * n1] = C[k + j * n0];
+                fullPivLU_inverse(Big.data(), BigInv.data(), n1, lu_mem.data(),
+                    reinterpret_cast<int*>(imem.data()));
+                double err2 = 0, nrm2 = 0;
+                for (int k = 0; k < n10; ++k)
+                    for (int j = 0; j < n1; ++j){
+                        const double pred = BigInv[j + k * n1];
+                        const double d = pred - comp->m_dual_coefs[k * n1 + j];
+                        err2 += d * d;
+                        nrm2 += comp->m_dual_coefs[k * n1 + j] * comp->m_dual_coefs[k * n1 + j];
+                    }
+                EXPECT_LT(std::sqrt(err2) / std::max(1e-30, std::sqrt(nrm2)), 1e-10)
+                    << "P2-P1 duals disagree with analytical [Psi;C]^{-1} formula";
+            }
+        }
     }
     {
         FemSpace V10 = MINI1 - P1;
@@ -1132,6 +1392,445 @@ TEST(AniInterface, ComplementSpaces){
         FemSpace V10f = (P2 * (P3 ^ 2)) - make_complex_raw({P1, P1, P1});
         EXPECT_EQ(V10f.dofMap().NumDofOnTet(), V10.dofMap().NumDofOnTet());
         EXPECT_EQ(V10f.gatherType(), BaseFemSpace::BaseTypes::ComplexType);
+    }
+}
+
+TEST(AniInterface, EnergyComplementSpaces){
+    FemSpace P1{P1Space{}};
+    FemSpace P2{P2Space{}};
+    FemSpace P3{P3Space{}};
+
+    auto expect_energy_constraints = [&](const FemSpace& V1, const FemSpace& V0, const FemSpace& VE,
+                                         const double* D /*nullable*/){
+        ASSERT_EQ(VE.gatherType(), BaseFemSpace::BaseTypes::ComplementType);
+        auto* ec = VE.target<ComplementFemSpace>();
+        ASSERT_NE(ec, nullptr);
+        EXPECT_EQ(ec->m_orth, ComplementFemSpace::EnergyComplement);
+        const int n1 = static_cast<int>(V1.dofMap().NumDofOnTet());
+        const int n0 = static_cast<int>(V0.dofMap().NumDofOnTet());
+        const int n10 = static_cast<int>(VE.dofMap().NumDofOnTet());
+        EXPECT_EQ(n10, n1 - n0);
+        ASSERT_EQ(static_cast<int>(ec->m_basis_coefs.size()), n10 * n1);
+        ASSERT_EQ(static_cast<int>(ec->m_dual_coefs.size()), n10 * n1);
+
+        const uint quad_order = 2 * V1.order() + 1;
+        auto mats = build_complement_matrices(V1, V0, quad_order); // M1, C
+        ASSERT_EQ(mats.n1, n1);
+        ASSERT_EQ(mats.n0, n0);
+
+        // Energy matrix A on the regular tet (S4-symmetric), matching ComplementFemSpace::make(EnergyComplement).
+        auto quad = make_quad(quad_order);
+        const BaseFemSpace& b1 = *V1.base();
+        const int gdim3 = static_cast<int>(3 * b1.dim());
+        std::vector<double> Dloc(gdim3 * gdim3, 0.0);
+        if (D) std::copy(D, D + gdim3 * gdim3, Dloc.data());
+        else for (int i = 0; i < gdim3; ++i) Dloc[i + i * gdim3] = 1.0;
+
+        auto req = b1.memGRAD(1, 1);
+        PlainMemoryX<> pmx;
+        pmx.dSize = req.Usz + req.extraRsz;
+        pmx.iSize = req.extraIsz + 2 * (req.mtx_parts + 2);
+        pmx.mSize = req.mtx_parts;
+        std::vector<char> buf(pmx.enoughRawSize());
+        pmx.allocateFromRaw(buf.data(), buf.size());
+        AniMemoryX<> mem;
+        mem.q = 1; mem.f = 1; mem.busy_mtx_parts = 0;
+        mem.U.Init(pmx.ddata, req.Usz); pmx.ddata += req.Usz;
+        mem.extraR.Init(pmx.ddata, req.extraRsz);
+        mem.extraI.Init(pmx.idata, req.extraIsz);
+        mem.MTXI_COL.Init(pmx.idata + req.extraIsz, req.mtx_parts + 2);
+        mem.MTXI_ROW.Init(pmx.idata + req.extraIsz + req.mtx_parts + 2, req.mtx_parts + 2);
+        mem.MTX.Init(pmx.mdata, req.mtx_parts);
+        const double s3 = std::sqrt(3.0), s6 = std::sqrt(6.0);
+        double XYZa[12]{0,0,0, 1,0,0, 0.5,s3/2,0, 0.5,s3/6,s6/3};
+        double PSI[9], DET = inverse3x3(XYZa + 3, PSI);
+        mem.XYP.Init(XYZa, 12); mem.PSI.Init(PSI, 9); mem.DET.Init(&DET, 1);
+
+        std::vector<double> G(static_cast<std::size_t>(n1) * quad.nquad * gdim3, 0.0);
+        for (uint q = 0; q < quad.nquad; ++q){
+            mem.XYL.Init(quad.xyl.data() + 4 * q, 4);
+            mem.WG.Init(quad.wg.data() + q, 1);
+            mem.q = 1; mem.busy_mtx_parts = 0;
+            auto res = b1.applyGRAD(mem, mem.U);
+            for (std::size_t p = 0; p < res.nparts; ++p)
+                for (int c = res.stRow[p]; c < res.stRow[p + 1]; ++c)
+                    for (int i = res.stCol[p]; i < res.stCol[p + 1]; ++i)
+                        if (c >= 0 && c < gdim3 && i >= 0 && i < n1)
+                            G[q + quad.nquad * i + n1 * quad.nquad * c] =
+                                res.data[p](c - res.stRow[p], i - res.stCol[p]);
+        }
+        std::vector<double> A(n1 * n1, 0.0), Dg(gdim3);
+        for (int i = 0; i < n1; ++i)
+            for (int j = i; j < n1; ++j){
+                double s = 0;
+                for (uint q = 0; q < quad.nquad; ++q){
+                    std::fill(Dg.begin(), Dg.end(), 0.0);
+                    for (int a = 0; a < gdim3; ++a)
+                        for (int b = 0; b < gdim3; ++b)
+                            Dg[a] += Dloc[a + b * gdim3] * G[q + quad.nquad * j + n1 * quad.nquad * b];
+                    double loc = 0;
+                    for (int a = 0; a < gdim3; ++a)
+                        loc += G[q + quad.nquad * i + n1 * quad.nquad * a] * Dg[a];
+                    s += quad.wg[q] * loc;
+                }
+                A[i + j * n1] = A[j + i * n1] = s;
+            }
+
+        // Energy orthogonality: C A Psi^T ≈ 0
+        for (int k = 0; k < n10; ++k){
+            std::vector<double> Apsi(n1, 0.0);
+            for (int j = 0; j < n1; ++j)
+                for (int l = 0; l < n1; ++l)
+                    Apsi[j] += A[j + l * n1] * ec->m_basis_coefs[k * n1 + l];
+            for (int i = 0; i < n0; ++i){
+                double s = 0;
+                for (int j = 0; j < n1; ++j)
+                    s += mats.C[i + j * n0] * Apsi[j];
+                EXPECT_NEAR(s, 0.0, 1e-7) << "energy orth to V0 dof " << i << " mode " << k;
+            }
+        }
+
+        // Mean-zero: ∫ φ_k ≈ 0 (scalar: one mean row from M1 * ones of P0 embedding ≈ sum of mass row)
+        // Use IDEN quadrature means from M1 against constant: m_j = ∫ φ_j = sum_i M1[j,i] * c_i for c=1 in P0.
+        // For P1 constants: constant 1 has equal nodal values → mean of mode k is sum_j mean_j Psi[k,j].
+        {
+            auto XYZ_mean = canonical_tetra();
+            auto holder = setup_dual_animem(b1, *V0.base(), quad.nquad, XYZ_mean);
+            std::vector<double> phi(static_cast<std::size_t>(n1) * quad.nquad * b1.dim(), 0.0);
+            // reuse evaluate via applyIDEN
+            for (uint q = 0; q < quad.nquad; ++q){
+                holder.mem_v1.XYL.Init(quad.xyl.data() + 4 * q, 4);
+                holder.mem_v1.WG.Init(quad.wg.data() + q, 1);
+                holder.mem_v1.q = 1; holder.mem_v1.busy_mtx_parts = 0;
+                auto res = b1.applyIDEN(holder.mem_v1, holder.mem_v1.U);
+                for (std::size_t p = 0; p < res.nparts; ++p)
+                    for (int d = res.stRow[p]; d < res.stRow[p + 1]; ++d)
+                        for (int i = res.stCol[p]; i < res.stCol[p + 1]; ++i)
+                            if (d == 0 && i >= 0 && i < n1)
+                                phi[q + quad.nquad * i] = res.data[p](d - res.stRow[p], i - res.stCol[p]);
+            }
+            for (int k = 0; k < n10; ++k){
+                double mean = 0;
+                for (int j = 0; j < n1; ++j){
+                    double mj = 0;
+                    for (uint q = 0; q < quad.nquad; ++q)
+                        mj += quad.wg[q] * phi[q + quad.nquad * j];
+                    mean += mj * ec->m_basis_coefs[k * n1 + j];
+                }
+                EXPECT_NEAR(mean, 0.0, 1e-7) << "mean-zero mode " << k;
+            }
+        }
+
+        // Biorthogonality
+        for (int k = 0; k < n10; ++k){
+            double s = 0;
+            for (int j = 0; j < n1; ++j)
+                s += ec->m_basis_coefs[k * n1 + j] * ec->m_dual_coefs[k * n1 + j];
+                EXPECT_NEAR(s, 1.0, 1e-8) << "biorthogonality " << k;
+        }
+
+        // Span S4-invariance: P1(σ) maps span(Psi) into itself.
+        std::array<std::array<DofT::uchar, 4>, 24> perms;
+        DofT::S4::all_permutations(perms);
+        std::vector<double> P1m(n1 * n1), Proj(n10 * n10);
+        for (int p = 0; p < 24; ++p){
+            DofT::S4::build_dof_permutation(*V1.dofMap().base(), perms[p].data(), P1m.data(), n1);
+            // For each mode k: P1 Psi_k should lie in span(Psi): solve min ||Psi^T c - P Psi_k|| via duals
+            for (int k = 0; k < n10; ++k){
+                std::vector<double> Ppsi(n1, 0.0);
+                for (int i = 0; i < n1; ++i)
+                    for (int j = 0; j < n1; ++j)
+                        Ppsi[i] += P1m[i + j * n1] * ec->m_basis_coefs[k * n1 + j];
+                std::vector<double> recon(n1, 0.0);
+                for (int ell = 0; ell < n10; ++ell){
+                    double c = 0;
+                    for (int j = 0; j < n1; ++j)
+                        c += ec->m_dual_coefs[ell * n1 + j] * Ppsi[j];
+                    for (int j = 0; j < n1; ++j)
+                        recon[j] += c * ec->m_basis_coefs[ell * n1 + j];
+                }
+                double d2 = 0, n2 = 0;
+                for (int j = 0; j < n1; ++j){
+                    d2 += (Ppsi[j] - recon[j]) * (Ppsi[j] - recon[j]);
+                    n2 += Ppsi[j] * Ppsi[j];
+                }
+                EXPECT_LT(std::sqrt(d2) / std::max(1e-30, std::sqrt(n2)), 1e-7)
+                    << "span invariance failed for perm " << p << " mode " << k;
+            }
+        }
+        (void)Proj;
+    };
+
+    auto expect_energy_frame = [&](const FemSpace& V1, const FemSpace& VE, double tol = 1e-8){
+        auto* ec = VE.target<ComplementFemSpace>();
+        ASSERT_NE(ec, nullptr);
+        EXPECT_EQ(ec->m_orth, ComplementFemSpace::EnergyComplement);
+        const int n1 = static_cast<int>(V1.dofMap().NumDofOnTet());
+        const int n10 = static_cast<int>(VE.dofMap().NumDofOnTet());
+        const double* Psi = ec->m_basis_coefs.data();
+        double nPsi = 0;
+        for (int i = 0; i < n10 * n1; ++i)
+            nPsi += Psi[i] * Psi[i];
+        nPsi = std::sqrt(nPsi);
+        ASSERT_GT(nPsi, 0.0);
+        std::array<std::array<DofT::uchar, 4>, 24> perms;
+        DofT::S4::all_permutations(perms);
+        std::vector<double> P1m(static_cast<std::size_t>(n1) * n1), P10(static_cast<std::size_t>(n10) * n10);
+        for (int p = 0; p < 24; ++p){
+            DofT::S4::build_dof_permutation(*V1.dofMap().base(), perms[p].data(), P1m.data(), n1);
+            DofT::S4::build_dof_permutation(*VE.dofMap().base(), perms[p].data(), P10.data(), n10);
+            double d2 = 0;
+            for (int i = 0; i < n10; ++i)
+                for (int j = 0; j < n1; ++j){
+                    double a = 0, b = 0;
+                    for (int k = 0; k < n1; ++k)
+                        a += Psi[i * n1 + k] * P1m[k + j * n1];
+                    for (int k = 0; k < n10; ++k)
+                        b += P10[i + k * n10] * Psi[k * n1 + j];
+                    d2 += (a - b) * (a - b);
+                }
+            EXPECT_LT(std::sqrt(d2) / nPsi, tol) << "energy frame equivariance failed for S4 perm " << p;
+        }
+    };
+
+    // --- primary case: EnergyComplement(P2, P1) ---
+    {
+        FemSpace VE = ComplementFemSpace::make(P2, P1, ComplementFemSpace::EnergyComplement);
+        expect_energy_constraints(P2, P1, VE, nullptr);
+        expect_energy_frame(P2, VE);
+        auto* ec = VE.target<ComplementFemSpace>();
+        ASSERT_NE(ec, nullptr);
+        EXPECT_EQ(VE.dofMap().NumDofOnTet(), 6u);
+        for (const auto& tag : ec->m_dof_tags){
+            EXPECT_EQ(tag.etype, DofT::EDGE_UNORIENT);
+            EXPECT_EQ(static_cast<int>(tag.stype), 0);
+            EXPECT_EQ(static_cast<int>(tag.lsid), 0);
+        }
+        const auto* umap = dynamic_cast<const DofT::UniteDofMap*>(VE.dofMap().base().get());
+        ASSERT_NE(umap, nullptr);
+        EXPECT_EQ(umap->NumDof(DofT::EDGE_UNORIENT), 1u);
+        EXPECT_EQ(umap->m_symmetries.get(DofT::EDGE_UNORIENT, 0), 1u);
+        EXPECT_EQ(umap->NumDof(DofT::CELL), 0u);
+
+        // Analytical check for EnergyComplement(P2, P1).
+        //
+        // Theory (regular reference tet, D = I). Let φ_i = λ_i(2λ_i−1), φ_{ij}=4λ_iλ_j
+        // be the P2 nodal basis (dofs 0..3 vertices, 4..9 edges in order
+        // (01),(02),(03),(12),(13),(23)). Embedding P1↪P2 is C with
+        // λ_i ↦ φ_i + (1/2)∑_{e∋i} φ_e. Energy ker is
+        //   K = { u ∈ R^{10} : C A u = 0,  ∫_T u = 0 },   dim K = n1 − n0 = 6.
+        //
+        // Stab(edge 01) ≅ Z2×Z2 acts by swapping {0,1} and/or {2,3}. The space of
+        // Stab-invariants in K is exactly 3-dimensional with integer basis
+        //   v1 = (−1,−1, 1, 1,  0, 0,0,0,0, 0),
+        //   v2 = ( 4, 4, 0, 0,  1, 0,0,0,0, 1),
+        //   v3 = ( 8, 8, 0, 0,  0, 1,1,1,1, 0).
+        // (Derived by imposing CA·ψ=0 and mean·ψ=0 on the 4-parameter Stab-ansatz
+        //  ψ=(α,α,β,β, γ, δ,δ,δ,δ, γ).) A canonical generator is the M1-projection
+        // of the edge bubble e_4 onto span{v1,v2,v3}:
+        //   w_can = (0, 0, −2/5, −2/5,  3/10, −1/5,−1/5,−1/5,−1/5, 3/10)
+        // with ‖w_can‖_{M1}^2 = 1/630. The continuous energy frame is the S4-orbit
+        // of any generic vector in this 3-space (one EDGE_UNORIENT dof per edge).
+        // Concrete SVD seeds only pick a particular direction in the 3-space, so
+        // we check span membership / orbit equality rather than raw floats.
+        // Duals are the M1-Riesz duals B = (Ψ M1 Ψ^T)^{-1} Ψ M1.
+        {
+            using uchar = DofT::uchar;
+            const int n1 = 10, n10 = 6;
+            static const int edge_ij[6][2] = {{0,1},{0,2},{0,3},{1,2},{1,3},{2,3}};
+            auto apply_vertex_perm = [&](const uchar sigma[4], const double* x, double* y){
+                std::fill(y, y + n1, 0.0);
+                for (int j = 0; j < 4; ++j)
+                    y[sigma[j]] = x[j];
+                for (int k = 0; k < 6; ++k){
+                    uchar a = sigma[edge_ij[k][0]], b = sigma[edge_ij[k][1]];
+                    if (a > b) std::swap(a, b);
+                    int k2 = -1;
+                    for (int t = 0; t < 6; ++t)
+                        if (edge_ij[t][0] == a && edge_ij[t][1] == b){ k2 = t; break; }
+                    ASSERT_GE(k2, 0);
+                    y[4 + k2] = x[4 + k];
+                }
+            };
+            auto edge_sigma = [&](int ea, int eb, uchar sigma[4]){
+                int rem[2], nr = 0;
+                for (int i = 0; i < 4; ++i)
+                    if (i != ea && i != eb) rem[nr++] = i;
+                sigma[0] = static_cast<uchar>(ea);
+                sigma[1] = static_cast<uchar>(eb);
+                sigma[2] = static_cast<uchar>(rem[0]);
+                sigma[3] = static_cast<uchar>(rem[1]);
+            };
+
+            // Exact Stab-basis for edge 01 and its S4 transports.
+            const double V01[3][10] = {
+                {-1, -1, 1, 1, 0, 0, 0, 0, 0, 0},
+                { 4,  4, 0, 0, 1, 0, 0, 0, 0, 1},
+                { 8,  8, 0, 0, 0, 1, 1, 1, 1, 0},
+            };
+            const double w_can01[10] = {
+                0, 0, -2.0/5.0, -2.0/5.0, 3.0/10.0,
+                -1.0/5.0, -1.0/5.0, -1.0/5.0, -1.0/5.0, 3.0/10.0
+            };
+
+            auto mats = build_complement_matrices(P2, P1, 2 * P2.order() + 1);
+            ASSERT_EQ(mats.n1, n1);
+            const double* M1 = mats.M1.data();
+
+            // Each numerical mode lies in the analytical 3-space of its edge.
+            for (int e = 0; e < n10; ++e){
+                ASSERT_EQ(static_cast<int>(ec->m_dof_tags[e].nelem), e);
+                uchar sigma[4];
+                edge_sigma(edge_ij[e][0], edge_ij[e][1], sigma);
+                double Bspan[3][10];
+                for (int c = 0; c < 3; ++c)
+                    apply_vertex_perm(sigma, V01[c], Bspan[c]);
+                const double* psi = ec->m_basis_coefs.data() + e * n1;
+                double G[9] = {0}, rhs[3] = {0};
+                for (int j = 0; j < 3; ++j)
+                    for (int i = 0; i < 3; ++i){
+                        double s = 0;
+                        for (int k = 0; k < n1; ++k)
+                            s += Bspan[i][k] * Bspan[j][k];
+                        G[i + j * 3] = s;
+                    }
+                for (int i = 0; i < 3; ++i){
+                    double s = 0;
+                    for (int k = 0; k < n1; ++k)
+                        s += Bspan[i][k] * psi[k];
+                    rhs[i] = s;
+                }
+                double chol_mem[6], coef[3];
+                cholesky_solve(G, rhs, 3, 1, coef, chol_mem);
+                double err2 = 0, nrm2 = 0;
+                for (int k = 0; k < n1; ++k){
+                    double r = psi[k];
+                    for (int c = 0; c < 3; ++c)
+                        r -= coef[c] * Bspan[c][k];
+                    err2 += r * r;
+                    nrm2 += psi[k] * psi[k];
+                }
+                EXPECT_LT(std::sqrt(err2) / std::max(1e-30, std::sqrt(nrm2)), 1e-12)
+                    << "EP2P1 mode " << e << " not in analytical Stab-span";
+                double m2 = 0;
+                for (int i = 0; i < n1; ++i)
+                    for (int j = 0; j < n1; ++j)
+                        m2 += psi[i] * M1[i + j * n1] * psi[j];
+                EXPECT_NEAR(m2, 1.0, 1e-10) << "EP2P1 mode " << e << " M1-norm";
+            }
+
+            // Span(Ψ) = span(S4-orbit of w_can) in the M1 metric.
+            {
+                double Orbit[6][10];
+                for (int e = 0; e < 6; ++e){
+                    uchar sigma[4];
+                    edge_sigma(edge_ij[e][0], edge_ij[e][1], sigma);
+                    apply_vertex_perm(sigma, w_can01, Orbit[e]);
+                }
+                for (int e = 0; e < n10; ++e){
+                    const double* psi = ec->m_basis_coefs.data() + e * n1;
+                    double Gram[36] = {0}, rhs[6] = {0};
+                    for (int j = 0; j < 6; ++j)
+                        for (int i = 0; i < 6; ++i){
+                            double s = 0;
+                            for (int a = 0; a < n1; ++a)
+                                for (int b = 0; b < n1; ++b)
+                                    s += Orbit[i][a] * M1[a + b * n1] * Orbit[j][b];
+                            Gram[i + j * 6] = s;
+                        }
+                    for (int i = 0; i < 6; ++i){
+                        double s = 0;
+                        for (int a = 0; a < n1; ++a)
+                            for (int b = 0; b < n1; ++b)
+                                s += Orbit[i][a] * M1[a + b * n1] * psi[b];
+                        rhs[i] = s;
+                    }
+                    double chol_mem[21], coef[6];
+                    cholesky_solve(Gram, rhs, 6, 1, coef, chol_mem);
+                    std::vector<double> recon(n1, 0.0), diff(n1, 0.0);
+                    for (int a = 0; a < n1; ++a){
+                        for (int i = 0; i < 6; ++i)
+                            recon[a] += coef[i] * Orbit[i][a];
+                        diff[a] = psi[a] - recon[a];
+                    }
+                    double d2 = 0, n2 = 0;
+                    for (int a = 0; a < n1; ++a)
+                        for (int b = 0; b < n1; ++b){
+                            d2 += diff[a] * M1[a + b * n1] * diff[b];
+                            n2 += psi[a] * M1[a + b * n1] * psi[b];
+                        }
+                    EXPECT_LT(std::sqrt(std::max(0.0, d2)) / std::max(1e-30, std::sqrt(n2)), 1e-10)
+                        << "EP2P1 mode " << e << " not in analytical w_can orbit";
+                }
+            }
+
+            // Duals: B = (Ψ M1 Ψ^T)^{-1} Ψ M1
+            {
+                double Gram[36] = {0};
+                for (int j = 0; j < n10; ++j)
+                    for (int i = 0; i < n10; ++i){
+                        double s = 0;
+                        for (int a = 0; a < n1; ++a)
+                            for (int b = 0; b < n1; ++b)
+                                s += ec->m_basis_coefs[i * n1 + a] * M1[a + b * n1]
+                                   * ec->m_basis_coefs[j * n1 + b];
+                        Gram[i + j * n10] = s;
+                    }
+                std::vector<double> PsiM(n10 * n1, 0.0);
+                for (int i = 0; i < n10; ++i)
+                    for (int j = 0; j < n1; ++j){
+                        double s = 0;
+                        for (int k = 0; k < n1; ++k)
+                            s += ec->m_basis_coefs[i * n1 + k] * M1[k + j * n1];
+                        PsiM[i + j * n10] = s;
+                    }
+                double chol_mem[21];
+                cholesky_solve(Gram, PsiM.data(), n10, n1, PsiM.data(), chol_mem);
+                double err2 = 0, nrm2 = 0;
+                for (int i = 0; i < n10; ++i)
+                    for (int j = 0; j < n1; ++j){
+                        const double d = PsiM[i + j * n10] - ec->m_dual_coefs[i * n1 + j];
+                        err2 += d * d;
+                        nrm2 += ec->m_dual_coefs[i * n1 + j] * ec->m_dual_coefs[i * n1 + j];
+                    }
+                EXPECT_LT(std::sqrt(err2) / std::max(1e-30, std::sqrt(nrm2)), 1e-10)
+                    << "EP2P1 duals disagree with analytical M1-Riesz formula";
+            }
+        }
+    }
+
+    // Scaled isotropic D = 2 I (same ker as I up to scaling of A)
+    {
+        double D[9] = {0};
+        D[0] = D[4] = D[8] = 2.0;
+        FemSpace VE = ComplementFemSpace::make(P2, P1, ComplementFemSpace::EnergyComplement, D);
+        expect_energy_constraints(P2, P1, VE, D);
+        EXPECT_EQ(VE.dofMap().NumDofOnTet(), 6u);
+    }
+
+    // Vector factorization with D = I
+    {
+        FemSpace VE = ComplementFemSpace::make(P2 ^ 3, P1 ^ 3, ComplementFemSpace::EnergyComplement);
+        EXPECT_EQ(VE.gatherType(), BaseFemSpace::BaseTypes::VectorType);
+        EXPECT_EQ(VE.dofMap().NumDofOnTet(), 18u);
+    }
+
+    // P3-P1: same continuous S4 classification as L2; dim = n1-n0
+    {
+        FemSpace VE = ComplementFemSpace::make(P3, P1, ComplementFemSpace::EnergyComplement);
+        EXPECT_EQ(VE.dofMap().NumDofOnTet(), 16u);
+        expect_energy_constraints(P3, P1, VE, nullptr);
+        expect_energy_frame(P3, VE);
+        auto* ec = VE.target<ComplementFemSpace>();
+        ASSERT_NE(ec, nullptr);
+        int n_edge = 0, n_face = 0, n_cell = 0;
+        for (const auto& tag : ec->m_dof_tags){
+            if (tag.etype & DofT::EDGE) ++n_edge;
+            else if (tag.etype & DofT::FACE) ++n_face;
+            else if (tag.etype == DofT::CELL) ++n_cell;
+        }
+        EXPECT_EQ(n_edge + n_face + n_cell, 16);
+        EXPECT_EQ(n_cell, 0);
     }
 }
 
