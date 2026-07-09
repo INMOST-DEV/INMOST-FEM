@@ -232,6 +232,38 @@ namespace Ani{
             static inline uchar index_on_reorderd_elem(uchar etype, uchar nelem, uchar sym_num, uchar loc_symmetry_ind, const uchar* node_permutation/*[4]*/);
         };
 
+        /// Utilities for S4 action on tetrahedron dof maps (BaseDofMap defined below)
+        struct BaseDofMap;
+        namespace S4 {
+            struct SymmetryTypeKey {
+                uchar etype = UNDEF;
+                bool oriented = false;
+                bool operator<(const SymmetryTypeKey& o) const {
+                    if (etype != o.etype) return etype < o.etype;
+                    return oriented < o.oriented;
+                }
+                bool operator==(const SymmetryTypeKey& o) const { return etype == o.etype && oriented == o.oriented; }
+            };
+            struct StabilizerData {
+                std::vector<std::array<uchar, 4>> generators;
+            };
+
+            inline std::array<uchar, 4> identity_perm();
+            inline uchar edge_vertex(uchar iedge, uchar k);
+            inline uchar face_vertex(uchar iface, uchar k);
+            inline uchar find_edge_elem(uchar a, uchar b);
+            inline uchar find_face_elem(uchar a, uchar b, uchar c);
+            inline SymmetryTypeKey symmetry_type_key(const LocalOrder& lo);
+            inline bool same_geom_sym(const LocalOrder& a, const LocalOrder& b);
+            inline LocalOrder remap_local_order(const LocalOrder& lo, const uchar sigma[4]);
+            inline int find_tet_dof(const BaseDofMap& map, const LocalOrder& target);
+            inline void build_dof_permutation(const BaseDofMap& map, const uchar sigma[4], double* P, int n);
+            inline int stabilizer_character(const uchar g[4], const LocalOrder& repr);
+            inline StabilizerData stabilizer_data(const LocalOrder& repr);
+            inline std::array<uchar, 4> perm_vertex_to_repr(const LocalOrder& repr, const LocalOrder& target);
+            inline void all_permutations(std::array<std::array<uchar, 4>, 24>& perms);
+        }
+
         struct DofIterator;
         struct DofSparsedIterator;
         struct NestedDofMapBase;

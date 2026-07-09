@@ -165,6 +165,197 @@ inline uchar DofSymmetries::index_on_reorderd_elem(uchar etype, uchar nelem, uch
     return quick_ind[qid][unique_hash];  
 }
 
+namespace S4 {
+inline std::array<uchar, 4> identity_perm(){ return {0, 1, 2, 3}; }
+inline uchar edge_vertex(uchar iedge, uchar k){
+    const static std::array<uchar, 12> lookup_nds = {0, 1, 0, 2, 0, 3, 1, 2, 1, 3, 2, 3};
+    return lookup_nds[2*iedge + k];
+}
+inline uchar face_vertex(uchar iface, uchar k){
+    const static std::array<uchar, 12> lookup_nds = {0, 1, 2, 1, 2, 3, 0, 2, 3, 0, 1, 3};
+    return lookup_nds[3*iface + k];
+}
+inline uchar find_edge_elem(uchar a, uchar b){
+    // Unordered pairs among {0,1,2,3} → edge index; invalid → 255.
+    const static uchar lookup[16] = {
+        /*0,0*/ 255, /*0,1*/ 0, /*0,2*/ 1, /*0,3*/ 2,
+        /*1,0*/ 0,   /*1,1*/ 255, /*1,2*/ 3, /*1,3*/ 4,
+        /*2,0*/ 1,   /*2,1*/ 3, /*2,2*/ 255, /*2,3*/ 5,
+        /*3,0*/ 2,   /*3,1*/ 4, /*3,2*/ 5, /*3,3*/ 255
+    };
+    if (a > 3 || b > 3) return uchar(-1);
+    return lookup[static_cast<uchar>(a * 4 + b)];
+}
+inline uchar find_face_elem(uchar a, uchar b, uchar c){
+    // Face opposite to the missing vertex among {0,1,2,3}:
+    // opp 3 → {0,1,2}=0, opp 0 → {1,2,3}=1, opp 1 → {0,2,3}=2, opp 2 → {0,1,3}=3.
+    if (a > 3 || b > 3 || c > 3) return uchar(-1);
+    if (a == b || a == c || b == c) return uchar(-1);
+    const uchar missing = static_cast<uchar>(6 - a - b - c); // 0+1+2+3 = 6
+    const static uchar lookup[4] = {1, 2, 3, 0};
+    return lookup[missing];
+}
+inline SymmetryTypeKey symmetry_type_key(const LocalOrder& lo){
+    SymmetryTypeKey key;
+    if (lo.etype == NODE || lo.etype == CELL){
+        key.etype = lo.etype;
+        key.oriented = false;
+    } else if (lo.etype == EDGE_UNORIENT || lo.etype == EDGE_ORIENT){
+        key.etype = EDGE;
+        key.oriented = (lo.etype == EDGE_ORIENT);
+    } else if (lo.etype == FACE_UNORIENT || lo.etype == FACE_ORIENT){
+        key.etype = FACE;
+        key.oriented = (lo.etype == FACE_ORIENT);
+    } else {
+        key.etype = lo.etype;
+    }
+    return key;
+}
+inline bool same_geom_sym(const LocalOrder& a, const LocalOrder& b){
+    return a.etype == b.etype && a.nelem == b.nelem && a.stype == b.stype && a.lsid == b.lsid;
+}
+inline LocalOrder remap_local_order(const LocalOrder& lo, const uchar sigma[4]){
+    LocalOrder r = lo;
+    auto dim = GeomTypeDim(lo.etype);
+    if (dim == 0){
+        r.nelem = sigma[lo.nelem];
+    } else if (dim == 1){
+        uchar a = edge_vertex(lo.nelem, 0), b = edge_vertex(lo.nelem, 1);
+        r.nelem = find_edge_elem(sigma[a], sigma[b]);
+    } else if (dim == 2){
+        uchar a = face_vertex(lo.nelem, 0), b = face_vertex(lo.nelem, 1), c = face_vertex(lo.nelem, 2);
+        r.nelem = find_face_elem(sigma[a], sigma[b], sigma[c]);
+    }
+    if (r.stype != uchar(-1))
+        r.lsid = DofSymmetries::index_on_reorderd_elem(lo.etype, lo.nelem, lo.stype, lo.lsid, sigma);
+    r.gid = uint(-1);
+    r.leid = uint(-1);
+    return r;
+}
+inline int find_tet_dof(const BaseDofMap& map, const LocalOrder& target){
+    const int n = static_cast<int>(map.NumDofOnTet());
+    for (int j = 0; j < n; ++j){
+        auto lo = map.LocalOrderOnTet(TetOrder(j));
+        if (same_geom_sym(lo, target)) return j;
+    }
+    return -1;
+}
+inline void build_dof_permutation(const BaseDofMap& map, const uchar sigma[4], double* P, int n){
+    std::fill(P, P + n*n, 0.0);
+    for (int j = 0; j < n; ++j){
+        auto lo = map.LocalOrderOnTet(TetOrder(j));
+        auto lo_new = remap_local_order(lo, sigma);
+        int new_j = find_tet_dof(map, lo_new);
+        if (new_j < 0) continue;
+        double s = 1.0;
+        if (lo.etype == EDGE_ORIENT){
+            uchar a = edge_vertex(lo.nelem, 0), b = edge_vertex(lo.nelem, 1);
+            s = (sigma[a] < sigma[b]) ? 1.0 : -1.0;
+        } else if (lo.etype == FACE_ORIENT){
+            // Sign of induced orientation vs canonical face order.
+            uchar a = face_vertex(lo.nelem, 0), b = face_vertex(lo.nelem, 1), c = face_vertex(lo.nelem, 2);
+            uchar img[3] = {sigma[a], sigma[b], sigma[c]};
+            // Count inversions relative to sorted order of the three image vertices.
+            int inv = 0;
+            for (int i = 0; i < 3; ++i)
+                for (int k = i + 1; k < 3; ++k)
+                    if (img[i] > img[k]) ++inv;
+            s = (inv % 2 == 0) ? 1.0 : -1.0;
+        }
+        P[new_j + j * n] = s;
+    }
+}
+inline int stabilizer_character(const uchar g[4], const LocalOrder& repr){
+    auto dim = GeomTypeDim(repr.etype);
+    if (dim == 1 && repr.etype == EDGE_ORIENT){
+        uchar a = edge_vertex(repr.nelem, 0), b = edge_vertex(repr.nelem, 1);
+        return (g[a] == b && g[b] == a) ? -1 : 1;
+    }
+    if (dim == 2 && repr.etype == FACE_ORIENT){
+        uchar a = face_vertex(repr.nelem, 0), b = face_vertex(repr.nelem, 1), c = face_vertex(repr.nelem, 2);
+        uchar img[3] = {g[a], g[b], g[c]};
+        auto rank3 = [&](uchar x){ return (x==a)?0:((x==b)?1:2); };
+        int inv = 0;
+        for (int i = 0; i < 3; ++i)
+            for (int j = i+1; j < 3; ++j)
+                if (rank3(img[i]) > rank3(img[j])) ++inv;
+        return (inv % 2 == 0) ? 1 : -1;
+    }
+    return 1;
+}
+inline StabilizerData stabilizer_data(const LocalOrder& repr){
+    StabilizerData sd;
+    auto dim = GeomTypeDim(repr.etype);
+    if (dim == 0){
+        uchar v = repr.nelem;
+        std::array<uchar, 4> others;
+        int no = 0;
+        for (uchar x = 0; x < 4; ++x) if (x != v) others[no++] = x;
+        if (no >= 2){
+            auto make_swap = [](uchar fix, uchar i, uchar j){
+                std::array<uchar, 4> p = {0, 1, 2, 3};
+                std::swap(p[i], p[j]);
+                (void)fix;
+                return p;
+            };
+            sd.generators.push_back(make_swap(v, others[0], others[1]));
+            if (no == 3) sd.generators.push_back(make_swap(v, others[1], others[2]));
+        }
+    } else if (dim == 1){
+        uchar a = edge_vertex(repr.nelem, 0), b = edge_vertex(repr.nelem, 1);
+        std::array<uchar, 4> p = {0, 1, 2, 3};
+        std::swap(p[a], p[b]);
+        sd.generators.push_back(p);
+        std::array<uchar, 4> others;
+        int no = 0;
+        for (uchar x = 0; x < 4; ++x) if (x != a && x != b) others[no++] = x;
+        if (no == 2){
+            p = {0, 1, 2, 3};
+            std::swap(p[others[0]], p[others[1]]);
+            sd.generators.push_back(p);
+        }
+    } else if (dim == 2){
+        uchar a = face_vertex(repr.nelem, 0), b = face_vertex(repr.nelem, 1), c = face_vertex(repr.nelem, 2);
+        auto swap2 = [](uchar x, uchar y){
+            std::array<uchar, 4> p = {0, 1, 2, 3};
+            std::swap(p[x], p[y]);
+            return p;
+        };
+        sd.generators.push_back(swap2(a, b));
+        sd.generators.push_back(swap2(b, c));
+    } else {
+        sd.generators.push_back({1, 0, 2, 3});
+        sd.generators.push_back({0, 2, 1, 3});
+    }
+    return sd;
+}
+inline std::array<uchar, 4> perm_vertex_to_repr(const LocalOrder& repr, const LocalOrder& target){
+    auto dim = GeomTypeDim(repr.etype);
+    std::array<uchar, 4> sigma = {0, 1, 2, 3};
+    if (dim == 0){
+        uchar v = target.nelem;
+        std::swap(sigma[0], sigma[v]);
+    } else if (dim == 1){
+        uchar a = edge_vertex(target.nelem, 0), b = edge_vertex(target.nelem, 1);
+        sigma[0] = a; sigma[1] = b;
+        uchar used[4] = {0,0,0,0};
+        used[a] = used[b] = 1;
+        int k = 2;
+        for (uchar x = 0; x < 4; ++x) if (!used[x]) sigma[k++] = x;
+    } else if (dim == 2){
+        uchar a = face_vertex(target.nelem, 0), b = face_vertex(target.nelem, 1), c = face_vertex(target.nelem, 2);
+        sigma[0] = a; sigma[1] = b; sigma[2] = c;
+        for (uchar x = 0; x < 4; ++x) if (x != a && x != b && x != c) sigma[3] = x;
+    }
+    return sigma;
+}
+inline void all_permutations(std::array<std::array<uchar, 4>, 24>& perms){
+    std::array<uchar, 4> p = {0, 1, 2, 3};
+    int idx = 0;
+    do { perms[idx++] = p; } while (std::next_permutation(p.begin(), p.end()) && idx < 24);
+}
+} // namespace S4
+
 namespace FemComDetails{
     template<bool isDofMapTDerivedFromBaseDofMap, typename DofMapT>
     struct VectorDofMapCImpl{};
