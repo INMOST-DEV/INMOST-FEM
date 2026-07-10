@@ -65,9 +65,10 @@ SegmentQuadFormula  segment_quadrature_formulas(    int order);
 |the lowest order Nedelec (edge) finite element| `FemFix<FEM_ND0>` | `ND0Space`|
 |the lowest order Raviart-Thomas (face) finite element| `FemFix<FEM_RT0>` | `RT0Space`|
 |the Crouzeix-Raviart finite element| `FemFix<FEM_CR1>` | `CR1Space` | 
-|Bubble subspace, 4-order cell-centred basis function, incomplete space| `FemFix<FEM_B4>` | `BubbleSpace` |
+|Bubble subspace, 2-order edge-centred basis functions, incomplete space| `FemFix<FEM_B2>` | `Bubble2Space` |
+|Bubble subspace, 4-order cell-centred basis function, incomplete space| `FemFix<FEM_B4>` | `Bubble4Space` (`BubbleSpace`) |
 
-Важно отметить, что `BubbleSpace` не является завершённым КЭ пространством а лишь содержит единственную базисную функцию $\phi = \lambda_1 \lambda_2 \lambda_3 \lambda_4$ и предоставляется для обогащения других пространств. 
+Важно отметить, что `Bubble2Space` и `Bubble4Space` не являются завершёнными КЭ пространствами: первое содержит на каждом ребре $e_{ij}$ одну пузырьковую функцию $\phi_{ij} = 4\lambda_i\lambda_j$, второе — единственную базисную функцию $\phi = 256\lambda_1\lambda_2\lambda_3\lambda_4$; оба предоставляются для обогащения других пространств. 
 
 |Операции над пространствами| compile-time пример | runtime пример |
 |--------------|:--------------:|:---------:|

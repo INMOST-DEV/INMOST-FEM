@@ -1526,7 +1526,7 @@ TEST(AniInterface, EnergyComplementSpaces){
             double s = 0;
             for (int j = 0; j < n1; ++j)
                 s += ec->m_basis_coefs[k * n1 + j] * ec->m_dual_coefs[k * n1 + j];
-                EXPECT_NEAR(s, 1.0, 1e-8) << "biorthogonality " << k;
+            EXPECT_NEAR(s, 1.0, 1e-8) << "biorthogonality " << k;
         }
 
         // Span S4-invariance: P1(σ) maps span(Psi) into itself.

@@ -124,7 +124,8 @@ namespace Ani{
         }
     };
 
-    using BubbleSpace = GenSpace<Bubble, FEM_B4>;
+    using Bubble4Space = GenSpace<Bubble, FEM_B4>;
+    using BubbleSpace = Bubble4Space;
 };
 
 #endif //CARNUM_FEM_ANIINTERFACE_SPACES_BUBBLE_4_H

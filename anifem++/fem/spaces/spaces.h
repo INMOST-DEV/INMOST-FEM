@@ -9,4 +9,5 @@
 #include "raviant_thomas_0.h"
 #include "nedelec_0.h"
 #include "crouzeix_raviart_1.h"
+#include "bubble_2.h"
 #include "bubble_4.h"

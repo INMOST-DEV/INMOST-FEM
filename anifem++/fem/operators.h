@@ -30,7 +30,8 @@ namespace Ani{
         FEM_RT0 = 21, ///< lower order Raviart-Thomas finite elements
         FEM_ND0 = 25, ///< lower order Nedelec finite elements
         FEM_CR1 = 31, ///< Crouzeix-Raviart finite elements
-        FEM_B4 = 1001, ///< classical bubble function
+        FEM_B2 = 1002, ///< edge bubble functions, 4*lambda_i*lambda_j on each edge
+        FEM_B4 = 1004, ///< classical bubble function
     };
     ///Available linear differential operators
     enum OperatorType {
@@ -771,6 +772,21 @@ namespace Ani{
         static inline void at(int odf, const ScalarType  *nodes, ScalarType  *coord){
             for (int i = 0; i < 3; ++i)
                 coord[i] = (nodes[i + 3*((odf + 1) % 4)] + nodes[i + 3*((odf + 2) % 4)] + nodes[i + 3*((odf + 3) % 4)]) / 3;
+        }
+    };
+
+    template<>
+    struct DOF_coord<FemFix<FEM_B2>>{
+        template<typename ScalarType = double>
+        static inline void at(int odf, const ScalarType  *nodes, ScalarType *coord){
+            assert(odf >= 0 && odf < 6 && "FEM_B2 have only 6 odfs");
+            int i1 = 0, i2 = odf + 1;
+            if (odf > 2) {
+                i1 = 1 + (odf > 4);
+                i2 = 2 + (odf > 3);
+            }
+            for (int i = 0; i < 3; ++i)
+                coord[i] = (nodes[3 * i1 + i] + nodes[3 * i2 + i]) / 2;
         }
     };
 
