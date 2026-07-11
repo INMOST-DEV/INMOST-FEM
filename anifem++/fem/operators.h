@@ -203,7 +203,7 @@ namespace Ani{
         template<typename ScalarType, typename IndexType>
         struct MemoryRequirements<std::tuple_size<typename FemCom<Types...>::Base>::value, ScalarType, IndexType> {
             inline static void
-            Impl(int f, int q, std::size_t &Usz, std::size_t &extraR, std::size_t &extraI) {}
+            Impl(int f, int q, std::size_t &Usz, std::size_t &extraR, std::size_t &extraI) { (void) f; (void) q; (void) Usz; (void) extraR; (void) extraI; }
         };
 
         template <std::size_t I, std::size_t N, std::size_t PART, std::size_t NPART, std::size_t DIMOFFSET, std::size_t NFAOFFSET, typename ScalarType, typename IndexType>
@@ -226,7 +226,7 @@ namespace Ani{
         };
         template <std::size_t N, std::size_t NPART, std::size_t DIMOFFSET, std::size_t NFAOFFSET, typename ScalarType, typename IndexType>
         struct Apply<N, N, NPART, NPART, DIMOFFSET, NFAOFFSET, ScalarType, IndexType>{
-            inline static void Impl(AniMemory<ScalarType, IndexType> &mem, ArrayView<ScalarType> &U, BandDenseMatrix<NPART, ScalarType, IndexType>& res){}
+            inline static void Impl(AniMemory<ScalarType, IndexType> &mem, ArrayView<ScalarType> &U, BandDenseMatrix<NPART, ScalarType, IndexType>& res){ (void) mem; (void) U; (void) res; }
         };
     public:
         using Nfa = std::integral_constant<int, FemComDetails::NfaCounter<0, OPERATOR, Types...>::value>;
@@ -549,7 +549,7 @@ namespace Ani{
             Dof<FemFix<OP>>::template interpolate<FUSION>(XYZ, 
                 [&f, nvar](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
                     assert(dim == LDIM*FUSION && "Wrong expected dimension"); (void) dim;
-                    std::array<double, LDIM*DIM*FUSION> mem;
+                    std::array<double, LDIM*DIM*FUSION> mem = {0};
                     f(X, mem.data(), LDIM*DIM*FUSION, user_data);
                     for (uint i = 0; i < FUSION; ++i)
                         std::copy(mem.data() + nvar*LDIM + LDIM*DIM*i, mem.data() + (nvar+1)*LDIM + LDIM*DIM*i, res + i*LDIM);
@@ -577,8 +577,8 @@ namespace Ani{
                 new_udofs[r] = ArrayView<>(udofs[r].data + nvar*LNFA, LNFA);
             Dof<FEMTYPE>::template interpolate<FUSION>(XYZ, 
                 [&f, nvar](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
-                    assert(dim == LDIM*FUSION && "Wrong expected dimension");
-                    std::array<double, LDIM*DIM*FUSION> mem;
+                    assert(dim == LDIM*FUSION && "Wrong expected dimension"); (void) dim;
+                    std::array<double, LDIM*DIM*FUSION> mem = {0};
                     f(X, mem.data(), LDIM*DIM*FUSION, user_data);
                     for (uint i = 0; i < FUSION; ++i)
                         std::copy(mem.data() + nvar*LDIM + LDIM*DIM*i, mem.data() + (nvar+1)*LDIM + LDIM*DIM*i, res + i*LDIM);
@@ -607,8 +607,8 @@ namespace Ani{
                         ludofs[i] = ArrayView<>(udofs[i].data + NFA_SHIFT, udofs[i].size - NFA_SHIFT);
                     Dof<LocalVar>::template interpolate<FUSION>(XYZ, 
                         [&f](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
-                            assert(dim == LDIM*FUSION && "Wrong expected dimension");
-                            std::array<double, DIM*FUSION> mem;
+                            assert(dim == LDIM*FUSION && "Wrong expected dimension"); (void) dim;
+                            std::array<double, DIM*FUSION> mem = {0};
                             f(X, mem.data(), DIM*FUSION, user_data);
                             for (uint i = 0; i < FUSION; ++i)
                                 std::copy(mem.data() + DIM_SHIFT + DIM*i, mem.data() + DIM_SHIFT + DIM*i + LDIM, res + i*LDIM);
@@ -624,6 +624,7 @@ namespace Ani{
         struct Choose<N, N, DIM_SHIFT, NFA_SHIFT, FUSION, EvalFunc>{
             static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data, uint max_quad_order){
                 throw std::runtime_error("Reached unreaceable code");
+                (void) XYZ; (void) f; (void) udofs; (void) idof_on_tet; (void) user_data; (void) max_quad_order;
             }
         };
     public:
@@ -657,8 +658,8 @@ namespace Ani{
                         ludofs[i] = ArrayView<>(udofs[i].data + NFA_SHIFT, udofs[i].size - NFA_SHIFT);
                     Dof<LocalVar>::template interpolate<FUSION>(XYZ,
                         [&f](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
-                            assert(dim == LDIM*FUSION && "Wrong expected dimension");
-                            std::array<double, DIM*FUSION> mem;
+                            assert(dim == LDIM*FUSION && "Wrong expected dimension"); (void) dim;
+                            std::array<double, DIM*FUSION> mem = {0};
                             f(X, mem.data(), DIM*FUSION, user_data);
                             for (uint i = 0; i < FUSION; ++i)
                                 std::copy(mem.data() + DIM*i, mem.data() + DIM*i + LDIM, res + i*LDIM);
@@ -674,6 +675,7 @@ namespace Ani{
         struct Choose<N, N, NFA_SHIFT, FUSION, EvalFunc>{
             static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data, uint max_quad_order){
                 throw std::runtime_error("Reached unreaceable code");
+                (void) XYZ; (void) f; (void) udofs; (void) idof_on_tet; (void) user_data; (void) max_quad_order;
             }
         };
     public:

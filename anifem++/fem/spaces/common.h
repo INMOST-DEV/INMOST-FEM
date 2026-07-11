@@ -7,6 +7,7 @@
 
 #include "anifem++/fem/operators.h"
 #include "anifem++/fem/fem_space.h"
+#include "anifem++/fem/complement_fem_space.h"
 #include "anifem++/fem/quadrature_formulas.h"
 #include <map>
 #include <string>

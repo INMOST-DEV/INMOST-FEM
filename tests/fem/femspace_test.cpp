@@ -524,12 +524,12 @@ TEST(AniInterface, FemSpace){
                 unit[row] = 1.0;
 
                 auto f_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 1);
+                    (void) user_data; assert(dim == 1); (void) dim;
                     res[0] = eval_with_coef(IDEN, V10, unit, pt)[0];
                     return 0;
                 };
                 auto df_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 3);
+                    (void) user_data; assert(dim == 3); (void) dim;
                     auto g = eval_with_coef(GRAD, V10, unit, pt);
                     std::copy(g.begin(), g.end(), res);
                     return 0;
@@ -567,12 +567,12 @@ TEST(AniInterface, FemSpace){
                 unit[row] = 1.0;
 
                 auto f_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 1);
+                    (void) user_data; assert(dim == 1); (void) dim;
                     res[0] = eval_with_coef(IDEN, VE, unit, pt)[0];
                     return 0;
                 };
                 auto df_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 3);
+                    (void) user_data; assert(dim == 3); (void) dim;
                     auto g = eval_with_coef(GRAD, VE, unit, pt);
                     std::copy(g.begin(), g.end(), res);
                     return 0;
@@ -609,13 +609,13 @@ TEST(AniInterface, FemSpace){
                 unit_vec[n10 + row01] = 1.0;
                 unit_vec[2 * n10 + row01] = 1.0;
                 auto f_vec_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 3);
+                    (void) user_data; assert(dim == 3); (void) dim;
                     auto v = eval_with_coef(IDEN, P2P1_vec, unit_vec, pt);
                     std::copy(v.begin(), v.end(), res);
                     return 0;
                 };
                 auto df_vec_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 9);
+                    (void) user_data; assert(dim == 9); (void) dim;
                     auto g = eval_with_coef(GRAD, P2P1_vec, unit_vec, pt);
                     std::copy(g.begin(), g.end(), res);
                     return 0;
@@ -643,13 +643,13 @@ TEST(AniInterface, FemSpace){
                 unit_vec[n10 + row01] = 1.0;
                 unit_vec[2 * n10 + row01] = 1.0;
                 auto f_vec_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 3);
+                    (void) user_data; assert(dim == 3); (void) dim;
                     auto v = eval_with_coef(IDEN, EP2P1_vec, unit_vec, pt);
                     std::copy(v.begin(), v.end(), res);
                     return 0;
                 };
                 auto df_vec_basis = [&](const std::array<double, 3>& pt, double* res, ulong dim, void* user_data)->int{
-                    (void) user_data; assert(dim == 9);
+                    (void) user_data; assert(dim == 9); (void) dim;
                     auto g = eval_with_coef(GRAD, EP2P1_vec, unit_vec, pt);
                     std::copy(g.begin(), g.end(), res);
                     return 0;

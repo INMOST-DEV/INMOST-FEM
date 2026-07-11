@@ -149,6 +149,7 @@ void build_mass_matrix(const BaseFemSpace& V1, uint nquad, const double* xyl, co
         }
 }
 
+#ifndef NDEBUG
 void build_cross_mass_matrix(const BaseFemSpace& V0, const BaseFemSpace& V1,
                              uint nquad, const double* xyl, const double* wg,
                              AniMemoryX<>& mem_v0, AniMemoryX<>& mem_v1,
@@ -192,6 +193,7 @@ bool is_V0_subspace_of_V1(const double* C, const double* M1, const double* M01,
     const double rank_tol = std::max(tol, tol * std::max(1.0, smax));
     return svd_rank_t(s.data(), k, rank_tol) == n0;
 }
+#endif
 
 struct BasisFunctorData {
     const BaseFemSpace* space;
