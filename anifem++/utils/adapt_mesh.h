@@ -7,7 +7,7 @@
 /**
  * Parameters for metric construction from a scalar FEM field.
  *
- * Typical input is an a-posteriori edge-bubble / energy-complement error estimator,
+ * Typical input is an a-posteriori edge-bubble error estimator,
  * or a P2+ solution when distrib_heuristics is false.
  *
  * Output metric on nodes is stored as a symmetric 3x3 tensor in Voigt order

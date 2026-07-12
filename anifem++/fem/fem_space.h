@@ -83,7 +83,6 @@ namespace Ani{
             VectorType = 2, ///< form vector-variable from space for element, perform cartesian power operation, e.g. FEM_P1^3
             ComplexType = 3,///< form vector-variable from vector of spaces for elements, perform cartesian multiplication of spaces, e.g. FEM_P2 x FEM_P1
             NoType = 4,
-            ComplementType = 5, ///< orthogonal complement of V0 in V1 (L2 or energy; see ComplementFemSpace::m_orth)
         };
         
         DofMap m_order;
@@ -583,14 +582,11 @@ namespace Ani{
         friend FemSpace operator*(const FemSpace& a, const FemSpace& b);
         /// @brief Create VectorSpace(k, a), a^k
         friend FemSpace operator^(const FemSpace& a, int k);
-        /// @brief Create ComplementSpace(V1, V0), V1 - V0
-        friend FemSpace operator-(const FemSpace& V1, const FemSpace& V0);
     };
 
     FemSpace operator+(const FemSpace& a, const FemSpace& b);
     FemSpace operator*(const FemSpace& a, const FemSpace& b);
     FemSpace operator^(const FemSpace& a, int k);
-    FemSpace operator-(const FemSpace& V1, const FemSpace& V0);
 
     inline static FemSpace make_union_raw(const std::vector<FemSpace>& spaces);
     inline static FemSpace make_union_with_simplification(const std::vector<FemSpace>& spaces);
