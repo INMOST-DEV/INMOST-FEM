@@ -1,5 +1,5 @@
-set(FEM_UTILS_SOURCES mesh_utils.cpp utils.cpp)
-set(FEM_UTILS_HEADERS mesh_utils.h utils.h utils.inl)
+set(FEM_UTILS_SOURCES mesh_utils.cpp utils.cpp adapt_mesh.cpp)
+set(FEM_UTILS_HEADERS mesh_utils.h utils.h utils.inl adapt_mesh.h)
 
 add_library(Fem_utils ${FEM_UTILS_SOURCES} ${FEM_UTILS_HEADERS})
 target_link_libraries(Fem_utils PUBLIC Fem inmost)
