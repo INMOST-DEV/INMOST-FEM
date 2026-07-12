@@ -26,6 +26,18 @@ void print_linear_solver_status(INMOST::Solver& s, const std::string& prob_name 
 /// @return created tag
 INMOST::Tag createFemVarTag(INMOST::Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::string& tag_name = "var", bool use_fixed_size = true);
 
+/// @brief Compute action of op on cell-local dofs of the variable described by dmap / problem_tag at barycentric points XYL
+/// @param out result matrix Dim x N (column i = Op(u) at i-th point); must have size at least op.Dim()*N
+/// @param X physical coordinates of evaluation points (3xN); unused by the current implementation (fem3DapplyL uses XYL)
+void eval_op_var_by_barycentric_points(Ani::DenseMatrix<> out/*Dim x N*/, Ani::DynMem<>& mem, INMOST::Cell c, Ani::DenseMatrix<const double> XYL /*4xN*/, const Ani::ApplyOpBase& op, const Ani::DofT::BaseDofMap& dmap, INMOST::Tag problem_tag, const int* component = nullptr, unsigned int ncomp = 0);
+/// @brief Compute action of op on cell-local dofs of the variable described by dmap / problem_tag at point x_point
+/// @param out result array of size at least op.Dim();
+/// @param x_point physical coordinates of evaluation point
+/// @param op operator to apply
+/// @param dmap dof map of the variable
+/// @param problem_tag problem tag of the variable
+/// @param component component of the variable to evaluate
+/// @param ncomp number of components of the variable
 /// @brief Compute action op on cell-local dof's corresponding to the variable component relative discr and problem tag problem_tag
 /// @return result in out array
 /// @warning out must have size at least op.Dim()
@@ -38,10 +50,14 @@ std::array<double, N> eval_op_var_at_point(INMOST::Cell c, std::array<double, 3>
 template<std::size_t N, typename Traits>
 std::array<double, N> eval_op_var_at_point(INMOST::Cell c, std::array<double, 3> x_point, const Ani::ApplyOpBase& op, Ani::AssemblerT<Traits>& discr, INMOST::Tag problem_tag, std::initializer_list<int> components = {});
 
-/// @brief Compute approximate intergal of function over mesh domain.
+/// @brief Compute approximate integral of function over mesh domain.
 /// @return \sum_{cell \in mesh} |cell| * \sum_{q \in quad_formula} w_q * f(cell, X_q)
 template<int N = 1, typename FUNC>
 std::array<double, N> integrate_vector_func(INMOST::Mesh* m, const FUNC& f, uint order = 5);
+/// @brief Compute approximate integral of vector-valued function over mesh domain into out[0..dim).
+/// @details Evaluates func at quadrature points (barycentric XYL and physical X) on every owned cell and accumulates \sum |cell| w_q f_q.
+///          If built with WITH_OPENMP and nopar == false, the cell loop is parallelized.
+void integrate_vector_func(double* out, unsigned dim, INMOST::Mesh* m, const std::function<void(INMOST::Cell c, Ani::DenseMatrix<const double> XYL /*4xN*/, Ani::DenseMatrix<const double> X/*3xN*/, Ani::DenseMatrix<> out/*Dim x N*/, Ani::DynMem<>& mem)>& func, uint order = 5, bool nopar = false);
 
 /// @brief Compute approximate intergal of scalar field over mesh domain.
 template<typename FUNC>
@@ -49,6 +65,7 @@ double integrate_scalar_func(INMOST::Mesh* m, const FUNC& f, uint order = 5);
 
 /// @brief Compute l2-projection with quadrature order 'order' of vector-field func defined on mesh on FEM space fem with vector of d.o.f.'s in tag res_tag.
 /// @details Solve the problem \int_Omega f * v dX = \int_Omega f^h * v dX, f^h(X) = sum_i f_i * v_i(X)
+void make_l2_project(const std::function<void(INMOST::Cell c, Ani::DenseMatrix<const double> XYL /*4xN*/, Ani::DenseMatrix<const double> X/*3xN*/, Ani::DenseMatrix<> out/*Dim x N*/, Ani::DynMem<>& mem)>& func, INMOST::Mesh* m, INMOST::Tag res_tag, Ani::FemSpace fem, int order = 5);
 void make_l2_project(const std::function<void(INMOST::Cell c, std::array<double, 3> X, double* res)>& func, INMOST::Mesh* m, INMOST::Tag res_tag, Ani::FemSpace fem, int order = 5);
 /// @tparam FEMTYPE is type of FEM space of variable, e.g. FemVec<3, FEM_P2>
 template<typename FEMTYPE>

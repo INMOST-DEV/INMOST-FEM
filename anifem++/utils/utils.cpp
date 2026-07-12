@@ -1,6 +1,9 @@
 #include "utils.h"
 #include "anifem++/fem/spaces/spaces.h"
+#include "anifem++/fem/quadrature_formulas.h"
+#include "anifem++/fem/mutex_type.h"
 #include "anifem++/inmost_interface/fem.h"
+#include "anifem++/inmost_interface/ordering.h"
 
 using namespace INMOST;
 
@@ -120,24 +123,136 @@ Tag createFemVarTag(Mesh* m, const Ani::DofT::BaseDofMap& dofmap, const std::str
     return u;  
 }
 
-void make_l2_project(const std::function<void(Cell c, std::array<double, 3> X, double* res)>& func, Mesh* m, Tag res_tag, Ani::FemSpace fem, int order){
+void eval_op_var_by_barycentric_points(Ani::DenseMatrix<> out/*Dim x N*/, Ani::DynMem<>& mem, Cell c, Ani::DenseMatrix<const double> XYL /*4xN*/, const Ani::ApplyOpBase& op, const Ani::DofT::BaseDofMap& dmap, Tag problem_tag, const int* component, unsigned int ncomp){
+    using namespace Ani;
+    assert(XYL.nRow == 4 && "XYL must be 4xN barycentric coordinates");
+    assert(out.nRow >= op.Dim() && out.nCol >= XYL.nCol && "out must be at least Dim x N");
+    assert(out.size >= op.Dim() * XYL.nCol && "Not enough memory in out");
+
+    Mesh* m = c.GetMeshLink();
+    std::array<HandleType, 4> nds;
+    std::array<HandleType, 6> eds;
+    std::array<HandleType, 4> fcs;
+    const bool prep_ef = dmap.GetGeomMask() & (DofT::EDGE | DofT::FACE);
+    collectConnectivityInfo(c, nds.data(), eds.data(), fcs.data(), true, prep_ef);
+
+    std::array<unsigned char, 4> canonical_node_indexes{0, 1, 2, 3};
+    const bool comp_node_perm = dmap.GetGeomMask() & (DofT::EDGE_ORIENT | DofT::FACE_ORIENT);
+    if (comp_node_perm){
+        std::array<long, 4> gni;
+        for (int i = 0; i < 4; ++i)
+            gni[i] = Node(m, nds[i]).GlobalID();
+        canonical_node_indexes = createOrderPermutation(gni.data());
+    }
+
+    double XY[12]{};
+    for (int n = 0; n < 4; ++n)
+        for (int k = 0; k < 3; ++k)
+            XY[3*n + k] = Node(m, nds[n]).Coords()[k];
+    Tetra<const double> XYZ(XY+0, XY+3, XY+6, XY+9);
+
+    std::size_t nfa = op.Nfa();
+    auto dofs_mp = mem.alloc(nfa, 0, 0);
+    DenseMatrix<> dofs(dofs_mp.getPlainMemory().ddata, nfa, 1);
+    GatherDataOnElement(problem_tag, dmap, m, c.GetHandle(), fcs.data(), eds.data(), nds.data(), canonical_node_indexes.data(), dofs.data, component, ncomp);
+
+    ArrayView<> xyl(const_cast<double*>(XYL.data), XYL.nRow * XYL.nCol);
+    fem3DapplyL(XYZ, xyl, dofs, op, out, mem);
+}
+
+void integrate_vector_func(double* out, unsigned dim, Mesh* m, const std::function<void(Cell c, Ani::DenseMatrix<const double> XYL /*4xN*/, Ani::DenseMatrix<const double> X/*3xN*/, Ani::DenseMatrix<> fout/*Dim x N*/, Ani::DynMem<>& mem)>& func, uint order, bool nopar){
+    using namespace Ani;
+    assert(out != nullptr && dim > 0);
+    std::fill(out, out + dim, 0.0);
+
+    auto formula = tetrahedron_quadrature_formulas(static_cast<int>(order));
+    const unsigned q = static_cast<unsigned>(formula.GetNumPoints());
+    DenseMatrix<const double> XYL(formula.GetPointData(), 4, q);
+    const double* wg = formula.GetWeightData();
+
+#ifdef WITH_OPENMP
+    const int nthreads = nopar ? 1 : ThreadPar::get_num_threads<ThreadPar::Type::OMP>(-1);
+#else
+    (void) nopar;
+    const int nthreads = 1;
+#endif
+
+    std::vector<DynMem<>> pools(static_cast<std::size_t>(nthreads));
+    std::vector<std::vector<double>> local_res(static_cast<std::size_t>(nthreads), std::vector<double>(dim, 0.0));
+
+    auto cycle_body = [m, dim, q, &XYL, wg, &func, &pools, &local_res](Storage::integer lid, int nthread){
+        Cell cell = m->CellByLocalID(lid);
+        if (!cell.isValid() || cell.Hidden() || cell.GetStatus() == Element::Ghost)
+            return;
+
+        auto& mem = pools[static_cast<std::size_t>(nthread)];
+        auto& lres = local_res[static_cast<std::size_t>(nthread)];
+
+        auto const& hc = m->HighConn(cell.GetHandle());
+        double XY_nodes[12]{};
+        for (int n = 0; n < 4; ++n)
+            for (int k = 0; k < 3; ++k)
+                XY_nodes[3*n + k] = Node(m, hc[n]).Coords()[k];
+        {
+            auto work = mem.alloc(3*q + dim*q, 0, 0);
+            DenseMatrix<> X(work.m_mem.ddata, 3, q);
+            DenseMatrix<> F(work.m_mem.ddata + 3*q, dim, q);
+            for (unsigned n = 0; n < q; ++n)
+                for (int k = 0; k < 3; ++k){
+                    double xk = 0;
+                    for (int i = 0; i < 4; ++i)
+                        xk += XYL(i, n) * XY_nodes[3*i + k];
+                    X(k, n) = xk;
+                }
+
+            func(cell, XYL, DenseMatrix<const double>(const_cast<const double*>(X.data), 3, q), F, mem);
+
+            const double vol = cell.Volume();
+            for (unsigned n = 0; n < q; ++n){
+                const double wvol = wg[n] * vol;
+                for (unsigned d = 0; d < dim; ++d)
+                    lres[d] += wvol * F(d, n);
+            }
+        }
+        mem.defragment();
+    };
+
+#ifdef WITH_OPENMP
+    if (nthreads > 1)
+        ThreadPar::parallel_for<ThreadPar::Type::OMP>(nthreads, cycle_body, m->FirstLocalID(CELL), m->CellLastLocalID());
+    else
+#endif
+        ThreadPar::parallel_for<ThreadPar::Type::NONE>(1, cycle_body, m->FirstLocalID(CELL), m->CellLastLocalID());
+
+    for (int t = 0; t < nthreads; ++t)
+        for (unsigned d = 0; d < dim; ++d)
+            out[d] += local_res[static_cast<std::size_t>(t)][d];
+
+    m->Integrate(out, dim);
+}
+
+void make_l2_project(const std::function<void(Cell c, Ani::DenseMatrix<const double> XYL /*4xN*/, Ani::DenseMatrix<const double> X/*3xN*/, Ani::DenseMatrix<> out/*Dim x N*/, Ani::DynMem<>& mem)>& func, Mesh* m, Tag res_tag, Ani::FemSpace fem, int order){
     using namespace Ani;
     uint unf = fem.dofMap().NumDofOnTet();
+    struct LocData{
+        Ani::DynMem<>* mem = nullptr;
+        Cell c;
+    };
     auto data_gatherer = [](ElementalAssembler& p)->void{
         double *nn_p = p.get_nodes();
         const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
         
         p.compute(args, const_cast<Cell*>(p.cell));
     };
-    auto F_tensor = [func](const Coord<> &X, double *F, TensorDims dims, void *user_data, int iTet)->TensorType {
-        (void) dims; (void) iTet;
-        Cell& c = *static_cast<Cell*>(user_data);
-        func(c, X, F);
-
+    auto F_fuse_tensor = [func](ArrayView<> X, ArrayView<> D, TensorDims Ddims, void *user_data, const AniMemory<>& mem){
+        assert(mem.f == 1 && "Wrong number of tets");
+        assert(mem.XYL.size/4 == mem.q && X.size/3 == mem.q && "Wrong number of quadrature points");
+        LocData dat = *static_cast<LocData*>(user_data);
+        func(dat.c, DenseMatrix<const double>(const_cast<const double*>(mem.XYL.data), 4, mem.q), DenseMatrix<const double>(const_cast<const double*>(X.data), 3, mem.q), DenseMatrix<>(D.data, Ddims.first * Ddims.second, mem.q), *dat.mem);
         return Ani::TENSOR_GENERAL;
     };
     std::function<void(const double**, double*, double*, double*, long*, void*, DynMem<double, long>*)> local_assm = 
-        [fem, unf, order, F_tensor](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, long* iw, void* user_data, Ani::DynMem<double, long>* fem_alloc){
+        [fem, unf, order, F_fuse_tensor](const double** XY/*[4]*/, double* Adat, double* Fdat, double* w, long* iw, void* user_data, Ani::DynMem<double, long>* fem_alloc){
         (void) w, (void) iw;
         DenseMatrix<> A(Adat, unf, unf), F(Fdat, unf, 1);
         A.SetZero(); F.SetZero();
@@ -147,8 +262,10 @@ void make_l2_project(const std::function<void(Cell c, std::array<double, 3> X, d
         ApplyOpFromTemplate<IDEN, FemFix<FEM_P0>> iden_p0;
 
         fem3Dtet<DfuncTraits<TENSOR_NULL, true>>(XYZ, iden_u, iden_u, TensorNull<>, A, adapt_alloc, order); 
+        
+        LocData dat{&adapt_alloc, *static_cast<Cell*>(user_data)};
         // elemental right hand side vector <F, P1>
-        fem3Dtet<DfuncTraits<TENSOR_GENERAL, false>>( XYZ, iden_p0, iden_u, F_tensor, F, adapt_alloc, order, user_data);
+        fem3Dtet<DfuncTraitsFusive<>>( XYZ, iden_p0, iden_u, F_fuse_tensor, F, adapt_alloc, order, &dat );
     };
     //define assembler
     Assembler discr(m);
@@ -177,6 +294,17 @@ void make_l2_project(const std::function<void(Cell c, std::array<double, 3> X, d
     discr.SaveSolution(x, res_tag);
     solver.Clear();
     discr.Clear();
+}
+
+void make_l2_project(const std::function<void(Cell c, std::array<double, 3> X, double* res)>& func, Mesh* m, Tag res_tag, Ani::FemSpace fem, int order){
+    using namespace Ani;
+    auto fuse_func = [func](Cell c, DenseMatrix<const double> XYL /*4xN*/, DenseMatrix<const double> X/*3xN*/, DenseMatrix<> out/*Dim x N*/, Ani::DynMem<>& mem){
+        (void) XYL; (void) mem;
+        for (unsigned i = 0; i < X.nCol; ++i){
+            func(c, std::array<double, 3>{X(0, i), X(1, i), X(2, i)}, out.data + i*out.nRow);
+        }
+    };
+    return make_l2_project(fuse_func, m, res_tag, fem, order);
 }
 
 std::pair<Tag, bool> create_or_load_problem_tag(INMOST::Mesh *m, const Ani::DofT::BaseDofMap &dofmap, std::string var_name, bool load_if_exists){
