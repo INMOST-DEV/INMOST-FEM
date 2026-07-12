@@ -253,11 +253,12 @@ TEST(AniInterface, FemSpace){
 
         //compound femspace interpolate tests
         check_interpolation(MINI1, f, sp, {0, 2, 1, 2, 0}, false);
-        check_interpolation(MINI1, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 1.25}, false);
+        // Dynamic Union mixes functionals: bubble coeff of linear f is corrected to 0
+        check_interpolation(MINI1, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0}, false);
         check_interpolationT(Mini1T{}, f, sp, {0, 2, 1, 2, 0}, false);
-        check_interpolationT(Mini1T{}, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 1.25}, false);
-        check_interpolation(MINI2, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0, 0, 0, 1.5, 2, 1.5, 1.25}, false);
-        check_interpolationT(Mini2T{}, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0, 0, 0, 1.5, 2, 1.5, 1.25}, false);
+        check_interpolationT(Mini1T{}, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0}, false);
+        check_interpolation(MINI2, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0, 0, 0, 1.5, 2, 1.5, 0}, false);
+        check_interpolationT(Mini2T{}, f, DofT::TetGeomSparsity().setFace(1, true).setCell(), {0, 2, 1, 2, 0, 0, 0, 1.5, 2, 1.5, 0}, false);
         auto P123dofs = std::vector<double>{0,2,1,2, 0,2,5,5,0,0,0,3.25,3.25,4.5, 0,3,3,3,0,0,0,0,0,0,29./9,29./9,3,3,29./9,29./9,0,29./9,0,0 };
         check_interpolation(P1*P2*P3, f, sp, P123dofs, false);
         check_interpolationT(FemCom<FemFix<FEM_P1>, FemFix<FEM_P2>, FemFix<FEM_P3>>{}, f, sp, P123dofs, false);
@@ -1296,7 +1297,9 @@ TEST(AniInterface, ComplementSpaces){
         auto* comp = V10.target<ComplementFemSpace>();
         ASSERT_NE(comp, nullptr);
         ASSERT_EQ(comp->m_dof_tags.size(), 1u);
-        static const double psi_ref[5] = {-32.0 / 105.0, -32.0 / 105.0, -32.0 / 105.0, -32.0 / 105.0, 73.0 / 105.0};
+        // Reference L2-complement direction in unmixed MINI basis (P1 ⊕ Bubble).
+        // Same geometric mode as the former mixed-basis vector (-32/105,...,73/105).
+        static const double psi_ref[5] = {-32.0 / 105.0, -32.0 / 105.0, -32.0 / 105.0, -32.0 / 105.0, 1.0};
         auto mats = build_complement_matrices(MINI1, P1, 2 * MINI1.order() + 1);
         const double cos = std::abs(m1_parallel_cosine(comp->m_basis_coefs.data(), psi_ref, mats.M1.data(), mats.n1));
         EXPECT_NEAR(cos, 1.0, 1e-8);
