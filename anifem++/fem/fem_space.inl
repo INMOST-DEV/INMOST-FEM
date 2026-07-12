@@ -119,12 +119,12 @@ namespace Ani{
         OpMemoryRequirements mem_req;
         mem_req.mtx_parts = 0;
         for (auto& s: m_subsets){
-            auto lreq = (s.get()->*req)(nquadpoints, fusion, ts...);//s->memIDEN(nquadpoints, fusion);
+            auto lreq = (s.get()->*req)(nquadpoints, fusion, ts...);
             mem_req.extraRsz = std::max(mem_req.extraRsz, lreq.extraRsz + lreq.Usz); 
             mem_req.extraIsz = std::max(mem_req.extraIsz, lreq.extraIsz);
             mem_req.mtx_parts += lreq.mtx_parts; 
         }
-        mem_req.Usz += 2*gdim*nquadpoints*fusion*m_order.NumDofOnTet();
+        mem_req.Usz += gdim*nquadpoints*fusion*m_order.NumDofOnTet();
 
         return mem_req;
     }
@@ -134,9 +134,8 @@ namespace Ani{
         OpMemoryRequirements(Ani::BaseFemSpace::* req)(uint , uint, Targs...) const, Targs... ts) const {
         auto st_busy = mem.busy_mtx_parts;
         auto nfa = m_order.NumDofOnTet();
-        DenseMatrix<> llU(U.data, mem.q * gdim, mem.f*nfa);
-        DenseMatrix<> lU(U.data + mem.q * gdim * mem.f*nfa, mem.q * gdim, mem.f*nfa);
-        lU.SetZero(); llU.SetZero();
+        DenseMatrix<> lU(U.data, mem.q * gdim, mem.f*nfa);
+        lU.SetZero();
         int nfa_shift = 0; 
         for (uint v = 0; v < m_subsets.size(); ++v){
             OpMemoryRequirements lreq = (m_subsets[v].get()->*req)(mem.q, mem.f, ts...);
@@ -156,17 +155,11 @@ namespace Ani{
             mem.extraR.size += lreq.Usz;  
             nfa_shift += lnfa;
         }
-        for (std::size_t r = 0; r < mem.f; ++r)
-            for (uint i = 0; i < nfa; ++i)
-                for (uint j = 0; j < nfa; ++j) if (m_orth_coefs[j + nfa * i] != 0.0){
-                    for (unsigned k = 0; k < mem.q * gdim; ++k)
-                        llU(k, i + nfa*r) += m_orth_coefs[j + nfa * i]*lU(k, j + nfa*r);
-                }
 
         uint mtxishift = st_busy > 0 ? 1 : 0;
         BandDenseMatrixX<> bres(1, mem.MTX.data + st_busy, mem.MTXI_ROW.data + st_busy + mtxishift, mem.MTXI_COL.data + st_busy + mtxishift);
         mem.busy_mtx_parts = st_busy + 1;
-        bres.data[0] = llU;
+        bres.data[0] = lU;
         bres.stRow[0] = 0; bres.stRow[1] = gdim;
         bres.stCol[0] = 0; bres.stCol[1] = nfa;
         return bres;

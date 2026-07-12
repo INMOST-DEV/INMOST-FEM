@@ -287,12 +287,19 @@ namespace Ani{
 
         template<class T>
         struct UnionOrthCoefsStorageSingle {
-            static const std::array<double, 1>& get() {
-                static const std::array<double, 1> empty{{0.0}};
-                return empty;
+            static const int NF = Operator<IDEN, T>::Nfa::value;
+
+            static const std::array<double, static_cast<std::size_t>(NF) * static_cast<std::size_t>(NF)>& get() {
+                static const std::array<double, static_cast<std::size_t>(NF) * static_cast<std::size_t>(NF)> eye = []() {
+                    std::array<double, static_cast<std::size_t>(NF) * static_cast<std::size_t>(NF)> a{};
+                    for (int i = 0; i < NF; ++i)
+                        a[static_cast<std::size_t>(i) + static_cast<std::size_t>(NF) * static_cast<std::size_t>(i)] = 1.0;
+                    return a;
+                }();
+                return eye;
             }
             static DenseMatrix<const double> asMatrix() {
-                return DenseMatrix<const double>(nullptr, 0, 0);
+                return DenseMatrix<const double>(get().data(), NF, NF);
             }
         };
 
@@ -349,6 +356,23 @@ namespace Ani{
                     std::vector<int> imem(2 * NF);
                     fullPivLU_inverse(Bd.data(), A.data, NF, wmem.data(), imem.data());
                 }
+
+                {
+                    double max_err = 0.0, max_g = 0.0;
+                    for (int i = 0; i < NF; ++i)
+                    for (int k = 0; k < NF; ++k){
+                        double s = 0.0;
+                        for (int j = 0; j < NF; ++j)
+                            s += A(i, j) * B(j, k);
+                        double target = (i == k) ? 1.0 : 0.0;
+                        max_err = std::max(max_err, std::abs(s - target));
+                        max_g = std::max(max_g, std::abs(B(i, k)));
+                    }
+                    const double tol = 1e-8;
+                    if (max_err > tol * (1.0 + max_g))
+                        throw std::runtime_error("FemUnionT: input bases or interpolating functionals are linearly dependent (Gram matrix is singular)");
+                }
+
                 for (int i = 0; i < NF; ++i) {
                     auto p = std::max_element(A.data + i * NF, A.data + (i + 1) * NF,
                         [](double a, double b) { return std::abs(a) < std::abs(b); });
@@ -379,7 +403,7 @@ namespace Ani{
             static void Impl(int, int, std::size_t&, std::size_t&) {}
         };
 
-        template<std::size_t I, int OP, int GDIM, class... Types>
+        template<std::size_t I, int OP, int GDIM, int NF, class... Types>
         struct UnionApplySubset {
             template<typename ScalarType, typename IndexType>
             static int Impl(AniMemory<ScalarType, IndexType>& mem, DenseMatrix<ScalarType>& lU, int nfa_shift) {
@@ -399,16 +423,16 @@ namespace Ani{
                         for (int i = 0; i < nCol; ++i)
                             for (std::size_t n = 0; n < mem.q; ++n)
                                 for (int k = 0; k < nRow; ++k)
-                                    lU(k + Vx.stRow[p] + GDIM * static_cast<int>(n), nfa_shift + i + Vx.stCol[p] + LNFA * static_cast<int>(r))
+                                    lU(k + Vx.stRow[p] + GDIM * static_cast<int>(n), nfa_shift + i + Vx.stCol[p] + NF * static_cast<int>(r))
                                         = Vx.data[p](k + nRow * static_cast<int>(n), i + nCol * static_cast<int>(r));
                 }
                 mem.extraR.size += Usz;
-                return UnionApplySubset<I + 1, OP, GDIM, Types...>::template Impl<ScalarType, IndexType>(mem, lU, nfa_shift + LNFA);
+                return UnionApplySubset<I + 1, OP, GDIM, NF, Types...>::template Impl<ScalarType, IndexType>(mem, lU, nfa_shift + LNFA);
             }
         };
 
-        template<int OP, int GDIM, class... Types>
-        struct UnionApplySubset<sizeof...(Types), OP, GDIM, Types...> {
+        template<int OP, int GDIM, int NF, class... Types>
+        struct UnionApplySubset<sizeof...(Types), OP, GDIM, NF, Types...> {
             template<typename ScalarType, typename IndexType>
             static int Impl(AniMemory<ScalarType, IndexType>&, DenseMatrix<ScalarType>&, int nfa_shift) {
                 return nfa_shift;
@@ -430,24 +454,12 @@ namespace Ani{
                 const int NF = NfaCounter<0, OP, T1, T2, Rest...>::value;
                 const int GDIM = Operator<OP, T1>::Dim::value;
 
-                DenseMatrix<ScalarType> llU(udat.data, mem.q * GDIM, mem.f * NF, udat.size);
-                DenseMatrix<ScalarType> lU(udat.data + mem.q * GDIM * mem.f * NF, mem.q * GDIM, mem.f * NF, udat.size - mem.q * GDIM * mem.f * NF);
-                llU.SetZero();
+                DenseMatrix<ScalarType> lU(udat.data, mem.q * GDIM, mem.f * NF, udat.size);
                 lU.SetZero();
 
-                UnionApplySubset<0, OP, GDIM, T1, T2, Rest...>::template Impl<ScalarType, IndexType>(mem, lU, 0);
+                UnionApplySubset<0, OP, GDIM, NF, T1, T2, Rest...>::template Impl<ScalarType, IndexType>(mem, lU, 0);
 
-                const auto& orth = UnionOrthCoefsStorage<T1, T2, Rest...>::get();
-                for (std::size_t r = 0; r < mem.f; ++r)
-                    for (int i = 0; i < NF; ++i)
-                        for (int j = 0; j < NF; ++j)
-                            if (orth[static_cast<std::size_t>(j) + static_cast<std::size_t>(NF) * static_cast<std::size_t>(i)] != ScalarType(0))
-                                for (std::size_t k = 0; k < mem.q * static_cast<std::size_t>(GDIM); ++k)
-                                    llU(static_cast<int>(k), i + NF * static_cast<int>(r)) +=
-                                        orth[static_cast<std::size_t>(j) + static_cast<std::size_t>(NF) * static_cast<std::size_t>(i)] *
-                                        lU(static_cast<int>(k), j + NF * static_cast<int>(r));
-
-                return llU;
+                return lU;
             }
         };
 
@@ -467,7 +479,8 @@ namespace Ani{
                 return UnionOrthCoefsStorageSingle<T>::asMatrix();
             }
 
-            static const std::array<double, 1>& orthCoefs() {
+            static const std::array<double, static_cast<std::size_t>(Operator<IDEN, T>::Nfa::value)
+                * static_cast<std::size_t>(Operator<IDEN, T>::Nfa::value)>& orthCoefs() {
                 return UnionOrthCoefsStorageSingle<T>::get();
             }
         };
@@ -476,6 +489,7 @@ namespace Ani{
         struct FemUnionTImpl<true, T1, T2, Rest...> : public std::tuple<T1, T2, Rest...> {
             using Base = std::tuple<T1, T2, Rest...>;
 
+            /// Mixing matrix W = G^{-1} for union interpolating functionals (bases kept as-is).
             static DenseMatrix<const double> GetOrthBasisShiftMatrix() {
                 return UnionOrthCoefsStorage<T1, T2, Rest...>::asMatrix();
             }

@@ -384,10 +384,12 @@ namespace Ani{
         BandDenseMatrixX<> applyCURL(AniMemoryX<> &mem, ArrayView<> &U) const override;
         BandDenseMatrixX<> applyDUDX(AniMemoryX<> &mem, ArrayView<> &U, uchar k) const override;
 
+        /// @brief Mixing matrix W = G^{-1} for union interpolating functionals, G_ik = I_i^{raw}(phi_k).
+        /// Bases are kept as-is; new functionals are I^{new} = W I^{raw}.
         DenseMatrix<const double> GetOrthBasisShiftMatrix() const; 
     private:
-        std::vector<double> m_orth_coefs;
-        void orthogonalize(uint max_quad_order = 5);
+        std::vector<double> m_orth_coefs; ///< W = G^{-1} in col-major layout, size nf x nf
+        void setupInterpolation(uint max_quad_order = 5);
         void setup(); 
         template<typename ...Targs>
         OpMemoryRequirements memOP_internal(uint gdim, uint nquadpoints, uint fusion, OpMemoryRequirements(Ani::BaseFemSpace::* req)(uint , uint, Targs...) const, Targs... ts) const;

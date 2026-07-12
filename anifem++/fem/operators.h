@@ -103,6 +103,9 @@ namespace Ani{
         template<int OP, class... Types>
         struct UnionOperatorApply;
 
+        template<int MAX, class... Types>
+        struct MaxIdenNfaCounter;
+
         template<bool isFem, class... Types>
         struct FemUnionTImpl;
     }
@@ -268,7 +271,7 @@ namespace Ani{
         template<typename ScalarType, typename IndexType>
         inline static void memoryRequirements(int f, int q, std::size_t &Usz, std::size_t &extraR, std::size_t &extraI) {
             FemComDetails::UnionMemReq<0, OPERATOR, Types...>::template Impl<ScalarType, IndexType>(f, q, extraR, extraI);
-            Usz = 2 * Dim::value * q * f * Nfa::value;
+            Usz = Dim::value * q * f * Nfa::value;
         }
 
         template<typename ScalarType, typename IndexType>
@@ -646,16 +649,16 @@ namespace Ani{
     struct Dof<FemUnionT<Type...>>{
     private:
         template<int I, int N, int NFA_SHIFT, uint FUSION, typename EvalFunc>
-        struct Choose{
-            static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data, uint max_quad_order){
+        struct ApplyRaw {
+            static inline void interpolate_j(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION>& tmp_udofs, int j, void* user_data, uint max_quad_order, std::array<double, FUSION>& out){
                 using LocalVar = typename std::tuple_element<I, typename FemUnionT<Type...>::Base>::type;
                 constexpr auto DIM = Operator<IDEN, FemUnionT<Type...>>::Dim::value;
                 constexpr auto LNFA = Operator<IDEN, LocalVar>::Nfa::value;
                 constexpr auto LDIM = Operator<IDEN, LocalVar>::Dim::value;
-                if (idof_on_tet - NFA_SHIFT < LNFA){
-                    std::array<ArrayView<>, FUSION> ludofs;
-                    for (uint i = 0; i < FUSION; ++i)
-                        ludofs[i] = ArrayView<>(udofs[i].data + NFA_SHIFT, udofs[i].size - NFA_SHIFT);
+                if (j - NFA_SHIFT < LNFA){
+                    int ldof = j - NFA_SHIFT;
+                    for (uint r = 0; r < FUSION; ++r)
+                        std::fill(tmp_udofs[r].data, tmp_udofs[r].data + tmp_udofs[r].size, 0.0);
                     Dof<LocalVar>::template interpolate<FUSION>(XYZ,
                         [&f](const std::array<double, 3>& X, double* res, uint dim, void* user_data)->int{
                             assert(dim == LDIM*FUSION && "Wrong expected dimension"); (void) dim;
@@ -665,17 +668,19 @@ namespace Ani{
                                 std::copy(mem.data() + DIM*i, mem.data() + DIM*i + LDIM, res + i*LDIM);
                             return 0;
                         },
-                        ludofs, idof_on_tet - NFA_SHIFT, user_data, max_quad_order);
+                        tmp_udofs, ldof, user_data, max_quad_order);
+                    for (uint r = 0; r < FUSION; ++r)
+                        out[r] = tmp_udofs[r][ldof];
                 } else {
-                    Choose<I+1, N, NFA_SHIFT + LNFA, FUSION, EvalFunc>::interpolate(XYZ, f, udofs, idof_on_tet, user_data, max_quad_order);
+                    ApplyRaw<I+1, N, NFA_SHIFT + LNFA, FUSION, EvalFunc>::interpolate_j(XYZ, f, tmp_udofs, j, user_data, max_quad_order, out);
                 }
             }
         };
         template<int N, int NFA_SHIFT, uint FUSION, typename EvalFunc>
-        struct Choose<N, N, NFA_SHIFT, FUSION, EvalFunc>{
-            static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data, uint max_quad_order){
+        struct ApplyRaw<N, N, NFA_SHIFT, FUSION, EvalFunc>{
+            static inline void interpolate_j(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION>& tmp_udofs, int j, void* user_data, uint max_quad_order, std::array<double, FUSION>& out){
                 throw std::runtime_error("Reached unreaceable code");
-                (void) XYZ; (void) f; (void) udofs; (void) idof_on_tet; (void) user_data; (void) max_quad_order;
+                (void) XYZ; (void) f; (void) tmp_udofs; (void) j; (void) user_data; (void) max_quad_order; (void) out;
             }
         };
     public:
@@ -684,8 +689,27 @@ namespace Ani{
         }
         template<uint FUSION = 1, typename EvalFunc>
         static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, std::array<ArrayView<>, FUSION> udofs, int idof_on_tet, void* user_data = nullptr, uint max_quad_order = 5){
-            constexpr auto K = sizeof...(Type);
-            Choose<0, K, 0, FUSION, EvalFunc>::interpolate(XYZ, f, udofs, idof_on_tet, user_data, max_quad_order);
+            constexpr int NF = Operator<IDEN, FemUnionT<Type...>>::Nfa::value;
+            constexpr int MaxNfa = FemComDetails::MaxIdenNfaCounter<0, Type...>::value;
+            const auto& W = FemUnionT<Type...>::orthCoefs();
+            std::array<double, static_cast<std::size_t>(MaxNfa) * FUSION> temp_storage{};
+            std::array<ArrayView<>, FUSION> tmp_udofs;
+            for (uint r = 0; r < FUSION; ++r)
+                tmp_udofs[r] = ArrayView<>(temp_storage.data() + static_cast<std::size_t>(r) * MaxNfa, MaxNfa);
+
+            std::array<double, FUSION> acc{};
+            acc.fill(0.0);
+            for (int j = 0; j < NF; ++j){
+                double w = W[static_cast<std::size_t>(idof_on_tet) + static_cast<std::size_t>(NF) * static_cast<std::size_t>(j)];
+                if (w == 0.0)
+                    continue;
+                std::array<double, FUSION> raw{};
+                ApplyRaw<0, sizeof...(Type), 0, FUSION, EvalFunc>::interpolate_j(XYZ, f, tmp_udofs, j, user_data, max_quad_order, raw);
+                for (uint r = 0; r < FUSION; ++r)
+                    acc[r] += w * raw[r];
+            }
+            for (uint r = 0; r < FUSION; ++r)
+                udofs[r][idof_on_tet] = acc[r];
         }
         template<typename EvalFunc>
         static inline void interpolate(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<> udofs, int idof_on_tet, void* user_data = nullptr, uint max_quad_order = 5){
