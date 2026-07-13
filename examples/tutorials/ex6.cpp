@@ -48,10 +48,11 @@ int main(int argc, char* argv[]){
     uint unf = UFem.dofMap().NumDofOnTet();
     auto& dofmap = UFem.dofMap();
     // To reuse BC mask for error space we will set mask on all types of dirichlet elements
-    auto mask = NODE|EDGE|FACE; //GeomMaskToInmostElementType(UFem.dofMap().GetGeomMask()) | GeomMaskToInmostElementType(WFem.dofMap().GetGeomMask()); 
+    auto inmost_mask = NODE|EDGE|FACE; //GeomMaskToInmostElementType(UFem.dofMap().GetGeomMask()) | GeomMaskToInmostElementType(WFem.dofMap().GetGeomMask()); 
+    auto ani_mask = DofT::NODE|DofT::EDGE|DofT::FACE; // UFem.dofMap().GetGeomMask() | WFem.dofMap().GetGeomMask()
     // Set boundary labels
-    Tag BndLabel = m->CreateTag("bnd_label", DATA_INTEGER, mask, NONE, 1);
-    for (auto it = m->BeginElement(mask); it != m->EndElement(); ++it){
+    Tag BndLabel = m->CreateTag("bnd_label", DATA_INTEGER, inmost_mask, NONE, 1);
+    for (auto it = m->BeginElement(inmost_mask); it != m->EndElement(); ++it){
         std::array<double, 3> c;
         it->Centroid(c.data());
         int lbl = 0;
@@ -157,7 +158,7 @@ int main(int argc, char* argv[]){
         }
     };
     
-    auto local_data_gatherer_gen = [&BndLabel, geom_mask = mask](std::function<Ani::DynMem<double, long>::MemPart(ElementalAssembler& p, ProbLocData& data)> callback, ElementalAssembler& p)->void{
+    auto local_data_gatherer_gen = [&BndLabel, geom_mask = ani_mask](std::function<Ani::DynMem<double, long>::MemPart(ElementalAssembler& p, ProbLocData& data)> callback, ElementalAssembler& p)->void{
         double *nn_p = p.get_nodes();
         const double *args[] = {nn_p, nn_p + 3, nn_p + 6, nn_p + 9};
         ProbLocData data;
