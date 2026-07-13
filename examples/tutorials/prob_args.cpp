@@ -4,7 +4,7 @@
 using namespace INMOST;
 
 void InputArgs::printArgsDescr(std::ostream& out, const std::string& prefix){
-    out << prefix << "  -ac, --axis_cnt  IVAL[3] <Sets the number of segments of the cube [0; 1]^3 partition along every coordinate axes, default=" << axis_sizes << ">" << "\n"
+    out << prefix << "  -ac, --axis_cnt  IVAL    <Sets the number of segments of the cube [0; 1]^3 partition along every coordinate axes, default=" << axis_sizes << ">" << "\n"
         << prefix << "  -t , --target    PATH    <Directory to save results, default=\"" << save_dir  << "\">" << "\n"
         << prefix << "  -nm, --name      STR     <Prefix for saved results, default=\"" << save_prefix << "\">" << "\n"
         << prefix << "  -db, --lnslvdb   FILE    <Specify linear solver data base, default=\"" << lin_sol_db << "\">\n"

@@ -42,15 +42,18 @@ struct DynMemParallel{
     /// @warning Should be called only once by master thread
     std::pair<Int, Int> alloc_range(Int num_threads){
         std::lock_guard<MutexType> lock(m_mutex);
+        // Reuse [0, num_threads) only when every existing slot is unused; otherwise append
+        // a fresh contiguous range so live pools are never overwritten.
         bool reuse_mem = (m_unused.size() == m_mem.size());
-        Int lsz = reuse_mem ? static_cast<Int>(m_mem.size()) : 0;
-        Int st_sz = static_cast<Int>(m_mem.size()) - lsz;
-        m_mem.resize(st_sz+num_threads);
-        for (Int i = lsz; i < num_threads; ++i)
-            m_mem[i] = std::move(std::make_unique<DynMem<Real, Int>>());
+        Int st_sz = reuse_mem ? 0 : static_cast<Int>(m_mem.size());
+        m_mem.resize(static_cast<std::size_t>(st_sz + num_threads));
+        for (Int i = st_sz; i < st_sz + num_threads; ++i) {
+            if (!m_mem[static_cast<std::size_t>(i)])
+                m_mem[static_cast<std::size_t>(i)] = std::make_unique<DynMem<Real, Int>>();
+        }
         if (reuse_mem)
             m_unused.resize(0);
-        return {st_sz, st_sz+num_threads};    
+        return {st_sz, st_sz + num_threads};
     }
     ///Release memory for range of threads
     /// @param id_range include first index of internal allocated memory "id" and "id + num_threads"

@@ -295,7 +295,11 @@ namespace Ani{
             ulong dsize = dSize > 0 ? static_cast<ulong>(dSize) : 0U;
             ulong isize = iSize > 0 ? static_cast<ulong>(iSize) : 0U;
             if (isize == 0 && dsize == 0) return 0;
-            return dsize*sizeof(ScalarType) + isize*sizeof(IndexType) + std::max(alignof(IndexType), alignof(ScalarType));
+            // Worst-case padding before each typed block (std::align may skip up to alignof-1 bytes).
+            std::size_t bytes = 0;
+            if (dsize > 0) bytes += (alignof(ScalarType) - 1) + dsize * sizeof(ScalarType);
+            if (isize > 0) bytes += (alignof(IndexType) - 1) + isize * sizeof(IndexType);
+            return bytes;
         }
         bool ge(const PlainMemory<ScalarType, IndexType>& o) const { return dSize >= o.dSize && iSize >= o.iSize; }
         void extend_size(const PlainMemory<ScalarType, IndexType>& o) { dSize = std::max(o.dSize, dSize), iSize = std::max(o.iSize, iSize); }
@@ -318,7 +322,7 @@ namespace Ani{
             if (msize > 0){
                 void* st_mtx = matr_from_scalars ? reinterpret_cast<void*>(d_in + dsize) : reinterpret_cast<void*>(i_in + isize);
                 std::size_t remain = matr_from_scalars ? (d_sz - dsize)*sizeof(ScalarType) : (i_sz - isize)*sizeof(IndexType);
-                std::size_t algn = alignof(DenseMatrix<ScalarType>), msz = mSize*sizeof(DenseMatrix<ScalarType>);
+                std::size_t algn = alignof(DenseMatrix<ScalarType>), msz = msize*sizeof(DenseMatrix<ScalarType>);
                 st_mtx = std::align(algn, msz, st_mtx, remain);
                 if (st_mtx == nullptr)
                     return false;
@@ -352,7 +356,7 @@ namespace Ani{
             void* p = mem_in;
             ulong sz[3] = {msize, dsize, isize};
             static constexpr ulong szof[3] = {sizeof(DenseMatrix<ScalarType>), sizeof(ScalarType), sizeof(IndexType)};
-            void* mem_out[3]; //mdata, ddata, idata
+            void* mem_out[3]{nullptr, nullptr, nullptr}; //mdata, ddata, idata
             std::array<std::pair<unsigned char, ulong>, 3> szalign {std::pair<unsigned char, ulong>{0, alignof(DenseMatrix<ScalarType>)}, {1, alignof(ScalarType)}, {2, alignof(IndexType)}};
             std::sort(szalign.begin(), szalign.end(), [](const auto& a, const auto& b){ return a.second < b.second; });
             for (int j = 0; j < 3; ++j){
@@ -382,7 +386,12 @@ namespace Ani{
             ulong isize = iSize > 0 ? static_cast<ulong>(iSize) : 0U;
             ulong msize = mSize > 0 ? static_cast<ulong>(mSize) : 0U;
             if (isize == 0 && dsize == 0 && msize == 0) return 0;
-            return msize*sizeof(DenseMatrix<ScalarType>) + dsize*sizeof(ScalarType) + isize*sizeof(IndexType) + std::max({alignof(DenseMatrix<ScalarType>), alignof(ScalarType), alignof(IndexType)});
+            // Worst-case padding before each typed block (placement order may vary by alignment).
+            std::size_t bytes = 0;
+            if (msize > 0) bytes += (alignof(DenseMatrix<ScalarType>) - 1) + msize * sizeof(DenseMatrix<ScalarType>);
+            if (dsize > 0) bytes += (alignof(ScalarType) - 1) + dsize * sizeof(ScalarType);
+            if (isize > 0) bytes += (alignof(IndexType) - 1) + isize * sizeof(IndexType);
+            return bytes;
         }
         template<typename ScalarType1 = double, typename IndexType1 = int>
         bool ge(const PlainMemoryX<ScalarType1, IndexType1>& o) const { return dSize >= o.dSize && iSize >= o.iSize && mSize >= o.mSize; }

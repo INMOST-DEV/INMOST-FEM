@@ -456,7 +456,12 @@ namespace Ani{
             res.extend_size(lres);
         }
         res.dSize += vdim*ldim;
-        res.mSize += (sizeof(ArrayView<>)*vdim) / sizeof(DenseMatrix<>) + 1 + std::max(1UL, sizeof(ArrayView<>)/sizeof(DenseMatrix<>));
+        {
+            // Reserve mdata space for ArrayView[vdim] plus alignment padding before the remaining DenseMatrix region.
+            const std::size_t av_bytes = sizeof(ArrayView<>) * static_cast<std::size_t>(vdim);
+            const std::size_t pad = (alignof(ArrayView<>) - 1) + (alignof(DenseMatrix<>) - 1);
+            res.mSize += (av_bytes + pad + sizeof(DenseMatrix<>) - 1) / sizeof(DenseMatrix<>);
+        }
         return res; 
     }
     void VectorFemSpace::interpolateByDOFs(const Tetra<const double>& XYZ, const EvalFunc& f, ArrayView<> udofs, const TetGeomSparsity& sp, PlainMemoryX<> mem, void* user_data, uint max_quad_order) const{
@@ -465,15 +470,30 @@ namespace Ani{
         auto lnfa = m_base->m_order.NumDofOnTet();
         ArrayView<>* new_udofs = nullptr;
         {
-            void* storage = mem.mdata;
-            std::size_t remain = mem.mSize * sizeof(DenseMatrix<>);
-            void* p = std::align(alignof(ArrayView<>), sizeof(ArrayView<>)*vdim, storage, remain);
+            char* const storage_begin = reinterpret_cast<char*>(mem.mdata);
+            const std::size_t total_bytes = mem.mSize * sizeof(DenseMatrix<>);
+            char* const buffer_end = storage_begin + total_bytes;
+
+            void* storage = storage_begin;
+            std::size_t remain = total_bytes;
+            void* p = std::align(alignof(ArrayView<>), sizeof(ArrayView<>) * vdim, storage, remain);
             assert(p != nullptr && "Error arised while memory allocation");
-            std::size_t rem1 = remain + sizeof(DenseMatrix<>) - (static_cast<char*>(p) - static_cast<char*>(storage));
-            mem.mdata = static_cast<DenseMatrix<>*>(std::align(alignof(DenseMatrix<>), sizeof(DenseMatrix<>), p, rem1));
-            assert(mem.mdata != nullptr && "Error arised while matrix memory allocation");
-            mem.mSize -= mem.mdata - static_cast<DenseMatrix<>*>(storage);
             new_udofs = static_cast<ArrayView<>*>(p);
+
+            // Place remaining DenseMatrix workspace after the ArrayView array (no overlap).
+            void* after_views = static_cast<char*>(p) + sizeof(ArrayView<>) * vdim;
+            std::size_t remain_after = buffer_end > static_cast<char*>(after_views)
+                ? static_cast<std::size_t>(buffer_end - static_cast<char*>(after_views)) : 0;
+            void* mtx_storage = after_views;
+            if (remain_after >= sizeof(DenseMatrix<>)) {
+                mem.mdata = static_cast<DenseMatrix<>*>(
+                    std::align(alignof(DenseMatrix<>), sizeof(DenseMatrix<>), mtx_storage, remain_after));
+                assert(mem.mdata != nullptr && "Error arised while matrix memory allocation");
+                mem.mSize = (buffer_end - reinterpret_cast<char*>(mem.mdata)) / sizeof(DenseMatrix<>);
+            } else {
+                mem.mdata = nullptr;
+                mem.mSize = 0;
+            }
         }
         for (int i = 0; i < vdim; ++i)
             new_udofs[i] = ArrayView<>(udofs.data + i*lnfa, lnfa);

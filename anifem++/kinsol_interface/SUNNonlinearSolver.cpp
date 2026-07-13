@@ -114,6 +114,7 @@ N_Vector N_VNewEmpty_Inmost(SUN_TYPED_CTX(ctx)) {
 
 N_Vector N_VNew_Inmost(SUN_TYPED_CTX_COMMA(ctx) INMOST::Sparse::Vector *data) {
     N_Vector v = N_VNewEmpty_Inmost(SUN_CTX(ctx));
+    if (v == NULL) return NULL;
     auto content = static_cast<N_VectorContent_Inmost>(v->content);
 
     content->data = data;
@@ -124,6 +125,7 @@ N_Vector N_VNew_Inmost(SUN_TYPED_CTX_COMMA(ctx) INMOST::Sparse::Vector *data) {
 
 N_Vector N_VNew_Inmost(SUN_TYPED_CTX_COMMA(ctx) std::string name) {
     N_Vector v = N_VNewEmpty_Inmost(SUN_CTX(ctx));
+    if (v == NULL) return NULL;
     auto content = static_cast<N_VectorContent_Inmost>(v->content);
 
     content->data = new INMOST::Sparse::Vector(name);
@@ -649,6 +651,7 @@ SUNMatrix SUNMatNewEmpty_Inmost(SUN_TYPED_CTX(ctx)) {
 
 SUNMatrix SUNMatInmost(SUN_TYPED_CTX_COMMA(ctx) INMOST::Sparse::Matrix *data, int overlap) {
     SUNMatrix v = SUNMatNewEmpty_Inmost(SUN_CTX(ctx));
+    if (v == NULL) return NULL;
     auto content = static_cast<SUNMatrixContent_Inmost>(v->content);
 
     content->data = data;
@@ -660,6 +663,7 @@ SUNMatrix SUNMatInmost(SUN_TYPED_CTX_COMMA(ctx) INMOST::Sparse::Matrix *data, in
 
 SUNMatrix SUNMatInmost(SUN_TYPED_CTX_COMMA(ctx) std::string name) {
     SUNMatrix v = SUNMatNewEmpty_Inmost(SUN_CTX(ctx));
+    if (v == NULL) return NULL;
     auto content = static_cast<SUNMatrixContent_Inmost>(v->content);
 
     content->data = new INMOST::Sparse::Matrix(name);
@@ -832,6 +836,7 @@ SUNLinearSolver SUNLinSolNewEmpty_Inmost(SUN_TYPED_CTX(ctx)) {
 
 SUNLinearSolver SUNLinSolInmost(SUN_TYPED_CTX_COMMA(ctx) INMOST::Solver *data) {
     SUNLinearSolver S = SUNLinSolNewEmpty_Inmost(SUN_CTX(ctx));
+    if (S == NULL) return NULL;
     auto content = LS_CONTENT_P(S);
 
     content->data = data;

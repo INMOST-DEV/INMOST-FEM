@@ -29,7 +29,7 @@ struct arr_range_func{
     std::array<GInt, N> ranges;
     arr_range_func() = default;
     arr_range_func(std::array<GInt, N> ranges): ranges{std::move(ranges)} {}
-    void set(std::array<GInt, N> ranges) { ranges = std::move(ranges); }
+    void set(std::array<GInt, N> _ranges) { ranges = std::move(_ranges); }
     GInt operator()(UInt v) const { return ranges[v]; }
 };
 /// Construct lexicographical enumerator for set B of (N+1)-dimensional arrays: { b[0], b[1], ..., b[N] },

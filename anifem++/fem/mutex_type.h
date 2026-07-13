@@ -43,10 +43,16 @@ namespace ThreadPar{
     struct mutex<Type::OMP>{
         constexpr static Type parallel_type = Type::OMP;
 
-        mutex() noexcept {  omp_init_lock(&m_lock); }
+        mutex() noexcept { omp_init_lock(&m_lock); }
+        ~mutex() { omp_destroy_lock(&m_lock); }
+        mutex(const mutex&) = delete;
+        mutex& operator=(const mutex&) = delete;
+        mutex(mutex&&) = delete;
+        mutex& operator=(mutex&&) = delete;
+
         void lock() { omp_set_lock(&m_lock); }
         bool try_lock() { return omp_test_lock(&m_lock); }
-        void unlock() { return omp_unset_lock(&m_lock); }
+        void unlock() { omp_unset_lock(&m_lock); }
 
         omp_lock_t m_lock;
     };
