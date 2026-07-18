@@ -865,6 +865,31 @@ namespace FemComDetails{
         applyDirMatrix(trial_map, test_map, A, sp);
         applyDirResidual(test_map, F, sp);
     }
+
+    template<typename Scalar>
+    inline void applyDirNonExists(const DofT::BaseDofMap& trial_map, DenseMatrix <Scalar>& A, DenseMatrix <Scalar>& F, const DofT::TetGeomSparsity& sp) {
+        for (auto it = trial_map.beginBySparsity(sp); it != trial_map.endBySparsity(); ++it)
+            applyDirNonExists(A, F, it->gid);
+    }
+    template<typename Scalar>
+    inline void applyDirNonExists(const DofT::BaseDofMap& trial_map, const DofT::BaseDofMap& test_map, DenseMatrix <Scalar>& A, const DofT::TetGeomSparsity& sp){
+        if (trial_map == test_map){
+            for (auto it = trial_map.beginBySparsity(sp); it != trial_map.endBySparsity(); ++it)
+                applyDirNonExists(A, it->gid);
+            return;
+        }
+        for (auto jt = trial_map.beginBySparsity(sp, true), it = test_map.beginBySparsity(sp, true); jt != trial_map.endBySparsity() && it != test_map.endBySparsity(); ++it, ++jt){
+            uint i = it->gid, j = jt->gid;
+            std::fill(A.data + j * A.nRow, A.data + (j+1) * A.nRow, 0);
+            for (int l = 0; l < A.nRow; ++l) A(i, l) = 0;
+        }
+    }
+    template<typename Scalar>
+    inline void applyDirNonExists(const DofT::BaseDofMap& trial_map, const DofT::BaseDofMap& test_map, DenseMatrix <Scalar>& A, DenseMatrix <Scalar>& F, const DofT::TetGeomSparsity& sp){
+        applyDirNonExists(trial_map, test_map, A, sp);
+        applyDirResidual(test_map, F, sp);
+    }
+
     template<typename Scalar>
     inline void applyConstantDirByDofs(const DofT::BaseDofMap& trial_map, DenseMatrix<Scalar>& A, DenseMatrix <Scalar>& F, const DofT::TetGeomSparsity& sp, Scalar bc){
         for (auto it = trial_map.beginBySparsity(sp); it != trial_map.endBySparsity(); ++it){

@@ -737,6 +737,18 @@ namespace Ani{
     /// @see applyDirMatrix, applyDirResidual
     template<typename Scalar>
     inline void applyDirResidual(const DofT::BaseDofMap& trial_map, const DofT::BaseDofMap& test_map, DenseMatrix <Scalar>& A, DenseMatrix <Scalar>& F, const DofT::TetGeomSparsity& sp);
+    
+    /// @brief Set zeros to position of residual and jacobian corresponding to Dirichlet condition
+    /// @see applyDirMatrix, applyDirResidual
+    template<typename Scalar>
+    inline void applyDirNonExists(const DofT::BaseDofMap& trial_map, DenseMatrix <Scalar>& A, DenseMatrix <Scalar>& F, const DofT::TetGeomSparsity& sp);
+    /// @brief Set zeros to position of residual and jacobian corresponding to Dirichlet condition
+    /// @see applyDirMatrix, applyDirResidual
+    template<typename Scalar>
+    inline void applyDirNonExists(const DofT::BaseDofMap& trial_map, const DofT::BaseDofMap& test_map, DenseMatrix <Scalar>& A, const DofT::TetGeomSparsity& sp);
+    template<typename Scalar>
+    inline void applyDirNonExists(const DofT::BaseDofMap& trial_map, const DofT::BaseDofMap& test_map, DenseMatrix <Scalar>& A, DenseMatrix <Scalar>& F, const DofT::TetGeomSparsity& sp);
+    
     /// @brief Applies the constant Dirichlet condition var = bc * I, where dim(u) = dim(I) and I is vector of units (1, 1, ..., 1)
     /// @see applyDirMatrix, applyDirResidual
     template<typename Scalar>
