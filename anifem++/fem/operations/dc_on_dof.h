@@ -13,7 +13,7 @@ namespace Ani{
     template<typename Scalar>
     inline void applyDirNonExists(DenseMatrix <Scalar>& A, int k){
         std::fill(A.data + k * A.nRow, A.data + (k+1) * A.nRow, 0);
-        for (std::size_t i = 0; i < A.nRow; ++i) A(k, i) = 0;
+        for (std::size_t i = 0; i < A.nCol; ++i) A(k, i) = 0;
     }
     ///@see applyDir
     template<typename Scalar>
@@ -26,7 +26,7 @@ namespace Ani{
     template<typename Scalar>
     inline void applyDirMatrix(DenseMatrix <Scalar>& A, int k){
         std::fill(A.data + k * A.nRow, A.data + (k+1) * A.nRow, 0);
-        for (std::size_t i = 0; i < A.nRow; ++i) A(k, i) = 0;
+        for (std::size_t i = 0; i < A.nCol; ++i) A(k, i) = 0;
         A(k, k) = 1.0;
     }
 
