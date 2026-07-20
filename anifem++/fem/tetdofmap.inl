@@ -79,7 +79,7 @@ inline uchar DofSymmetries::GetSymMask_by_geom_num(uchar geom_num) const{
     if (!isInited()) return MASK_UNDEF;
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
     uchar mask = 0;
-    for (int i = 0, cnt = offs[geom_num + 1] - offs[geom_num]; i < cnt; ++i) if (m_sym[offs[geom_num] + i] > 0) 
+    for (uint i = 0, cnt = offs[geom_num + 1] - offs[geom_num]; i < cnt; ++i) if (m_sym[offs[geom_num] + i] > 0) 
         mask |= (1 << i); 
     return mask;    
 }
@@ -87,7 +87,7 @@ inline LocSymOrder DofSymmetries::GetLocSymOrder_by_geom_num(uchar geom_num, uin
     if (!isInited()) return LocSymOrder();
     const static uchar offs[7]{0, 1, 3, 5, 8, 11, 16};
     uint ndofs = 0;
-    int i = offs[geom_num];
+    uint i = offs[geom_num];
     uchar vol = 0;
     for (; i < offs[geom_num+1] && loc_elem_id >= ndofs; ++i) {
         vol = symmetry_volume_by_geom_num(geom_num, i - offs[geom_num]);
@@ -402,15 +402,15 @@ namespace FemComDetails{
     template<typename DofMapT>
     uint VectorDofMapCImpl<true, DofMapT>::TetDofID(LocGeomOrder dof_id) const{
         assert(isValidIndex(dof_id) && "Wrong dof number");
-        int nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDofOnTet(dof_id.etype);
-        int component = dof_id.leid / lOdf;
+        uint nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDofOnTet(dof_id.etype);
+        uint component = dof_id.leid / lOdf;
         return component * nOdf + m_base.TetDofID(LocGeomOrder(dof_id.etype, dof_id.nelem, dof_id.leid % lOdf));
     }
     template<typename DofMapT>
     std::pair<uint, LocSymOrder> VectorDofMapCImpl<true, DofMapT>::TetDofIDExt(LocGeomOrder dof_id) const {
         assert(isValidIndex(dof_id) && "Wrong dof number");
-        int nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDofOnTet(dof_id.etype);
-        int component = dof_id.leid / lOdf;
+        uint nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDofOnTet(dof_id.etype);
+        uint component = dof_id.leid / lOdf;
         auto id = m_base.TetDofIDExt(LocGeomOrder(dof_id.etype, dof_id.nelem, dof_id.leid % lOdf));
         return {component * nOdf + id.first, id.second};
     }
@@ -422,7 +422,7 @@ namespace FemComDetails{
             return;
         }
         auto dsz = m_base.NumDofs();
-        for (int i = 0; i < NGEOM_TYPES; ++i) view.m_shiftNumDof[i] += ext_dims[0]*dsz[i];
+        for (uint i = 0; i < NGEOM_TYPES; ++i) view.m_shiftNumDof[i] += ext_dims[0]*dsz[i];
         view.m_shiftOnTet += ext_dims[0]*m_base.NumDofOnTet();
         if (ndims == 1)
             view.set_base(&m_base);
@@ -449,7 +449,7 @@ namespace FemComDetails{
     template<typename DofMapT>
     void VectorDofMapCImpl<true, DofMapT>::IncrementByGeomSparsity(const TetGeomSparsity& sp, LocalOrder& lo, bool preferGeomOrdering) const{
         assert(isValidIndex(lo) && "Wrong index");
-        int nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDof(lo.etype);
+        uint nOdf = m_base.NumDofOnTet(), lOdf = m_base.NumDof(lo.etype);
         uint dim = lo.gid / nOdf;
         uint lcomp = lo.gid % nOdf; 
         LocalOrder ll, lend;
@@ -516,8 +516,8 @@ namespace FemComDetails{
                         return; 
                     }
                     ss = sp;
-                    for (int i = 0; i < next_pos.elem_dim; ++i) ss.unset(i);
-                    for (int i = 0; i < next_pos.elem_num; ++i) ss.unset(next_pos.elem_dim, i);
+                    for (uint i = 0; i < next_pos.elem_dim; ++i) ss.unset(i);
+                    for (uint i = 0; i < next_pos.elem_num; ++i) ss.unset(next_pos.elem_dim, i);
                     m_base.BeginByGeomSparsity(ss, ll, true);
                     if (ll != lend){
                         lOdf = m_base.NumDof(ll.etype);
@@ -649,7 +649,7 @@ namespace FemComDetails{
     template<typename... DofMapT>
     std::array<uint, NGEOM_TYPES> ComplexDofMapCImpl<true, DofMapT...>::NumDofsOnTet() const {
         std::array<uint, NGEOM_TYPES> res = {0};
-        for (int t = 0; t < NGEOM_TYPES; ++t) res[t] = m_spaceNumDofTet[t][Size::value] - m_spaceNumDofTet[t][0];
+        for (uint t = 0; t < NGEOM_TYPES; ++t) res[t] = m_spaceNumDofTet[t][Size::value] - m_spaceNumDofTet[t][0];
         return res;
     }
     template<typename... DofMapT>
@@ -699,7 +699,7 @@ namespace FemComDetails{
     template<typename... DofMapT>
     uint ComplexDofMapCImpl<true, DofMapT...>::GetGeomMask() const  {
         uint res = UNDEF;
-        for (int i = 0; i < NGEOM_TYPES; ++i){ 
+        for (uint i = 0; i < NGEOM_TYPES; ++i){ 
             if (m_spaceNumDof[i][Size::value] - m_spaceNumDof[i][0] > 0) 
                 res |= NumToGeomType(i); 
         }
@@ -711,7 +711,7 @@ namespace FemComDetails{
             view.Clear();
             return;
         }
-        for (int i = 0; i < NGEOM_TYPES; ++i) view.m_shiftNumDof[i] += m_spaceNumDof[i][ext_dims[0]] - m_spaceNumDof[i][0];
+        for (uint i = 0; i < NGEOM_TYPES; ++i) view.m_shiftNumDof[i] += m_spaceNumDof[i][ext_dims[0]] - m_spaceNumDof[i][0];
         view.m_shiftOnTet += m_spaceNumDofsTet[ext_dims[0]] - m_spaceNumDofsTet[0];
         auto s = content();
         if (ndims == 1)
@@ -748,7 +748,7 @@ namespace FemComDetails{
             EndByGeomSparsity(lo);
             return;
         } else {
-            for (int num = 0; num < NGEOM_TYPES; ++num){
+            for (uint num = 0; num < NGEOM_TYPES; ++num){
                 auto etype = NumToGeomType(num);
                 auto gdim = GeomTypeDim(etype);
                 auto pos = sp.beginPos(gdim);
@@ -818,8 +818,8 @@ namespace FemComDetails{
                         return; 
                     }
                     ss = sp;
-                    for (int i = 0; i < next_pos.elem_dim; ++i) ss.unset(i);
-                    for (int i = 0; i < next_pos.elem_num; ++i) ss.unset(next_pos.elem_dim, i);
+                    for (uint i = 0; i < next_pos.elem_dim; ++i) ss.unset(i);
+                    for (uint i = 0; i < next_pos.elem_num; ++i) ss.unset(next_pos.elem_dim, i);
                     BeginByGeomSparsity(ss, lo, preferGeomOrdering);
                     return;
                 }
@@ -844,7 +844,7 @@ namespace FemComDetails{
         for (auto jt = trial_map.beginBySparsity(sp, true), it = test_map.beginBySparsity(sp, true); jt != trial_map.endBySparsity() && it != test_map.endBySparsity(); ++it, ++jt){
             uint i = it->gid, j = jt->gid;
             std::fill(A.data + j * A.nRow, A.data + (j+1) * A.nRow, 0);
-            for (int l = 0; l < A.nRow; ++l) A(i, l) = 0;
+            for (std::size_t l = 0; l < A.nCol; ++l) A(i, l) = 0;
             A(i, j) = 1.0;
         }
     }
@@ -881,7 +881,7 @@ namespace FemComDetails{
         for (auto jt = trial_map.beginBySparsity(sp, true), it = test_map.beginBySparsity(sp, true); jt != trial_map.endBySparsity() && it != test_map.endBySparsity(); ++it, ++jt){
             uint i = it->gid, j = jt->gid;
             std::fill(A.data + j * A.nRow, A.data + (j+1) * A.nRow, 0);
-            for (int l = 0; l < A.nRow; ++l) A(i, l) = 0;
+            for (std::size_t l = 0; l < A.nCol; ++l) A(i, l) = 0;
         }
     }
     template<typename Scalar>
@@ -910,12 +910,12 @@ namespace FemComDetails{
         }
         for (auto jt = trial_map.beginBySparsity(sp, true), it = test_map.beginBySparsity(sp, true); jt != trial_map.endBySparsity() && it != test_map.endBySparsity(); ++it, ++jt){
             uint i = it->gid, j = jt->gid;
-            for (int l = 0; l < A.nRow; ++l)
+            for (std::size_t l = 0; l < A.nRow; ++l)
                 F(l, 0) -= A(l, j) * bc;
             F(i, 0) = bc;
 
             std::fill(A.data + j * A.nRow, A.data + (j+1) * A.nRow, 0);
-            for (int l = 0; l < A.nRow; ++l) A(i, l) = 0;
+            for (std::size_t l = 0; l < A.nCol; ++l) A(i, l) = 0;
             A(i, j) = 1.0;
         }
     }
@@ -927,12 +927,12 @@ namespace FemComDetails{
         }
         for (auto jt = trial_map.beginBySparsity(sp, true), it = test_map.beginBySparsity(sp, true); jt != trial_map.endBySparsity() && it != test_map.endBySparsity(); ++it, ++jt){
             uint i = it->gid, j = jt->gid;
-            for (int l = 0; l < A.nRow; ++l)
+            for (std::size_t l = 0; l < A.nRow; ++l)
                 F(l, 0) -= A(l, j) * dofs[j];
             F(i, 0) = dofs[j];
 
             std::fill(A.data + j * A.nRow, A.data + (j+1) * A.nRow, 0);
-            for (int l = 0; l < A.nRow; ++l) A(i, l) = 0;
+            for (std::size_t l = 0; l < A.nCol; ++l) A(i, l) = 0;
             A(i, j) = 1.0;
         }
     }
