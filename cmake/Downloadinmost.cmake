@@ -1,7 +1,7 @@
 include(FetchContent)
 include(ExternalProject)
 
-set(inmost_url https://github.com/INMOST-DEV/INMOST/archive/7b1dc0627147e7380d451f34c95a4f91f02ec028.tar.gz)
+set(inmost_url https://github.com/INMOST-DEV/INMOST/archive/f3392cef4cbb4d05b91c5cc94922040637bea4ee.tar.gz)
 if (DEFINED ENV{INMOST_SRC_ARCHIVE})
         if(EXISTS $ENV{INMOST_SRC_ARCHIVE})
             set(inmost_url $ENV{INMOST_SRC_ARCHIVE})
