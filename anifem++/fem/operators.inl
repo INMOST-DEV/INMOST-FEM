@@ -241,8 +241,13 @@ namespace Ani{
             };
         };
 
+        // GCC < 10 rejects partial specializations with sizeof...(Pack) as a NTTP;
+        // terminate recursion via an explicit Done flag instead.
+        template<std::size_t SI, bool Done, class... Types>
+        struct OrthBFillImpl;
+
         template<std::size_t SI, class... Types>
-        struct OrthBFill {
+        struct OrthBFillImpl<SI, false, Types...> {
             template<typename ScalarType, typename IndexType, uint FUSION>
             static int run(DenseMatrix<ScalarType>& B, int nfshi,
                            AniMemory<ScalarType, IndexType>& mem, const Tetra<const double>& XYZ,
@@ -252,12 +257,13 @@ namespace Ani{
                 for (int k = 0; k < nfi; ++k)
                     B(k + nfshi, k + nfshi) = ScalarType(1);
                 OrthBFillOffDiag<SI, 0, Types...>::template run<ScalarType, IndexType, FUSION>(B, nfshi, 0, mem, XYZ, udofs, max_quad_order);
-                return OrthBFill<SI + 1, Types...>::template run<ScalarType, IndexType, FUSION>(B, nfshi + nfi, mem, XYZ, udofs, max_quad_order);
+                return OrthBFillImpl<SI + 1, (SI + 1 >= sizeof...(Types)), Types...>::template run<ScalarType, IndexType, FUSION>(
+                    B, nfshi + nfi, mem, XYZ, udofs, max_quad_order);
             }
         };
 
-        template<class... Types>
-        struct OrthBFill<sizeof...(Types), Types...> {
+        template<std::size_t SI, class... Types>
+        struct OrthBFillImpl<SI, true, Types...> {
             template<typename ScalarType, typename IndexType, uint FUSION>
             static int run(DenseMatrix<ScalarType>&, int nfshi, AniMemory<ScalarType, IndexType>&,
                            const Tetra<const double>&, std::array<ArrayView<ScalarType>, FUSION>&, uint) {
@@ -265,8 +271,14 @@ namespace Ani{
             }
         };
 
+        template<std::size_t SI, class... Types>
+        struct OrthBFill : OrthBFillImpl<SI, (SI >= sizeof...(Types)), Types...> {};
+
+        template<std::size_t I, bool Done, class... Types>
+        struct UnionIdenMemReqImpl;
+
         template<std::size_t I, class... Types>
-        struct UnionIdenMemReq {
+        struct UnionIdenMemReqImpl<I, false, Types...> {
             template<typename ScalarType, typename IndexType>
             static void Impl(std::size_t &reqUsz, std::size_t &reqExtraR) {
                 using T = std::tuple_element_t<I, std::tuple<Types...>>;
@@ -275,15 +287,18 @@ namespace Ani{
                 (void) extraI;
                 if (reqUsz < Usz) reqUsz = Usz;
                 if (reqExtraR < extraR) reqExtraR = extraR;
-                UnionIdenMemReq<I + 1, Types...>::template Impl<ScalarType, IndexType>(reqUsz, reqExtraR);
+                UnionIdenMemReqImpl<I + 1, (I + 1 >= sizeof...(Types)), Types...>::template Impl<ScalarType, IndexType>(reqUsz, reqExtraR);
             }
         };
 
-        template<class... Types>
-        struct UnionIdenMemReq<sizeof...(Types), Types...> {
+        template<std::size_t I, class... Types>
+        struct UnionIdenMemReqImpl<I, true, Types...> {
             template<typename ScalarType, typename IndexType>
             static void Impl(std::size_t&, std::size_t&) {}
         };
+
+        template<std::size_t I, class... Types>
+        struct UnionIdenMemReq : UnionIdenMemReqImpl<I, (I >= sizeof...(Types)), Types...> {};
 
         template<class T>
         struct UnionOrthCoefsStorageSingle {
@@ -384,8 +399,11 @@ namespace Ani{
             }
         };
 
+        template<std::size_t I, int OP, bool Done, class... Types>
+        struct UnionMemReqImpl;
+
         template<std::size_t I, int OP, class... Types>
-        struct UnionMemReq {
+        struct UnionMemReqImpl<I, OP, false, Types...> {
             template<typename ScalarType, typename IndexType>
             static void Impl(int f, int q, std::size_t &extraR, std::size_t &extraI) {
                 using T = std::tuple_element_t<I, std::tuple<Types...>>;
@@ -393,18 +411,24 @@ namespace Ani{
                 Operator<OP, T>::template memoryRequirements<ScalarType, IndexType>(f, q, Usz, eR, eI);
                 if (extraR < eR + Usz) extraR = eR + Usz;
                 if (extraI < eI) extraI = eI;
-                UnionMemReq<I + 1, OP, Types...>::template Impl<ScalarType, IndexType>(f, q, extraR, extraI);
+                UnionMemReqImpl<I + 1, OP, (I + 1 >= sizeof...(Types)), Types...>::template Impl<ScalarType, IndexType>(f, q, extraR, extraI);
             }
         };
 
-        template<int OP, class... Types>
-        struct UnionMemReq<sizeof...(Types), OP, Types...> {
+        template<std::size_t I, int OP, class... Types>
+        struct UnionMemReqImpl<I, OP, true, Types...> {
             template<typename ScalarType, typename IndexType>
             static void Impl(int, int, std::size_t&, std::size_t&) {}
         };
 
+        template<std::size_t I, int OP, class... Types>
+        struct UnionMemReq : UnionMemReqImpl<I, OP, (I >= sizeof...(Types)), Types...> {};
+
+        template<std::size_t I, int OP, int GDIM, int NF, bool Done, class... Types>
+        struct UnionApplySubsetImpl;
+
         template<std::size_t I, int OP, int GDIM, int NF, class... Types>
-        struct UnionApplySubset {
+        struct UnionApplySubsetImpl<I, OP, GDIM, NF, false, Types...> {
             template<typename ScalarType, typename IndexType>
             static int Impl(AniMemory<ScalarType, IndexType>& mem, DenseMatrix<ScalarType>& lU, int nfa_shift) {
                 using T = std::tuple_element_t<I, std::tuple<Types...>>;
@@ -427,17 +451,21 @@ namespace Ani{
                                         = Vx.data[p](k + nRow * static_cast<int>(n), i + nCol * static_cast<int>(r));
                 }
                 mem.extraR.size += Usz;
-                return UnionApplySubset<I + 1, OP, GDIM, NF, Types...>::template Impl<ScalarType, IndexType>(mem, lU, nfa_shift + LNFA);
+                return UnionApplySubsetImpl<I + 1, OP, GDIM, NF, (I + 1 >= sizeof...(Types)), Types...>::template Impl<ScalarType, IndexType>(
+                    mem, lU, nfa_shift + LNFA);
             }
         };
 
-        template<int OP, int GDIM, int NF, class... Types>
-        struct UnionApplySubset<sizeof...(Types), OP, GDIM, NF, Types...> {
+        template<std::size_t I, int OP, int GDIM, int NF, class... Types>
+        struct UnionApplySubsetImpl<I, OP, GDIM, NF, true, Types...> {
             template<typename ScalarType, typename IndexType>
             static int Impl(AniMemory<ScalarType, IndexType>&, DenseMatrix<ScalarType>&, int nfa_shift) {
                 return nfa_shift;
             }
         };
+
+        template<std::size_t I, int OP, int GDIM, int NF, class... Types>
+        struct UnionApplySubset : UnionApplySubsetImpl<I, OP, GDIM, NF, (I >= sizeof...(Types)), Types...> {};
 
         template<int OP, class T>
         struct UnionOperatorApply<OP, T> {
